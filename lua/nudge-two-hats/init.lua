@@ -33,43 +33,132 @@ local function get_gemini_advice(diff, callback)
     return
   end
 
-  local endpoint = config.api_endpoint:gsub("[<>]", "")
-  local curl_command = string.format(
-    "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"%s\\n\\n%s\"}]}],\"generationConfig\":{\"thinkingConfig\":{\"thinkingBudget\":0},\"temperature\":0.2,\"topK\":40,\"topP\":0.95,\"maxOutputTokens\":1024}}'",
-    endpoint,
-    api_key,
-    config.system_prompt,
-    vim.fn.escape(diff, '"\\\n')
-  )
+  local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+  if log_file then
+    log_file:write("--- New API Request ---\n")
+    log_file:write("Timestamp: " .. os.date() .. "\n")
+    log_file:write("API Key: " .. string.sub(api_key, 1, 5) .. "...\n")
+    log_file:write("Endpoint: " .. config.api_endpoint .. "\n")
+    log_file:close()
+  end
 
-  vim.fn.jobstart(curl_command, {
-    on_stdout = function(_, data)
-      if data and #data > 0 and data[1] ~= "" then
-        local response = vim.fn.json_decode(table.concat(data, "\n"))
-        if response and response.candidates and response.candidates[1] and 
-           response.candidates[1].content and response.candidates[1].content.parts and 
-           response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
-          local advice = response.candidates[1].content.parts[1].text
-          if #advice > 10 then
-            advice = string.sub(advice, 1, 10)
+  local request_data = vim.fn.json_encode({
+    contents = {
+      {
+        parts = {
+          {
+            text = config.system_prompt .. "\n\n" .. diff
+          }
+        }
+      }
+    },
+    generationConfig = {
+      thinkingConfig = {
+        thinkingBudget = 0
+      },
+      temperature = 0.2,
+      topK = 40,
+      topP = 0.95,
+      maxOutputTokens = 1024
+    }
+  })
+
+  local has_plenary, curl = pcall(require, "plenary.curl")
+  
+  if has_plenary then
+    local endpoint = config.api_endpoint:gsub("[<>]", "") .. "?key=" .. api_key
+    
+    if log_file then
+      log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+      log_file:write("Using plenary.curl\n")
+      log_file:write("Clean endpoint: " .. endpoint .. "\n")
+      log_file:close()
+    end
+    
+    curl.post(endpoint, {
+      headers = {
+        ["Content-Type"] = "application/json",
+      },
+      body = request_data,
+      callback = function(response)
+        if response.status == 200 and response.body then
+          local result = vim.fn.json_decode(response.body)
+          if result and result.candidates and result.candidates[1] and 
+             result.candidates[1].content and result.candidates[1].content.parts and 
+             result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
+            local advice = result.candidates[1].content.parts[1].text
+            if #advice > 10 then
+              advice = string.sub(advice, 1, 10)
+            end
+            callback(advice)
+          else
+            callback("API error")
           end
-          callback(advice)
         else
+          vim.notify("Gemini API error: " .. (response.body or "Unknown error"), vim.log.levels.ERROR)
           callback("API error")
         end
       end
-    end,
-    on_stderr = function(_, data)
-      if data and #data > 0 and data[1] ~= "" then
-        vim.notify("Gemini API error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
-      end
-    end,
-    on_exit = function(_, code)
-      if code ~= 0 then
-        callback("API error")
-      end
+    })
+  else
+    local endpoint = config.api_endpoint:gsub("[<>]", "")
+    local temp_file = "/tmp/nudge_two_hats_request.json"
+    
+    local req_file = io.open(temp_file, "w")
+    if req_file then
+      req_file:write(request_data)
+      req_file:close()
     end
-  })
+    
+    if log_file then
+      log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+      log_file:write("Using curl fallback\n")
+      log_file:write("Command: curl -s -X POST " .. endpoint .. "?key=" .. string.sub(api_key, 1, 5) .. "... -H 'Content-Type: application/json' -d @" .. temp_file .. "\n")
+      log_file:close()
+    end
+    
+    local curl_command = string.format(
+      "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d @%s",
+      endpoint,
+      api_key,
+      temp_file
+    )
+    
+    vim.fn.jobstart(curl_command, {
+      on_stdout = function(_, data)
+        if data and #data > 0 and data[1] ~= "" then
+          local response = vim.fn.json_decode(table.concat(data, "\n"))
+          if response and response.candidates and response.candidates[1] and 
+             response.candidates[1].content and response.candidates[1].content.parts and 
+             response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
+            local advice = response.candidates[1].content.parts[1].text
+            if #advice > 10 then
+              advice = string.sub(advice, 1, 10)
+            end
+            callback(advice)
+          else
+            callback("API error")
+          end
+        end
+      end,
+      on_stderr = function(_, data)
+        if data and #data > 0 and data[1] ~= "" then
+          local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+          if log_file then
+            log_file:write("Curl stderr: " .. table.concat(data, "\n") .. "\n")
+            log_file:close()
+          end
+          
+          vim.notify("Gemini API error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+        end
+      end,
+      on_exit = function(_, code)
+        if code ~= 0 then
+          callback("API error")
+        end
+      end
+    })
+  end
 end
 
 local function create_autocmd(buf)
