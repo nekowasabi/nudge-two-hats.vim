@@ -226,6 +226,10 @@ local function create_autocmd(buf)
         state.last_api_call = current_time
         
         get_gemini_advice(diff, function(advice)
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Advice: " .. advice)
+          end
+          
           vim.notify(advice, vim.log.levels.INFO, {
             title = "Nudge Two Hats",
             icon = "🎩",
@@ -266,6 +270,42 @@ function M.setup(opts)
     create_autocmd(buf)
     state.enabled = true
     vim.notify("Nudge Two Hats started for current buffer", vim.log.levels.INFO)
+  end, {})
+  
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugToggle", function()
+    config.debug_mode = not config.debug_mode
+    vim.notify("Nudge Two Hats debug mode " .. (config.debug_mode and "enabled" or "disabled"), vim.log.levels.INFO)
+    if config.debug_mode then
+      print("[Nudge Two Hats] Debug mode enabled - nudge text will be printed to :messages")
+    end
+  end, {})
+  
+  vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    local content, diff = get_buf_diff(buf)
+    if not diff then
+      vim.notify("No changes detected to generate advice", vim.log.levels.INFO)
+      return
+    end
+    
+    state.buf_content[buf] = content
+    
+    state.last_api_call = 0
+    
+    get_gemini_advice(diff, function(advice)
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Advice: " .. advice)
+      end
+      
+      vim.notify(advice, vim.log.levels.INFO, {
+        title = "Nudge Two Hats",
+        icon = "🎩",
+      })
+    end)
   end, {})
 end
 

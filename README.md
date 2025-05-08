@@ -66,6 +66,16 @@ require("nudge-two-hats").setup({
 :NudgeTwoHatsToggle
 ```
 
+4. Execute a nudge immediately (without waiting for the interval):
+```
+:NudgeTwoHatsNow
+```
+
+5. Toggle debug mode (prints nudge text to Vim's `:messages`):
+```
+:NudgeTwoHatsDebugToggle
+```
+
 ## Requirements
 
 - Neovim 0.7.0+
