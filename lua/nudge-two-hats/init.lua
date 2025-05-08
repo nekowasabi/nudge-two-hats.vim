@@ -58,33 +58,42 @@ local function safe_truncate(str, max_length)
     return str
   end
   
-  local bytes = {str:byte(1, -1)}
+  local chunk_size = 1024 * 1024 -- 1MB chunks
   local result = {}
   local char_count = 0
-  local i = 1
+  local total_processed = 0
   
-  while i <= #bytes and char_count < max_length do
-    local b = bytes[i]
-    local width = 1
+  while total_processed < #str and char_count < max_length do
+    local chunk_end = math.min(total_processed + chunk_size, #str)
+    local chunk = string.sub(str, total_processed + 1, chunk_end)
+    local bytes = {chunk:byte(1, -1)}
+    local i = 1
     
-    if b >= 240 and b <= 247 then -- 4-byte sequence
-      width = 4
-    elseif b >= 224 and b <= 239 then -- 3-byte sequence
-      width = 3
-    elseif b >= 192 and b <= 223 then -- 2-byte sequence
-      width = 2
-    end
-    
-    -- Check if we have a complete sequence and it fits within max_length
-    if i + width - 1 <= #bytes then
-      for j = 0, width - 1 do
-        table.insert(result, bytes[i + j])
+    while i <= #bytes and char_count < max_length do
+      local b = bytes[i]
+      local width = 1
+      
+      if b >= 240 and b <= 247 then -- 4-byte sequence
+        width = 4
+      elseif b >= 224 and b <= 239 then -- 3-byte sequence
+        width = 3
+      elseif b >= 192 and b <= 223 then -- 2-byte sequence
+        width = 2
       end
-      i = i + width
-      char_count = char_count + 1
-    else
-      break
+      
+      -- Check if we have a complete sequence and it fits within max_length
+      if i + width - 1 <= #bytes then
+        for j = 0, width - 1 do
+          table.insert(result, bytes[i + j])
+        end
+        i = i + width
+        char_count = char_count + 1
+      else
+        break
+      end
     end
+    
+    total_processed = chunk_end
   end
   
   local truncated = ""
@@ -109,42 +118,51 @@ local function sanitize_text(text)
     return b >= 128 and b <= 191
   end
   
-  local bytes = {sanitized:byte(1, -1)}
+  local chunk_size = 1024 * 1024 -- 1MB chunks
   local result = {}
-  local i = 1
+  local total_processed = 0
   
-  while i <= #bytes do
-    local b = bytes[i]
-    local width = 1
+  while total_processed < #sanitized do
+    local chunk_end = math.min(total_processed + chunk_size, #sanitized)
+    local chunk = string.sub(sanitized, total_processed + 1, chunk_end)
+    local bytes = {chunk:byte(1, -1)}
+    local i = 1
     
-    if b >= 240 and b <= 247 then -- 4-byte sequence
-      width = 4
-    elseif b >= 224 and b <= 239 then -- 3-byte sequence
-      width = 3
-    elseif b >= 192 and b <= 223 then -- 2-byte sequence
-      width = 2
-    end
-    
-    -- Check if we have a complete sequence
-    local valid = true
-    if width > 1 then
-      for j = 1, width - 1 do
-        if i + j > #bytes or not is_continuation_byte(bytes[i + j]) then
-          valid = false
-          break
+    while i <= #bytes do
+      local b = bytes[i]
+      local width = 1
+      
+      if b >= 240 and b <= 247 then -- 4-byte sequence
+        width = 4
+      elseif b >= 224 and b <= 239 then -- 3-byte sequence
+        width = 3
+      elseif b >= 192 and b <= 223 then -- 2-byte sequence
+        width = 2
+      end
+      
+      -- Check if we have a complete sequence
+      local valid = true
+      if width > 1 then
+        for j = 1, width - 1 do
+          if i + j > #bytes or not is_continuation_byte(bytes[i + j]) then
+            valid = false
+            break
+          end
         end
       end
+      
+      if valid then
+        for j = 0, width - 1 do
+          table.insert(result, bytes[i + j])
+        end
+        i = i + width
+      else
+        table.insert(result, 63) -- '?' character
+        i = i + 1
+      end
     end
     
-    if valid then
-      for j = 0, width - 1 do
-        table.insert(result, bytes[i + j])
-      end
-      i = i + width
-    else
-      table.insert(result, 63) -- '?' character
-      i = i + 1
-    end
+    total_processed = chunk_end
   end
   
   sanitized = ""
