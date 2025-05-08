@@ -52,17 +52,105 @@ local function get_language()
   end
 end
 
+-- Safe UTF-8 string truncation that doesn't cut in the middle of a multibyte character
+local function safe_truncate(str, max_length)
+  if #str <= max_length then
+    return str
+  end
+  
+  local bytes = {str:byte(1, -1)}
+  local result = {}
+  local char_count = 0
+  local i = 1
+  
+  while i <= #bytes and char_count < max_length do
+    local b = bytes[i]
+    local width = 1
+    
+    if b >= 240 and b <= 247 then -- 4-byte sequence
+      width = 4
+    elseif b >= 224 and b <= 239 then -- 3-byte sequence
+      width = 3
+    elseif b >= 192 and b <= 223 then -- 2-byte sequence
+      width = 2
+    end
+    
+    -- Check if we have a complete sequence and it fits within max_length
+    if i + width - 1 <= #bytes then
+      for j = 0, width - 1 do
+        table.insert(result, bytes[i + j])
+      end
+      i = i + width
+      char_count = char_count + 1
+    else
+      break
+    end
+  end
+  
+  local truncated = ""
+  for _, b in ipairs(result) do
+    truncated = truncated .. string.char(b)
+  end
+  
+  return truncated
+end
+
+
 local function sanitize_text(text)
   if not text then
     return ""
   end
   
-  local sanitized = text:gsub("[\128-\191]", "?") -- Replace continuation bytes
-  sanitized = sanitized:gsub("[\192-\223][\128-\191]?", "?") -- Replace 2-byte sequences
-  sanitized = sanitized:gsub("[\224-\239][\128-\191]?[\128-\191]?", "?") -- Replace 3-byte sequences
-  sanitized = sanitized:gsub("[\240-\247][\128-\191]?[\128-\191]?[\128-\191]?", "?") -- Replace 4-byte sequences
+  -- Only replace truly invalid UTF-8 sequences
+  local sanitized = text:gsub("[\192-\193]", "?") -- Invalid UTF-8 lead bytes
+  sanitized = sanitized:gsub("[\245-\255]", "?") -- Invalid UTF-8 lead bytes
   
-  sanitized = sanitized:gsub("[^\1-\127\194-\244]", "?")
+  local function is_continuation_byte(b)
+    return b >= 128 and b <= 191
+  end
+  
+  local bytes = {sanitized:byte(1, -1)}
+  local result = {}
+  local i = 1
+  
+  while i <= #bytes do
+    local b = bytes[i]
+    local width = 1
+    
+    if b >= 240 and b <= 247 then -- 4-byte sequence
+      width = 4
+    elseif b >= 224 and b <= 239 then -- 3-byte sequence
+      width = 3
+    elseif b >= 192 and b <= 223 then -- 2-byte sequence
+      width = 2
+    end
+    
+    -- Check if we have a complete sequence
+    local valid = true
+    if width > 1 then
+      for j = 1, width - 1 do
+        if i + j > #bytes or not is_continuation_byte(bytes[i + j]) then
+          valid = false
+          break
+        end
+      end
+    end
+    
+    if valid then
+      for j = 0, width - 1 do
+        table.insert(result, bytes[i + j])
+      end
+      i = i + width
+    else
+      table.insert(result, 63) -- '?' character
+      i = i + 1
+    end
+  end
+  
+  sanitized = ""
+  for _, b in ipairs(result) do
+    sanitized = sanitized .. string.char(b)
+  end
   
   if config.debug_mode then
     if sanitized ~= text then
@@ -375,7 +463,7 @@ local function get_gemini_advice(diff, callback, prompt)
               
               if config.length_type == "characters" then
                 if #advice > config.message_length then
-                  advice = string.sub(advice, 1, config.message_length)
+                  advice = safe_truncate(advice, config.message_length)
                 end
               else
                 local words = {}
@@ -452,7 +540,7 @@ local function get_gemini_advice(diff, callback, prompt)
               
               if config.length_type == "characters" then
                 if #advice > config.message_length then
-                  advice = string.sub(advice, 1, config.message_length)
+                  advice = safe_truncate(advice, config.message_length)
                 end
               else
                 local words = {}
