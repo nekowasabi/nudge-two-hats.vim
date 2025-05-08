@@ -73,7 +73,7 @@ require("nudge-two-hats").setup({
   
   -- Timing configuration
   execution_delay = 60000, -- Delay in milliseconds (1 minute)
-  min_interval = 60, -- Minimum interval between API calls in seconds
+  min_interval = 1, -- Minimum interval between API calls in minutes
   
   -- API configuration
   gemini_model = "gemini-2.5-flash-preview-04-17", -- Model to use
