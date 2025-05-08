@@ -246,7 +246,7 @@ local function get_prompt_for_buffer(buf)
       local tone = filetype_prompt.tone or config.default_cbt.tone
       local prompt_text = filetype_prompt.prompt
       
-      return string.format("私は%sです。%s。%sの感情で、%s口調でアドバイスします。%s", 
+      return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
                            role, direction, emotion, tone, prompt_text)
     end
   end

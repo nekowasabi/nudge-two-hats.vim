@@ -50,20 +50,20 @@ require("nudge-two-hats").setup({
     -- Text/writing related filetypes
     markdown = {
       prompt = "Give advice about this writing, focusing on clarity and structure.",
-      role = "認知行動療法の専門家", -- Cognitive behavioral therapy specialist
-      direction = "明確で体系的な文章への導き", -- Guide towards clearer and more structured writing
-      emotion = "共感的で理解のある", -- Empathetic and understanding
-      tone = "支持的で励ましながらも直接的な", -- Supportive and encouraging but direct
+      role = "Cognitive behavioral therapy specialist",
+      direction = "Guide towards clearer and more structured writing",
+      emotion = "Empathetic and understanding",
+      tone = "Supportive and encouraging but direct",
     },
     -- Other filetypes configured similarly
     
     -- Programming languages (examples)
     lua = {
       prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-      role = "認知行動療法の専門家", -- Cognitive behavioral therapy specialist
-      direction = "コードの明確性と保守性の向上への導き", -- Guide towards clearer and more maintainable code
-      emotion = "共感的で理解のある", -- Empathetic and understanding
-      tone = "支持的で励ましながらも直接的な", -- Supportive and encouraging but direct
+      role = "Cognitive behavioral therapy specialist",
+      direction = "Guide towards clearer and more maintainable code",
+      emotion = "Empathetic and understanding",
+      tone = "Supportive and encouraging but direct",
     },
   },
   
