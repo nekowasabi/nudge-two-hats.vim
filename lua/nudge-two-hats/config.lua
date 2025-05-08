@@ -84,7 +84,7 @@ local config = {
   translate_messages = true, -- Whether to translate messages to the specified language
   
   execution_delay = 60000, -- Delay in milliseconds (1 minute)
-  min_interval = 60, -- Minimum interval between API calls in seconds
+  min_interval = 1, -- Minimum interval between API calls in minutes
   
   gemini_model = "gemini-2.5-flash-preview-04-17", -- Updated to latest Gemini model
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",

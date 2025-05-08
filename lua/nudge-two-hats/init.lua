@@ -7,6 +7,8 @@ local state = {
   last_api_call = 0, -- Timestamp of the last API call
 }
 
+math.randomseed(os.time())
+
 local config = require("nudge-two-hats.config")
 
 local translations = {
@@ -640,13 +642,14 @@ local function create_autocmd(buf)
         
         -- Check if minimum interval has passed since last API call
         local current_time = os.time()
-        if (current_time - state.last_api_call) < config.min_interval then
+        local random_interval = math.random(0, config.min_interval * 60)
+        if (current_time - state.last_api_call) < random_interval then
           local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
           if log_file then
             log_file:write("Skipping API call - minimum interval not reached. Last call: " .. 
                           os.date("%c", state.last_api_call) .. ", Current time: " .. 
-                          os.date("%c", current_time) .. ", Min interval: " .. 
-                          config.min_interval .. " seconds\n")
+                          os.date("%c", current_time) .. ", Random interval: " .. 
+                          random_interval .. " seconds (" .. config.min_interval .. " minutes max)\n")
             log_file:close()
           end
           return
