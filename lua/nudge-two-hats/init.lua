@@ -3,6 +3,7 @@ local M = {}
 local state = {
   enabled = false,
   buf_content = {}, -- Store buffer content for diff calculation
+  buf_filetypes = {}, -- Store buffer filetypes when NudgeTwoHatsStart is executed
   api_key = nil, -- Gemini API key
   last_api_call = 0, -- Timestamp of the last API call
 }
@@ -665,6 +666,23 @@ local function create_autocmd(buf)
           return
         end
 
+        -- Skip notification if current filetype doesn't match the one when NudgeTwoHatsStart was executed
+        local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+        local original_filetype = state.buf_filetypes[buf]
+        if current_filetype ~= original_filetype then
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
+              current_filetype or "nil", original_filetype or "nil"))
+            local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+            if log_file then
+              log_file:write(string.format("スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
+                current_filetype or "nil", original_filetype or "nil"))
+              log_file:close()
+            end
+          end
+          return
+        end
+
         state.buf_content[buf] = content
         
         -- Check if minimum interval has passed since last API call
@@ -711,6 +729,7 @@ local function create_autocmd(buf)
     buffer = buf,
     callback = function()
       state.buf_content[buf] = nil
+      state.buf_filetypes[buf] = nil
       vim.api.nvim_del_augroup_by_id(augroup)
       return true
     end,
@@ -735,6 +754,8 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command("NudgeTwoHatsStart", function()
     local buf = vim.api.nvim_get_current_buf()
+    local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    state.buf_filetypes[buf] = filetype
     create_autocmd(buf)
     state.enabled = true
     vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
@@ -778,6 +799,24 @@ function M.setup(opts)
     if not diff then
       vim.notify(translate_message(translations.en.no_changes), vim.log.levels.INFO)
       
+      state.buf_content[buf] = original_content
+      return
+    end
+    
+    -- Skip notification if current filetype doesn't match the one when NudgeTwoHatsStart was executed
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    local original_filetype = state.buf_filetypes[buf]
+    if current_filetype ~= original_filetype then
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
+          current_filetype or "nil", original_filetype or "nil"))
+        local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+        if log_file then
+          log_file:write(string.format("スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
+            current_filetype or "nil", original_filetype or "nil"))
+          log_file:close()
+        end
+      end
       state.buf_content[buf] = original_content
       return
     end
