@@ -11,6 +11,29 @@ math.randomseed(os.time())
 
 local config = require("nudge-two-hats.config")
 
+local function generate_random_delay()
+  local current_delay = config.execution_delay
+  local min_value = 60000 -- 最小値は1分（60000ミリ秒）
+  local max_value = config.min_interval * 60 * 1000 -- min_intervalを分からミリ秒に変換
+  
+  local random_factor = 0.7 + math.random() * 0.6 -- 0.7から1.3の間（±30%）
+  local new_delay = math.floor(current_delay * random_factor)
+  
+  new_delay = math.max(new_delay, min_value) -- 最小値の適用
+  new_delay = math.min(new_delay, max_value) -- 最大値の適用
+  
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] 新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）", new_delay, current_delay, random_factor))
+    local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+    if log_file then
+      log_file:write(string.format("新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）\n", new_delay, current_delay, random_factor))
+      log_file:close()
+    end
+  end
+  
+  return new_delay
+end
+
 local translations = {
   en = {
     enabled = "enabled",
@@ -505,6 +528,8 @@ local function get_gemini_advice(diff, callback, prompt)
               end
               
               callback(advice)
+              
+              config.execution_delay = generate_random_delay()
             else
               callback(translate_message(translations.en.api_error))
             end
@@ -582,6 +607,8 @@ local function get_gemini_advice(diff, callback, prompt)
               end
               
               callback(advice)
+              
+              config.execution_delay = generate_random_delay()
             else
               callback(translate_message(translations.en.api_error))
             end
@@ -781,6 +808,8 @@ function M.setup(opts)
         title = title,
         icon = "🎩",
       })
+      
+      config.execution_delay = generate_random_delay()
     end, prompt)
   end, {})
 end
