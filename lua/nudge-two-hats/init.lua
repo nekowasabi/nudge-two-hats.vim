@@ -81,23 +81,31 @@ local function get_gemini_advice(diff, callback)
       },
       body = request_data,
       callback = function(response)
-        if response.status == 200 and response.body then
-          local result = vim.fn.json_decode(response.body)
-          if result and result.candidates and result.candidates[1] and 
-             result.candidates[1].content and result.candidates[1].content.parts and 
-             result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
-            local advice = result.candidates[1].content.parts[1].text
-            if #advice > 10 then
-              advice = string.sub(advice, 1, 10)
+        vim.schedule(function()
+          if response.status == 200 and response.body then
+            local ok, result
+            if vim.json and vim.json.decode then
+              ok, result = pcall(vim.json.decode, response.body)
+            else
+              ok, result = pcall(function() return vim.fn.json_decode(response.body) end)
             end
-            callback(advice)
+            
+            if ok and result and result.candidates and result.candidates[1] and 
+               result.candidates[1].content and result.candidates[1].content.parts and 
+               result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
+              local advice = result.candidates[1].content.parts[1].text
+              if #advice > 10 then
+                advice = string.sub(advice, 1, 10)
+              end
+              callback(advice)
+            else
+              callback("API error")
+            end
           else
+            vim.notify("Gemini API error: " .. (response.body or "Unknown error"), vim.log.levels.ERROR)
             callback("API error")
           end
-        else
-          vim.notify("Gemini API error: " .. (response.body or "Unknown error"), vim.log.levels.ERROR)
-          callback("API error")
-        end
+        end)
       end
     })
   else
@@ -127,34 +135,46 @@ local function get_gemini_advice(diff, callback)
     vim.fn.jobstart(curl_command, {
       on_stdout = function(_, data)
         if data and #data > 0 and data[1] ~= "" then
-          local response = vim.fn.json_decode(table.concat(data, "\n"))
-          if response and response.candidates and response.candidates[1] and 
-             response.candidates[1].content and response.candidates[1].content.parts and 
-             response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
-            local advice = response.candidates[1].content.parts[1].text
-            if #advice > 10 then
-              advice = string.sub(advice, 1, 10)
+          vim.schedule(function()
+            local ok, response
+            if vim.json and vim.json.decode then
+              ok, response = pcall(vim.json.decode, table.concat(data, "\n"))
+            else
+              ok, response = pcall(function() return vim.fn.json_decode(table.concat(data, "\n")) end)
             end
-            callback(advice)
-          else
-            callback("API error")
-          end
+            
+            if ok and response and response.candidates and response.candidates[1] and 
+               response.candidates[1].content and response.candidates[1].content.parts and 
+               response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
+              local advice = response.candidates[1].content.parts[1].text
+              if #advice > 10 then
+                advice = string.sub(advice, 1, 10)
+              end
+              callback(advice)
+            else
+              callback("API error")
+            end
+          end)
         end
       end,
       on_stderr = function(_, data)
         if data and #data > 0 and data[1] ~= "" then
-          local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-          if log_file then
-            log_file:write("Curl stderr: " .. table.concat(data, "\n") .. "\n")
-            log_file:close()
-          end
-          
-          vim.notify("Gemini API error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+          vim.schedule(function()
+            local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+            if log_file then
+              log_file:write("Curl stderr: " .. table.concat(data, "\n") .. "\n")
+              log_file:close()
+            end
+            
+            vim.notify("Gemini API error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+          end)
         end
       end,
       on_exit = function(_, code)
         if code ~= 0 then
-          callback("API error")
+          vim.schedule(function()
+            callback("API error")
+          end)
         end
       end
     })
