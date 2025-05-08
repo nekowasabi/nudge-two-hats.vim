@@ -80,11 +80,16 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
   
   local sanitized_text = sanitize_text(text)
   
-  local prompt = "Translate the following " .. 
-                (source_lang == "ja" and "Japanese" or "English") .. 
-                " text to " .. 
-                (target_lang == "ja" and "Japanese" or "English") .. 
-                ". Keep it concise and maintain the original meaning: " .. sanitized_text
+  local prompt
+  if target_lang == "ja" then
+    prompt = "以下の" .. 
+             (source_lang == "ja" and "日本語" or "英語") .. 
+             "テキストを日本語に翻訳してください。簡潔に、元の意味を維持してください。必ず日本語で回答してください: " .. sanitized_text
+  else
+    prompt = "Translate the following " .. 
+             (source_lang == "ja" and "Japanese" or "English") .. 
+             " text to English. Keep it concise and maintain the original meaning. Always respond in English: " .. sanitized_text
+  end
   
   local request_data
   local ok, encoded = pcall(vim.fn.json_encode, {
@@ -257,6 +262,13 @@ local function get_gemini_advice(diff, callback, prompt)
   end
 
   local system_prompt = prompt or config.system_prompt
+  
+  local output_lang = get_language()
+  if output_lang == "ja" then
+    system_prompt = system_prompt .. "\n必ず日本語で回答してください。10文字程度の簡潔なアドバイスをお願いします。"
+  else
+    system_prompt = system_prompt .. "\nPlease respond in English. Provide concise advice in about 10 characters."
+  end
   
   local sanitized_diff = sanitize_text(diff)
   if config.debug_mode and sanitized_diff ~= diff then
