@@ -42,11 +42,23 @@ use {
 
 ```lua
 require("nudge-two-hats").setup({
-  system_prompt = "Give a 10-character advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  -- Prompt configuration
+  system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  
+  -- Message length configuration
+  message_length = 10, -- Default length of the advice message
+  length_type = "characters", -- Can be "characters" (for Japanese) or "words" (for English)
+  
+  -- Timing configuration
   execution_delay = 60000, -- Delay in milliseconds (1 minute)
   min_interval = 60, -- Minimum interval between API calls in seconds
+  
+  -- API configuration
   gemini_model = "gemini-2.5-flash-preview-04-17", -- Model to use
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
+  
+  -- Debug configuration
+  debug_mode = false, -- When true, prints nudge text to Vim's :messages output
 })
 ```
 

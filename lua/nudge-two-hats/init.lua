@@ -93,9 +93,26 @@ local function get_gemini_advice(diff, callback)
                result.candidates[1].content and result.candidates[1].content.parts and 
                result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
               local advice = result.candidates[1].content.parts[1].text
-              if #advice > 10 then
-                advice = string.sub(advice, 1, 10)
+              
+              if config.length_type == "characters" then
+                if #advice > config.message_length then
+                  advice = string.sub(advice, 1, config.message_length)
+                end
+              else
+                local words = {}
+                for word in advice:gmatch("%S+") do
+                  table.insert(words, word)
+                end
+                
+                if #words > config.message_length then
+                  local truncated_words = {}
+                  for i = 1, config.message_length do
+                    table.insert(truncated_words, words[i])
+                  end
+                  advice = table.concat(truncated_words, " ")
+                end
               end
+              
               callback(advice)
             else
               callback("API error")
@@ -148,9 +165,26 @@ local function get_gemini_advice(diff, callback)
                response.candidates[1].content and response.candidates[1].content.parts and 
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
-              if #advice > 10 then
-                advice = string.sub(advice, 1, 10)
+              
+              if config.length_type == "characters" then
+                if #advice > config.message_length then
+                  advice = string.sub(advice, 1, config.message_length)
+                end
+              else
+                local words = {}
+                for word in advice:gmatch("%S+") do
+                  table.insert(words, word)
+                end
+                
+                if #words > config.message_length then
+                  local truncated_words = {}
+                  for i = 1, config.message_length do
+                    table.insert(truncated_words, words[i])
+                  end
+                  advice = table.concat(truncated_words, " ")
+                end
               end
+              
               callback(advice)
             else
               callback("API error")
