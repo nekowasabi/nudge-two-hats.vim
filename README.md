@@ -51,10 +51,9 @@ require("nudge-two-hats").setup({
 
 ## Usage
 
-1. Set your Gemini API key:
-```
-:NudgeTwoHatsSetApiKey YOUR_API_KEY
-```
+1. Set your Gemini API key (two options):
+   - Set the GEMINI_API_KEY environment variable (recommended)
+   - Or use the command: `:NudgeTwoHatsSetApiKey YOUR_API_KEY`
 
 2. Start monitoring the current buffer:
 ```

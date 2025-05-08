@@ -26,15 +26,17 @@ local function get_buf_diff(buf)
 end
 
 local function get_gemini_advice(diff, callback)
-  if not state.api_key then
-    vim.notify("Gemini API key not set. Use :NudgeTwoHatsSetApiKey to set it.", vim.log.levels.ERROR)
+  local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
+  
+  if not api_key then
+    vim.notify("Gemini API key not set. Set GEMINI_API_KEY environment variable or use :NudgeTwoHatsSetApiKey to set it.", vim.log.levels.ERROR)
     return
   end
 
   local curl_command = string.format(
     "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"%s\\n\\n%s\"}]}]}'",
     config.api_endpoint,
-    state.api_key,
+    api_key,
     config.system_prompt,
     vim.fn.escape(diff, '"\\\n')
   )
