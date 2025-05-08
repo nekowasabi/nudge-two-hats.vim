@@ -4,14 +4,11 @@ local state = {
   enabled = false,
   buf_content = {}, -- Store buffer content for diff calculation
   api_key = nil, -- Gemini API key
+  last_api_call = 0, -- Timestamp of the last API call
 }
 
-local config = {
-  system_prompt = "Give a 10-character advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-  execution_delay = 3000, -- Delay in milliseconds
-  gemini_model = "gemini-2.5-flash-preview-04-17", -- Updated to latest Gemini model
-  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
-}
+local config = require("nudge-two-hats.config")
+
 
 local function get_buf_diff(buf)
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
@@ -66,16 +63,18 @@ local function get_gemini_advice(diff, callback)
   local has_plenary, curl = pcall(require, "plenary.curl")
   
   if has_plenary then
-    local endpoint = config.api_endpoint:gsub("[<>]", "") .. "?key=" .. api_key
+    local endpoint = config.api_endpoint:gsub("[<>]", "")
+    local full_url = endpoint .. "?key=" .. api_key
     
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
       log_file:write("Using plenary.curl\n")
       log_file:write("Clean endpoint: " .. endpoint .. "\n")
+      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
       log_file:close()
     end
     
-    curl.post(endpoint, {
+    curl.post(full_url, {
       headers = {
         ["Content-Type"] = "application/json",
       },
@@ -110,6 +109,7 @@ local function get_gemini_advice(diff, callback)
     })
   else
     local endpoint = config.api_endpoint:gsub("[<>]", "")
+    local full_url = endpoint .. "?key=" .. api_key
     local temp_file = "/tmp/nudge_two_hats_request.json"
     
     local req_file = io.open(temp_file, "w")
@@ -121,14 +121,15 @@ local function get_gemini_advice(diff, callback)
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
       log_file:write("Using curl fallback\n")
+      log_file:write("Clean endpoint: " .. endpoint .. "\n")
+      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
       log_file:write("Command: curl -s -X POST " .. endpoint .. "?key=" .. string.sub(api_key, 1, 5) .. "... -H 'Content-Type: application/json' -d @" .. temp_file .. "\n")
       log_file:close()
     end
     
     local curl_command = string.format(
-      "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d @%s",
-      endpoint,
-      api_key,
+      "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
+      full_url,
       temp_file
     )
     
@@ -207,6 +208,22 @@ local function create_autocmd(buf)
         end
 
         state.buf_content[buf] = content
+        
+        -- Check if minimum interval has passed since last API call
+        local current_time = os.time()
+        if (current_time - state.last_api_call) < config.min_interval then
+          local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+          if log_file then
+            log_file:write("Skipping API call - minimum interval not reached. Last call: " .. 
+                          os.date("%c", state.last_api_call) .. ", Current time: " .. 
+                          os.date("%c", current_time) .. ", Min interval: " .. 
+                          config.min_interval .. " seconds\n")
+            log_file:close()
+          end
+          return
+        end
+        
+        state.last_api_call = current_time
         
         get_gemini_advice(diff, function(advice)
           vim.notify(advice, vim.log.levels.INFO, {
