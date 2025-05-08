@@ -52,56 +52,6 @@ local function get_language()
   end
 end
 
-local function translate_message(message)
-  if not config.translate_messages then
-    return message
-  end
-  
-  local target_lang = get_language()
-  
-  for key, value in pairs(translations[target_lang]) do
-    if message == value then
-      return message -- Already in target language
-    end
-  end
-  
-  for key, value in pairs(translations.en) do
-    if message == value and translations[target_lang][key] then
-      return translations[target_lang][key]
-    end
-  end
-  
-  for key, value in pairs(translations.ja) do
-    if message == value and translations[target_lang][key] then
-      return translations[target_lang][key]
-    end
-  end
-  
-  if config.translate_messages and target_lang ~= "en" and not is_japanese(message) then
-    if target_lang == "ja" and message:len() < 100 then
-      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
-      if api_key then
-        local translated = translate_with_gemini(message, "en", "ja", api_key)
-        if translated then
-          return translated
-        end
-      end
-    end
-  elseif config.translate_messages and target_lang ~= "ja" and is_japanese(message) then
-    if target_lang == "en" and message:len() < 100 then
-      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
-      if api_key then
-        local translated = translate_with_gemini(message, "ja", "en", api_key)
-        if translated then
-          return translated
-        end
-      end
-    end
-  end
-  
-  return message
-end
-
 local function sanitize_text(text)
   if not text then
     return ""
@@ -202,6 +152,56 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
   end
   
   return nil
+end
+
+local function translate_message(message)
+  if not config.translate_messages then
+    return message
+  end
+  
+  local target_lang = get_language()
+  
+  for key, value in pairs(translations[target_lang]) do
+    if message == value then
+      return message -- Already in target language
+    end
+  end
+  
+  for key, value in pairs(translations.en) do
+    if message == value and translations[target_lang][key] then
+      return translations[target_lang][key]
+    end
+  end
+  
+  for key, value in pairs(translations.ja) do
+    if message == value and translations[target_lang][key] then
+      return translations[target_lang][key]
+    end
+  end
+  
+  if config.translate_messages and target_lang ~= "en" and not is_japanese(message) then
+    if target_lang == "ja" and message:len() < 100 then
+      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
+      if api_key then
+        local translated = translate_with_gemini(message, "en", "ja", api_key)
+        if translated then
+          return translated
+        end
+      end
+    end
+  elseif config.translate_messages and target_lang ~= "ja" and is_japanese(message) then
+    if target_lang == "en" and message:len() < 100 then
+      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
+      if api_key then
+        local translated = translate_with_gemini(message, "ja", "en", api_key)
+        if translated then
+          return translated
+        end
+      end
+    end
+  end
+  
+  return message
 end
 
 
