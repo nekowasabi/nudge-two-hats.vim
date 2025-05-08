@@ -86,9 +86,9 @@ require("nudge-two-hats").setup({
 
 ## Usage
 
-1. Set your Gemini API key (two options):
-   - Set the GEMINI_API_KEY environment variable (recommended)
-   - Or use the command: `:NudgeTwoHatsSetApiKey YOUR_API_KEY`
+1. Set your Gemini API key:
+   - Set the GEMINI_API_KEY environment variable in your shell environment
+   - Example: `export GEMINI_API_KEY="your_api_key_here"`
 
 2. Start monitoring the current buffer:
 ```
