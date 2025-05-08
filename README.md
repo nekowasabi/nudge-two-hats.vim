@@ -9,7 +9,7 @@ Inspired by [An example of preparatory refactoring](https://martinfowler.com/art
 
 - Monitors your code changes in real-time
 - Uses Gemini AI to analyze which "hat" you're wearing (refactoring or feature development)
-- Provides concise 10-character advice via notifications
+- Provides concise advice via notifications
 - Toggle functionality on/off as needed
 
 ## Installation
