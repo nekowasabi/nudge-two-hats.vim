@@ -22,7 +22,25 @@ local function get_buf_diff(buf)
   return content, nil
 end
 
-local function get_gemini_advice(diff, callback)
+local function get_prompt_for_buffer(buf)
+  local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Buffer filetype: " .. filetype)
+  end
+  
+  -- Check if we have a specific prompt for this filetype
+  if filetype and config.filetype_prompts[filetype] then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
+    end
+    return config.filetype_prompts[filetype]
+  end
+  
+  return config.system_prompt
+end
+
+local function get_gemini_advice(diff, callback, prompt)
   local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
   
   if not api_key then
@@ -36,15 +54,20 @@ local function get_gemini_advice(diff, callback)
     log_file:write("Timestamp: " .. os.date() .. "\n")
     log_file:write("API Key: " .. string.sub(api_key, 1, 5) .. "...\n")
     log_file:write("Endpoint: " .. config.api_endpoint .. "\n")
+    if prompt then
+      log_file:write("Using prompt: " .. prompt .. "\n")
+    end
     log_file:close()
   end
 
+  local system_prompt = prompt or config.system_prompt
+  
   local request_data = vim.fn.json_encode({
     contents = {
       {
         parts = {
           {
-            text = config.system_prompt .. "\n\n" .. diff
+            text = system_prompt .. "\n\n" .. diff
           }
         }
       }
@@ -259,6 +282,9 @@ local function create_autocmd(buf)
         
         state.last_api_call = current_time
         
+        -- Get the appropriate prompt for this buffer's filetype
+        local prompt = get_prompt_for_buffer(buf)
+        
         get_gemini_advice(diff, function(advice)
           if config.debug_mode then
             print("[Nudge Two Hats Debug] Advice: " .. advice)
@@ -268,7 +294,7 @@ local function create_autocmd(buf)
             title = "Nudge Two Hats",
             icon = "🎩",
           })
-        end)
+        end, prompt)
       end, config.execution_delay)
     end,
   })
@@ -356,6 +382,9 @@ function M.setup(opts)
       print(diff)
     end
     
+    -- Get the appropriate prompt for this buffer's filetype
+    local prompt = get_prompt_for_buffer(buf)
+    
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Advice: " .. advice)
@@ -365,7 +394,7 @@ function M.setup(opts)
         title = "Nudge Two Hats",
         icon = "🎩",
       })
-    end)
+    end, prompt)
   end, {})
 end
 

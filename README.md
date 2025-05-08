@@ -45,6 +45,17 @@ require("nudge-two-hats").setup({
   -- Prompt configuration
   system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
   
+  -- File type specific prompts
+  filetype_prompts = {
+    -- Text/writing related filetypes
+    markdown = "Give advice about this writing, focusing on clarity and structure.",
+    text = "Give advice about this writing, focusing on clarity and structure.",
+    
+    -- Programming languages (examples)
+    lua = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+    python = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  },
+  
   -- Message length configuration
   message_length = 10, -- Default length of the advice message
   length_type = "characters", -- Can be "characters" (for Japanese) or "words" (for English)
