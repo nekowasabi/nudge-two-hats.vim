@@ -558,7 +558,7 @@ local function create_autocmd(buf)
           
           local title = "Nudge Two Hats"
           if selected_hat then
-            title = selected_hat .. " :tophat:"
+            title = selected_hat
           end
           
           vim.notify(advice, vim.log.levels.INFO, {
@@ -665,7 +665,7 @@ function M.setup(opts)
       
       local title = "Nudge Two Hats"
       if selected_hat then
-        title = selected_hat .. " :tophat:"
+        title = selected_hat
       end
       
       vim.notify(advice, vim.log.levels.INFO, {
