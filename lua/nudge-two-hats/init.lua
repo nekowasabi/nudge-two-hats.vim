@@ -52,17 +52,123 @@ local function get_language()
   end
 end
 
+-- Safe UTF-8 string truncation that doesn't cut in the middle of a multibyte character
+local function safe_truncate(str, max_length)
+  if #str <= max_length then
+    return str
+  end
+  
+  local chunk_size = 1024 * 1024 -- 1MB chunks
+  local result = {}
+  local char_count = 0
+  local total_processed = 0
+  
+  while total_processed < #str and char_count < max_length do
+    local chunk_end = math.min(total_processed + chunk_size, #str)
+    local chunk = string.sub(str, total_processed + 1, chunk_end)
+    local bytes = {chunk:byte(1, -1)}
+    local i = 1
+    
+    while i <= #bytes and char_count < max_length do
+      local b = bytes[i]
+      local width = 1
+      
+      if b >= 240 and b <= 247 then -- 4-byte sequence
+        width = 4
+      elseif b >= 224 and b <= 239 then -- 3-byte sequence
+        width = 3
+      elseif b >= 192 and b <= 223 then -- 2-byte sequence
+        width = 2
+      end
+      
+      -- Check if we have a complete sequence and it fits within max_length
+      if i + width - 1 <= #bytes then
+        for j = 0, width - 1 do
+          table.insert(result, bytes[i + j])
+        end
+        i = i + width
+        char_count = char_count + 1
+      else
+        break
+      end
+    end
+    
+    total_processed = chunk_end
+  end
+  
+  local truncated = ""
+  for _, b in ipairs(result) do
+    truncated = truncated .. string.char(b)
+  end
+  
+  return truncated
+end
+
+
 local function sanitize_text(text)
   if not text then
     return ""
   end
   
-  local sanitized = text:gsub("[\128-\191]", "?") -- Replace continuation bytes
-  sanitized = sanitized:gsub("[\192-\223][\128-\191]?", "?") -- Replace 2-byte sequences
-  sanitized = sanitized:gsub("[\224-\239][\128-\191]?[\128-\191]?", "?") -- Replace 3-byte sequences
-  sanitized = sanitized:gsub("[\240-\247][\128-\191]?[\128-\191]?[\128-\191]?", "?") -- Replace 4-byte sequences
+  -- Only replace truly invalid UTF-8 sequences
+  local sanitized = text:gsub("[\192-\193]", "?") -- Invalid UTF-8 lead bytes
+  sanitized = sanitized:gsub("[\245-\255]", "?") -- Invalid UTF-8 lead bytes
   
-  sanitized = sanitized:gsub("[^\1-\127\194-\244]", "?")
+  local function is_continuation_byte(b)
+    return b >= 128 and b <= 191
+  end
+  
+  local chunk_size = 1024 * 1024 -- 1MB chunks
+  local result = {}
+  local total_processed = 0
+  
+  while total_processed < #sanitized do
+    local chunk_end = math.min(total_processed + chunk_size, #sanitized)
+    local chunk = string.sub(sanitized, total_processed + 1, chunk_end)
+    local bytes = {chunk:byte(1, -1)}
+    local i = 1
+    
+    while i <= #bytes do
+      local b = bytes[i]
+      local width = 1
+      
+      if b >= 240 and b <= 247 then -- 4-byte sequence
+        width = 4
+      elseif b >= 224 and b <= 239 then -- 3-byte sequence
+        width = 3
+      elseif b >= 192 and b <= 223 then -- 2-byte sequence
+        width = 2
+      end
+      
+      -- Check if we have a complete sequence
+      local valid = true
+      if width > 1 then
+        for j = 1, width - 1 do
+          if i + j > #bytes or not is_continuation_byte(bytes[i + j]) then
+            valid = false
+            break
+          end
+        end
+      end
+      
+      if valid then
+        for j = 0, width - 1 do
+          table.insert(result, bytes[i + j])
+        end
+        i = i + width
+      else
+        table.insert(result, 63) -- '?' character
+        i = i + 1
+      end
+    end
+    
+    total_processed = chunk_end
+  end
+  
+  sanitized = ""
+  for _, b in ipairs(result) do
+    sanitized = sanitized .. string.char(b)
+  end
   
   if config.debug_mode then
     if sanitized ~= text then
@@ -222,6 +328,8 @@ local function get_buf_diff(buf)
   return content, nil
 end
 
+local selected_hat = nil
+
 local function get_prompt_for_buffer(buf)
   local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
   
@@ -234,9 +342,40 @@ local function get_prompt_for_buffer(buf)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
     end
-    return config.filetype_prompts[filetype]
+    
+    local filetype_prompt = config.filetype_prompts[filetype]
+    
+    if type(filetype_prompt) == "string" then
+      selected_hat = nil
+      return filetype_prompt
+    elseif type(filetype_prompt) == "table" then
+      local role = filetype_prompt.role or config.default_cbt.role
+      local direction = filetype_prompt.direction or config.default_cbt.direction
+      local emotion = filetype_prompt.emotion or config.default_cbt.emotion
+      local tone = filetype_prompt.tone or config.default_cbt.tone
+      local prompt_text = filetype_prompt.prompt
+      
+      local hats = filetype_prompt.hats or config.default_cbt.hats or {}
+      
+      if #hats > 0 then
+        math.randomseed(os.time())
+        selected_hat = hats[math.random(1, #hats)]
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+        end
+        
+        return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
+                             role, selected_hat, direction, emotion, tone, prompt_text)
+      else
+        selected_hat = nil
+        return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
+                             role, direction, emotion, tone, prompt_text)
+      end
+    end
   end
   
+  selected_hat = nil
   return config.system_prompt
 end
 
@@ -265,9 +404,9 @@ local function get_gemini_advice(diff, callback, prompt)
   
   local output_lang = get_language()
   if output_lang == "ja" then
-    system_prompt = system_prompt .. "\n必ず日本語で回答してください。10文字程度の簡潔なアドバイスをお願いします。"
+    system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。%d文字程度の簡潔なアドバイスをお願いします。", config.message_length)
   else
-    system_prompt = system_prompt .. "\nPlease respond in English. Provide concise advice in about 10 characters."
+    system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
   end
   
   local sanitized_diff = sanitize_text(diff)
@@ -342,7 +481,7 @@ local function get_gemini_advice(diff, callback, prompt)
               
               if config.length_type == "characters" then
                 if #advice > config.message_length then
-                  advice = string.sub(advice, 1, config.message_length)
+                  advice = safe_truncate(advice, config.message_length)
                 end
               else
                 local words = {}
@@ -419,7 +558,7 @@ local function get_gemini_advice(diff, callback, prompt)
               
               if config.length_type == "characters" then
                 if #advice > config.message_length then
-                  advice = string.sub(advice, 1, config.message_length)
+                  advice = safe_truncate(advice, config.message_length)
                 end
               else
                 local words = {}
@@ -523,8 +662,13 @@ local function create_autocmd(buf)
             print("[Nudge Two Hats Debug] Advice: " .. advice)
           end
           
+          local title = "Nudge Two Hats"
+          if selected_hat then
+            title = selected_hat
+          end
+          
           vim.notify(advice, vim.log.levels.INFO, {
-            title = "Nudge Two Hats",
+            title = title,
             icon = "🎩",
           })
         end, prompt)
@@ -625,8 +769,13 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] Advice: " .. advice)
       end
       
+      local title = "Nudge Two Hats"
+      if selected_hat then
+        title = selected_hat
+      end
+      
       vim.notify(advice, vim.log.levels.INFO, {
-        title = "Nudge Two Hats",
+        title = title,
         icon = "🎩",
       })
     end, prompt)
