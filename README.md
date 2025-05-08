@@ -4,3 +4,102 @@
 A plugin that nudges you with AI about which hat you are wearing and what you should do in the situation.
 
 Inspired by [An example of preparatory refactoring](https://martinfowler.com/articles/preparatory-refactoring-example.html)
+
+## Features
+
+- Monitors your code changes in real-time
+- Uses Gemini AI to analyze which "hat" you're wearing (refactoring or feature development)
+- Provides concise 10-character advice via notifications
+- Toggle functionality on/off as needed
+
+## Installation
+
+### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
+
+```lua
+{
+  "nekowasabi/nudge-two-hats.vim",
+  config = function()
+    require("nudge-two-hats").setup({
+      -- Optional configuration
+    })
+  end,
+}
+```
+
+### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
+
+```lua
+use {
+  "nekowasabi/nudge-two-hats.vim",
+  config = function()
+    require("nudge-two-hats").setup()
+  end
+}
+```
+
+## Configuration
+
+```lua
+require("nudge-two-hats").setup({
+  -- Prompt configuration
+  system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  
+  -- File type specific prompts
+  filetype_prompts = {
+    -- Text/writing related filetypes
+    markdown = "Give advice about this writing, focusing on clarity and structure.",
+    text = "Give advice about this writing, focusing on clarity and structure.",
+    
+    -- Programming languages (examples)
+    lua = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+    python = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  },
+  
+  -- Message length configuration
+  message_length = 10, -- Default length of the advice message
+  length_type = "characters", -- Can be "characters" (for Japanese) or "words" (for English)
+  
+  -- Timing configuration
+  execution_delay = 60000, -- Delay in milliseconds (1 minute)
+  min_interval = 60, -- Minimum interval between API calls in seconds
+  
+  -- API configuration
+  gemini_model = "gemini-2.5-flash-preview-04-17", -- Model to use
+  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
+  
+  -- Debug configuration
+  debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+})
+```
+
+## Usage
+
+1. Set your Gemini API key (two options):
+   - Set the GEMINI_API_KEY environment variable (recommended)
+   - Or use the command: `:NudgeTwoHatsSetApiKey YOUR_API_KEY`
+
+2. Start monitoring the current buffer:
+```
+:NudgeTwoHatsStart
+```
+
+3. Toggle the plugin on/off:
+```
+:NudgeTwoHatsToggle
+```
+
+4. Execute a nudge immediately (without waiting for the interval):
+```
+:NudgeTwoHatsNow
+```
+
+5. Toggle debug mode (prints nudge text to Vim's `:messages`):
+```
+:NudgeTwoHatsDebugToggle
+```
+
+## Requirements
+
+- Neovim 0.7.0+
+- Gemini API key
