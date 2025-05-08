@@ -298,9 +298,9 @@ local function get_gemini_advice(diff, callback, prompt)
   
   local output_lang = get_language()
   if output_lang == "ja" then
-    system_prompt = system_prompt .. "\n必ず日本語で回答してください。10文字程度の簡潔なアドバイスをお願いします。"
+    system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。%d文字程度の簡潔なアドバイスをお願いします。", config.message_length)
   else
-    system_prompt = system_prompt .. "\nPlease respond in English. Provide concise advice in about 10 characters."
+    system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
   end
   
   local sanitized_diff = sanitize_text(diff)
