@@ -9,8 +9,8 @@ local state = {
 local config = {
   system_prompt = "Give a 10-character advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
   execution_delay = 3000, -- Delay in milliseconds
-  gemini_model = "gemini-2.0-flash", -- Using Gemini 2.0 Flash as recommended
-  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+  gemini_model = "gemini-2.5-flash-preview-04-17", -- Updated to latest Gemini model
+  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
 }
 
 local function get_buf_diff(buf)
@@ -34,7 +34,7 @@ local function get_gemini_advice(diff, callback)
   end
 
   local curl_command = string.format(
-    "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"%s\\n\\n%s\"}]}]}'",
+    "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"%s\\n\\n%s\"}]}],\"generationConfig\":{\"thinkingConfig\":{\"thinkingBudget\":0},\"temperature\":0.2,\"topK\":40,\"topP\":0.95,\"maxOutputTokens\":1024}}'",
     config.api_endpoint,
     api_key,
     config.system_prompt,
