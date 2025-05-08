@@ -33,9 +33,10 @@ local function get_gemini_advice(diff, callback)
     return
   end
 
+  local endpoint = config.api_endpoint:gsub("[<>]", "")
   local curl_command = string.format(
     "curl -s -X POST %s?key=%s -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"%s\\n\\n%s\"}]}],\"generationConfig\":{\"thinkingConfig\":{\"thinkingBudget\":0},\"temperature\":0.2,\"topK\":40,\"topP\":0.95,\"maxOutputTokens\":1024}}'",
-    config.api_endpoint,
+    endpoint,
     api_key,
     config.system_prompt,
     vim.fn.escape(diff, '"\\\n')
