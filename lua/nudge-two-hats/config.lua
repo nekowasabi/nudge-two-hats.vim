@@ -16,6 +16,9 @@ local config = {
   message_length = 10, -- Default length of the advice message
   length_type = "characters", -- Can be "characters" or "words"
   
+  output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
+  translate_messages = true, -- Whether to translate messages to the specified language
+  
   execution_delay = 60000, -- Delay in milliseconds (1 minute)
   min_interval = 60, -- Minimum interval between API calls in seconds
   
