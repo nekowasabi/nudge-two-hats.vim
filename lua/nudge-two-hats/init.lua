@@ -222,6 +222,8 @@ local function get_buf_diff(buf)
   return content, nil
 end
 
+local selected_hat = nil
+
 local function get_prompt_for_buffer(buf)
   local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
   
@@ -238,6 +240,7 @@ local function get_prompt_for_buffer(buf)
     local filetype_prompt = config.filetype_prompts[filetype]
     
     if type(filetype_prompt) == "string" then
+      selected_hat = nil
       return filetype_prompt
     elseif type(filetype_prompt) == "table" then
       local role = filetype_prompt.role or config.default_cbt.role
@@ -246,11 +249,27 @@ local function get_prompt_for_buffer(buf)
       local tone = filetype_prompt.tone or config.default_cbt.tone
       local prompt_text = filetype_prompt.prompt
       
-      return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
-                           role, direction, emotion, tone, prompt_text)
+      local hats = filetype_prompt.hats or config.default_cbt.hats or {}
+      
+      if #hats > 0 then
+        math.randomseed(os.time())
+        selected_hat = hats[math.random(1, #hats)]
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+        end
+        
+        return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
+                             role, selected_hat, direction, emotion, tone, prompt_text)
+      else
+        selected_hat = nil
+        return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
+                             role, direction, emotion, tone, prompt_text)
+      end
     end
   end
   
+  selected_hat = nil
   return config.system_prompt
 end
 
@@ -537,8 +556,13 @@ local function create_autocmd(buf)
             print("[Nudge Two Hats Debug] Advice: " .. advice)
           end
           
+          local title = "Nudge Two Hats"
+          if selected_hat then
+            title = selected_hat .. " :tophat:"
+          end
+          
           vim.notify(advice, vim.log.levels.INFO, {
-            title = "Nudge Two Hats",
+            title = title,
             icon = "🎩",
           })
         end, prompt)
@@ -639,8 +663,13 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] Advice: " .. advice)
       end
       
+      local title = "Nudge Two Hats"
+      if selected_hat then
+        title = selected_hat .. " :tophat:"
+      end
+      
       vim.notify(advice, vim.log.levels.INFO, {
-        title = "Nudge Two Hats",
+        title = title,
         icon = "🎩",
       })
     end, prompt)

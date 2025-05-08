@@ -6,6 +6,7 @@ local config = {
     direction = "Guide towards healthier thought patterns and behaviors",
     emotion = "Empathetic and understanding",
     tone = "Supportive and encouraging but direct",
+    hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
   },
   
   filetype_prompts = {
@@ -15,6 +16,7 @@ local config = {
       direction = "Guide towards clearer and more structured writing", 
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
     },
     text = {
       prompt = "Give advice about this writing, focusing on clarity and structure.",
@@ -22,6 +24,7 @@ local config = {
       direction = "Guide towards clearer and more structured writing",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
     },
     tex = {
       prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
@@ -29,6 +32,7 @@ local config = {
       direction = "Guide towards well-formatted and structured document",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
     },
     rst = {
       prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
@@ -36,6 +40,7 @@ local config = {
       direction = "Guide towards clearer and more organized documentation",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
     },
     org = {
       prompt = "Give advice about this Org document, focusing on organization and structure.",
@@ -43,6 +48,7 @@ local config = {
       direction = "Guide towards better organized and structured document",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
     },
     
     lua = {
@@ -51,6 +57,7 @@ local config = {
       direction = "Guide towards clearer and more maintainable code",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
     },
     python = {
       prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
@@ -58,6 +65,7 @@ local config = {
       direction = "Guide towards clearer and more maintainable code",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
     },
     javascript = {
       prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
@@ -65,6 +73,7 @@ local config = {
       direction = "Guide towards clearer and more maintainable code",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
     },
   },
   
