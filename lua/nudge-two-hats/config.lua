@@ -1,16 +1,71 @@
 local config = {
   system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
   
+  default_cbt = {
+    role = "認知行動療法の専門家", -- Cognitive behavioral therapy specialist
+    direction = "健全な思考パターンと行動への導き", -- Guide towards healthier thought patterns and behaviors
+    emotion = "共感的で理解のある", -- Empathetic and understanding
+    tone = "支持的で励ましながらも直接的な", -- Supportive and encouraging but direct
+  },
+  
   filetype_prompts = {
-    markdown = "Give advice about this writing, focusing on clarity and structure.",
-    text = "Give advice about this writing, focusing on clarity and structure.",
-    tex = "Give advice about this LaTeX document, focusing on structure and formatting.",
-    rst = "Give advice about this reStructuredText document, focusing on clarity and organization.",
-    org = "Give advice about this Org document, focusing on organization and structure.",
+    markdown = {
+      prompt = "Give advice about this writing, focusing on clarity and structure.",
+      role = "認知行動療法の専門家",
+      direction = "明確で体系的な文章への導き", 
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
+    text = {
+      prompt = "Give advice about this writing, focusing on clarity and structure.",
+      role = "認知行動療法の専門家",
+      direction = "明確で体系的な文章への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
+    tex = {
+      prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
+      role = "認知行動療法の専門家",
+      direction = "整然としたフォーマットと構造への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
+    rst = {
+      prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
+      role = "認知行動療法の専門家",
+      direction = "明確で整理された文書への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
+    org = {
+      prompt = "Give advice about this Org document, focusing on organization and structure.",
+      role = "認知行動療法の専門家",
+      direction = "整理された構造的な文書への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
     
-    lua = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-    python = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-    javascript = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+    lua = {
+      prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+      role = "認知行動療法の専門家",
+      direction = "コードの明確性と保守性の向上への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
+    python = {
+      prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+      role = "認知行動療法の専門家",
+      direction = "コードの明確性と保守性の向上への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
+    javascript = {
+      prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+      role = "認知行動療法の専門家",
+      direction = "コードの明確性と保守性の向上への導き",
+      emotion = "共感的で理解のある",
+      tone = "支持的で励ましながらも直接的な",
+    },
   },
   
   message_length = 10, -- Default length of the advice message

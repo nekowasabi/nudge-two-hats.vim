@@ -234,7 +234,21 @@ local function get_prompt_for_buffer(buf)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
     end
-    return config.filetype_prompts[filetype]
+    
+    local filetype_prompt = config.filetype_prompts[filetype]
+    
+    if type(filetype_prompt) == "string" then
+      return filetype_prompt
+    elseif type(filetype_prompt) == "table" then
+      local role = filetype_prompt.role or config.default_cbt.role
+      local direction = filetype_prompt.direction or config.default_cbt.direction
+      local emotion = filetype_prompt.emotion or config.default_cbt.emotion
+      local tone = filetype_prompt.tone or config.default_cbt.tone
+      local prompt_text = filetype_prompt.prompt
+      
+      return string.format("私は%sです。%s。%sの感情で、%s口調でアドバイスします。%s", 
+                           role, direction, emotion, tone, prompt_text)
+    end
   end
   
   return config.system_prompt

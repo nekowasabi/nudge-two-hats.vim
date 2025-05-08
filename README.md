@@ -45,15 +45,26 @@ require("nudge-two-hats").setup({
   -- Prompt configuration
   system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
   
-  -- File type specific prompts
+  -- File type specific prompts with enhanced structure
   filetype_prompts = {
     -- Text/writing related filetypes
-    markdown = "Give advice about this writing, focusing on clarity and structure.",
-    text = "Give advice about this writing, focusing on clarity and structure.",
+    markdown = {
+      prompt = "Give advice about this writing, focusing on clarity and structure.",
+      role = "認知行動療法の専門家", -- Cognitive behavioral therapy specialist
+      direction = "明確で体系的な文章への導き", -- Guide towards clearer and more structured writing
+      emotion = "共感的で理解のある", -- Empathetic and understanding
+      tone = "支持的で励ましながらも直接的な", -- Supportive and encouraging but direct
+    },
+    -- Other filetypes configured similarly
     
     -- Programming languages (examples)
-    lua = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-    python = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+    lua = {
+      prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+      role = "認知行動療法の専門家", -- Cognitive behavioral therapy specialist
+      direction = "コードの明確性と保守性の向上への導き", -- Guide towards clearer and more maintainable code
+      emotion = "共感的で理解のある", -- Empathetic and understanding
+      tone = "支持的で励ましながらも直接的な", -- Supportive and encouraging but direct
+    },
   },
   
   -- Message length configuration
