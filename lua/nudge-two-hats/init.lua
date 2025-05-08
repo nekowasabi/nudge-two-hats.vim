@@ -286,15 +286,41 @@ function M.setup(opts)
       return
     end
     
+    local current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    
+    local original_content = state.buf_content[buf]
+    
+    if not original_content or original_content == current_content then
+      if current_content and #current_content > 0 then
+        state.buf_content[buf] = string.sub(current_content, 1, #current_content - 1)
+      else
+        state.buf_content[buf] = ""
+      end
+      
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Forcing diff calculation for NudgeTwoHatsNow")
+        print("[Nudge Two Hats Debug] Original content length: " .. (original_content and #original_content or 0))
+        print("[Nudge Two Hats Debug] Current content length: " .. #current_content)
+      end
+    end
+    
     local content, diff = get_buf_diff(buf)
+    
     if not diff then
       vim.notify("No changes detected to generate advice", vim.log.levels.INFO)
+      
+      state.buf_content[buf] = original_content
       return
     end
     
-    state.buf_content[buf] = content
+    state.buf_content[buf] = current_content
     
     state.last_api_call = 0
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Sending diff to Gemini API:")
+      print(diff)
+    end
     
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
