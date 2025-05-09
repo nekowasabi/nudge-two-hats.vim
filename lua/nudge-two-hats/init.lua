@@ -914,26 +914,19 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
     end
     
-    get_gemini_advice(fake_diff, function(advice)
-      state.virtual_text.last_advice[buf] = advice
-      
-      local current_pos = vim.api.nvim_win_get_cursor(0)
-      state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
-      
-      display_virtual_text(buf, advice)
-      
-      vim.notify("Debug virtual text displayed at cursor position", vim.log.levels.INFO)
-      
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] Virtual text message displayed")
-        print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
-        print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
-        print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
-      end
-    end, prompt)
+    local current_pos = vim.api.nvim_win_get_cursor(0)
+    state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
     
-    return
+    local messages = {
+      "リファクタリングに集中しましょう。コードの品質を向上させる時間です。",
+      "新機能の開発に集中しましょう。ユーザーに価値を届ける時間です。",
+      "テストを書く時間です。品質を確保しましょう。",
+      "コードレビューの時間です。他の人のコードから学びましょう。"
+    }
+    local immediate_advice = messages[math.random(1, #messages)]
+    state.virtual_text.last_advice[buf] = immediate_advice
     
+    display_virtual_text(buf, immediate_advice)
     
     vim.api.nvim_create_autocmd("CursorMoved", {
       group = augroup_id,
@@ -970,6 +963,17 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
       print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
     end
+    
+    get_gemini_advice(fake_diff, function(advice)
+      if state.virtual_text.extmarks[buf] then
+        state.virtual_text.last_advice[buf] = advice
+        display_virtual_text(buf, advice)
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Updated virtual text with API-generated message")
+        end
+      end
+    end, prompt)
   end, {})
   
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
