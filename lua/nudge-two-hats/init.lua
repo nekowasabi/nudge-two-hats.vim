@@ -958,6 +958,12 @@ function M.start_virtual_text_timer(buf, event_name)
     return
   end
   
+  -- Check if this is the current buffer
+  local current_buf = vim.api.nvim_get_current_buf()
+  if buf ~= current_buf then
+    return
+  end
+  
   -- Check if buffer is valid
   if not vim.api.nvim_buf_is_valid(buf) then
     if config.debug_mode then
@@ -968,6 +974,17 @@ function M.start_virtual_text_timer(buf, event_name)
   
   -- Stop any existing timer first
   M.stop_virtual_text_timer(buf)
+  
+  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+  if log_file then
+    log_file:write("=== " .. event_name .. " triggered virtual text timer start at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    log_file:write("Buffer: " .. buf .. "\n")
+    log_file:close()
+  end
+  
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_name))
+  end
   
   -- Calculate timer duration in milliseconds
   local timer_ms = config.virtual_text.idle_time * 60 * 1000
@@ -992,7 +1009,7 @@ function M.start_virtual_text_timer(buf, event_name)
     local current_time = os.time()
     local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
     local idle_time = current_time - last_cursor_move_time
-    local required_idle_time = config.virtual_text.cursor_idle_delay * 60
+    local required_idle_time = (config.virtual_text.cursor_idle_delay or 5) * 60
     
     if idle_time >= required_idle_time then
       M.display_virtual_text(buf, state.virtual_text.last_advice[buf])
@@ -1003,7 +1020,7 @@ function M.start_virtual_text_timer(buf, event_name)
       end
     else
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor not idle long enough. Current: %d seconds, Required: %d seconds", 
+        print(string.format("[Nudge Two Hats Debug] Cursor not idle long enough: %d seconds (required: %d seconds)", 
           idle_time, required_idle_time))
       end
       
@@ -1026,58 +1043,6 @@ function M.start_virtual_text_timer(buf, event_name)
   end
   
   return state.timers.virtual_text[buf]
-end
-  -- Check if this is the current buffer
-  local current_buf = vim.api.nvim_get_current_buf()
-  if buf ~= current_buf then
-    return
-  end
-  
-  -- Check if buffer is valid
-  if not vim.api.nvim_buf_is_valid(buf) then
-    return
-  end
-  
-  -- Stop any existing virtual text timer
-  M.stop_virtual_text_timer(buf)
-  
-  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-  if log_file then
-    log_file:write("=== " .. event_name .. " triggered virtual text timer start at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-    log_file:write("Buffer: " .. buf .. "\n")
-    log_file:close()
-  end
-  
-  if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_name))
-  end
-  
-  local timer_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
-  state.timers.virtual_text[buf] = vim.fn.timer_start(timer_ms, function()
-    if not vim.api.nvim_buf_is_valid(buf) then
-      return
-    end
-    
-    -- Check if cursor has been idle for the required time
-    local current_time = os.time()
-    local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
-    local idle_time = current_time - last_cursor_move_time
-    local required_idle_time = (config.virtual_text.cursor_idle_delay or 5) * 60 -- Convert minutes to seconds
-    
-    if idle_time >= required_idle_time and state.virtual_text.last_advice[buf] then
-      M.display_virtual_text(buf, state.virtual_text.last_advice[buf])
-      
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Virtual text displayed for buffer %d after %d seconds of idle time", 
-          buf, idle_time))
-      end
-    else
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor not idle long enough: %d seconds (required: %d seconds)", 
-          idle_time, required_idle_time))
-      end
-    end
-  end)
 end
 
 local function start_notification_timer(buf, event_name)
