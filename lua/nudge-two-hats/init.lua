@@ -874,11 +874,25 @@ function M.setup(opts)
     end
   end, {})
   
+  -- Store debug autocmd group ID by buffer
+  state.debug_augroup_ids = state.debug_augroup_ids or {}
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualText", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
+    
+    clear_virtual_text(buf)
+    
+    if state.debug_augroup_ids[buf] then
+      pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
+      state.debug_augroup_ids[buf] = nil
+    end
+    
+    local augroup_name = "nudge-two-hats-debug-" .. buf
+    local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
+    state.debug_augroup_ids[buf] = augroup_id
     
     local messages = {
       "リファクタリングに集中しましょう。コードの品質を向上させる時間です。",
@@ -890,14 +904,32 @@ function M.setup(opts)
     
     state.virtual_text.last_advice[buf] = advice
     
+    local current_pos = vim.api.nvim_win_get_cursor(0)
+    state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
+    
     display_virtual_text(buf, advice)
     
     vim.api.nvim_create_autocmd("CursorMoved", {
+      group = augroup_id,
       buffer = buf,
-      once = true,
       callback = function()
-        clear_virtual_text(buf)
-        vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
+        local new_pos = vim.api.nvim_win_get_cursor(0)
+        if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
+          clear_virtual_text(buf)
+          vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
+          pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+          state.debug_augroup_ids[buf] = nil
+        end
+      end
+    })
+    
+    vim.api.nvim_create_autocmd({"BufDelete", "BufWipeout"}, {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+        state.debug_augroup_ids[buf] = nil
+        return true
       end
     })
     
