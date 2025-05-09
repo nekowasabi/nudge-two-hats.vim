@@ -1083,7 +1083,6 @@ end
 local function start_notification_timer(buf, event_name)
   M.start_notification_timer(buf, event_name)
 end
-end
 
 local function setup_virtual_text(buf)
   -- Store the last cursor position to detect actual movement
