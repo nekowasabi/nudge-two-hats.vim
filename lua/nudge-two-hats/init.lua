@@ -741,7 +741,7 @@ local function create_autocmd(buf)
       state.virtual_text.last_cursor_move[buf] = os.time()
       
       if state.virtual_text.extmarks[buf] then
-        clear_virtual_text(buf)
+        M.clear_virtual_text(buf)
       end
     end,
   })
@@ -761,7 +761,7 @@ local function create_autocmd(buf)
         local idle_time_seconds = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
         
         if (current_time - state.virtual_text.last_cursor_move[buf]) >= idle_time_seconds then
-          display_virtual_text(buf, state.virtual_text.last_advice[buf])
+          M.display_virtual_text(buf, state.virtual_text.last_advice[buf])
         end
       end
     end,
@@ -775,7 +775,7 @@ local function create_autocmd(buf)
       state.buf_filetypes[buf] = nil
       state.virtual_text.last_advice[buf] = nil
       state.virtual_text.last_cursor_move[buf] = nil
-      clear_virtual_text(buf)
+      M.clear_virtual_text(buf)
       
       vim.api.nvim_del_augroup_by_id(augroup)
       return true
@@ -783,7 +783,7 @@ local function create_autocmd(buf)
   })
 end
 
-local function clear_virtual_text(buf)
+function M.clear_virtual_text(buf)
   if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
     return
   end
@@ -796,7 +796,7 @@ local function clear_virtual_text(buf)
   end
 end
 
-local function display_virtual_text(buf, advice)
+function M.display_virtual_text(buf, advice)
   if not state.enabled then
     return
   end
@@ -805,7 +805,7 @@ local function display_virtual_text(buf, advice)
     state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
   end
   
-  clear_virtual_text(buf)
+  M.clear_virtual_text(buf)
   
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local row = cursor_pos[1] - 1 -- Convert to 0-indexed
@@ -845,7 +845,7 @@ function M.setup(opts)
     if not state.enabled then
       for buf, _ in pairs(state.virtual_text.extmarks) do
         if vim.api.nvim_buf_is_valid(buf) then
-          clear_virtual_text(buf)
+          M.clear_virtual_text(buf)
         end
       end
     end
@@ -883,7 +883,7 @@ function M.setup(opts)
       return
     end
     
-    clear_virtual_text(buf)
+    M.clear_virtual_text(buf)
     
     if state.debug_augroup_ids[buf] then
       pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
@@ -924,7 +924,7 @@ function M.setup(opts)
         if state.debug_cursor_pos then
           local new_pos = vim.api.nvim_win_get_cursor(0)
           if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
-            clear_virtual_text(buf)
+            M.clear_virtual_text(buf)
             vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
             pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
             state.debug_augroup_ids[buf] = nil
@@ -946,7 +946,7 @@ function M.setup(opts)
     
     local loading_message = "Loading advice from AI..."
     state.virtual_text.last_advice[buf] = loading_message
-    display_virtual_text(buf, loading_message)
+    M.display_virtual_text(buf, loading_message)
     
     vim.notify("Loading virtual text advice...", vim.log.levels.INFO)
     
@@ -955,7 +955,7 @@ function M.setup(opts)
         state.virtual_text.last_advice[buf] = advice
         
         if state.virtual_text.extmarks[buf] then
-          display_virtual_text(buf, advice)
+          M.display_virtual_text(buf, advice)
           
           vim.notify("Debug virtual text updated with AI advice", vim.log.levels.INFO)
           
