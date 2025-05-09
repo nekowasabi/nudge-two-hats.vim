@@ -1,5 +1,5 @@
 local config = {
-  system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
   
   default_cbt = {
     role = "Cognitive behavioral therapy specialist",
@@ -90,6 +90,12 @@ local config = {
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
   
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+  
+  virtual_text = {
+    idle_time = 10, -- Time in minutes before showing virtual text
+    text_color = "#000000", -- Text color in hex format
+    background_color = "#FFFFFF", -- Background color in hex format
+  },
 }
 
 return config

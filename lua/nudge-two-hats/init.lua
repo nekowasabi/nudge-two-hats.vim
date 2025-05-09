@@ -6,6 +6,13 @@ local state = {
   buf_filetypes = {}, -- Store buffer filetypes when NudgeTwoHatsStart is executed
   api_key = nil, -- Gemini API key
   last_api_call = 0, -- Timestamp of the last API call
+  virtual_text = {
+    namespace = nil, -- Namespace for virtual text extmarks
+    extmarks = {}, -- Store extmark IDs by buffer
+    last_advice = {}, -- Store last advice by buffer
+    last_cursor_move = {}, -- Store last cursor move timestamp by buffer
+    timers = {}, -- Store virtual text timer IDs by buffer
+  }
 }
 
 math.randomseed(os.time())
@@ -25,11 +32,6 @@ local function generate_random_delay()
   
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] 新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）", new_delay, current_delay, random_factor))
-    local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-    if log_file then
-      log_file:write(string.format("新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）\n", new_delay, current_delay, random_factor))
-      log_file:close()
-    end
   end
   
   return new_delay
@@ -644,6 +646,17 @@ end
 local function create_autocmd(buf)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   state.buf_content[buf] = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  
+  local current_time = os.time()
+  state.virtual_text.last_cursor_move[buf] = current_time
+  
+  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+  if log_file then
+    log_file:write("=== create_autocmd called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    log_file:write("Buffer: " .. buf .. "\n")
+    log_file:write("Initialized last_cursor_move to " .. current_time .. "\n\n")
+    log_file:close()
+  end
 
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
     group = augroup,
@@ -715,12 +728,266 @@ local function create_autocmd(buf)
             title = selected_hat
           end
           
+          state.virtual_text.last_advice[buf] = advice
+          
           vim.notify(advice, vim.log.levels.INFO, {
             title = title,
             icon = "🎩",
           })
         end, prompt)
       end, config.execution_delay)
+    end,
+  })
+  
+  -- Store the last cursor position to detect actual movement
+  state.virtual_text.last_cursor_pos = state.virtual_text.last_cursor_pos or {}
+  state.virtual_text.last_cursor_pos[buf] = nil -- Initialize to nil to force update on first move
+  
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      local current_pos = vim.api.nvim_win_get_cursor(0)
+      local cursor_row = current_pos[1]
+      local cursor_col = current_pos[2]
+      
+      -- Check if cursor has actually moved from its previous position
+      local last_pos = state.virtual_text.last_cursor_pos[buf]
+      local cursor_actually_moved = true
+      
+      if last_pos then
+        cursor_actually_moved = (last_pos.row ~= cursor_row or last_pos.col ~= cursor_col)
+      end
+      
+      state.virtual_text.last_cursor_pos[buf] = { row = cursor_row, col = cursor_col }
+      
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write("=== CursorMoved triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+        log_file:write("Buffer: " .. buf .. "\n")
+        log_file:write("Current position: row=" .. cursor_row .. ", col=" .. cursor_col .. "\n")
+        if last_pos then
+          log_file:write("Previous position: row=" .. last_pos.row .. ", col=" .. last_pos.col .. "\n")
+        else
+          log_file:write("Previous position: nil (first move)\n")
+        end
+        log_file:write("Cursor actually moved: " .. tostring(cursor_actually_moved) .. "\n")
+      end
+      
+      if cursor_actually_moved then
+        local old_time = state.virtual_text.last_cursor_move[buf] or 0
+        local new_time = os.time()
+        state.virtual_text.last_cursor_move[buf] = new_time
+        
+        if log_file then
+          log_file:write("Updated last_cursor_move from " .. old_time .. " to " .. new_time .. "\n")
+        end
+        
+        if state.virtual_text.extmarks[buf] then
+          M.clear_virtual_text(buf)
+        end
+        
+        if state.virtual_text.timers[buf] then
+          if log_file then
+            log_file:write("Stopping virtual text timer with ID: " .. state.virtual_text.timers[buf] .. "\n")
+          end
+          vim.fn.timer_stop(state.virtual_text.timers[buf])
+          state.virtual_text.timers[buf] = nil
+        end
+      else
+        if log_file then
+          log_file:write("Cursor didn't actually move, not updating last_cursor_move time\n")
+        end
+      end
+      
+      if log_file then
+        log_file:close()
+      end
+    end,
+  })
+  
+  vim.api.nvim_create_autocmd("CursorHold", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write("=== CursorHold triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+        log_file:write("Buffer: " .. buf .. "\n")
+        log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+        log_file:write("updatetime: " .. vim.o.updatetime .. "ms\n")
+        log_file:write("idle_time setting: " .. config.virtual_text.idle_time .. " minutes (" .. (config.virtual_text.idle_time * 60) .. " seconds)\n")
+      end
+      
+      if not state.enabled then
+        if log_file then
+          log_file:write("Plugin not enabled, exiting CursorHold handler\n\n")
+          log_file:close()
+        end
+        return
+      end
+      
+      if not state.virtual_text.timers[buf] then
+        if log_file then
+          log_file:write("Setting up virtual text timer for buffer " .. buf .. "\n")
+        end
+        
+        local idle_time_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
+        
+        if log_file then
+          log_file:write("Setting timer to fire after " .. idle_time_ms .. "ms\n")
+        end
+        
+        
+        local timer_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
+        
+        local current_log_file = log_file
+        log_file = nil -- Set to nil to prevent double closing
+        
+        state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
+          if current_log_file then
+            pcall(function() current_log_file:close() end)
+            current_log_file = nil
+          end
+          
+          if not vim.api.nvim_buf_is_valid(buf) then
+            return
+          end
+          
+          local timer_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+          if timer_log_file then
+            timer_log_file:write("=== Initial virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+            timer_log_file:write("Buffer: " .. buf .. "\n")
+            timer_log_file:write("Timer ID: " .. state.virtual_text.timers[buf] .. "\n")
+          end
+          
+          if timer_log_file then
+            timer_log_file:write("Skipping loading message, setting up Gemini API timer directly\n")
+          end
+          
+          local first_timer_id = state.virtual_text.timers[buf]
+          if first_timer_id then
+            vim.fn.timer_stop(first_timer_id)
+          end
+          
+          -- Store the timer ID in the state
+          state.virtual_text.timers[buf] = vim.fn.timer_start(timer_ms, function()
+            local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if api_log_file then
+              api_log_file:write("=== Gemini API timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+              api_log_file:write("Timer ID: " .. tostring(state.virtual_text.timers[buf]) .. "\n")
+              api_log_file:write("Buffer: " .. buf .. "\n")
+              api_log_file:write("Buffer valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
+            end
+            
+            if not vim.api.nvim_buf_is_valid(buf) then
+              if api_log_file then
+                api_log_file:write("Buffer no longer valid, not calling Gemini API\n")
+                api_log_file:close()
+              end
+              return
+            end
+          
+          local buffer_content = ""
+          local line_count = vim.api.nvim_buf_line_count(buf)
+          local current_line = vim.api.nvim_win_get_cursor(0)[1]
+          
+          local start_line = math.max(1, current_line - 10)
+          local end_line = math.min(line_count, current_line + 10)
+          
+          local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
+          buffer_content = table.concat(lines, "\n")
+          
+          local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+          local fake_diff = "Virtual text nudge for idle cursor in " .. (filetype or "unknown") .. " file.\n"
+          fake_diff = fake_diff .. "Current buffer context:\n```" .. (filetype or "") .. "\n"
+          fake_diff = fake_diff .. buffer_content .. "\n```\n"
+          
+          -- Get the appropriate prompt for this buffer's filetype
+          local prompt = get_prompt_for_buffer(buf)
+          
+          local virtual_text_prompt = prompt .. "\n\nThis is for a virtual text display at the end of a line in the editor. "
+          virtual_text_prompt = virtual_text_prompt .. "Keep your response very short (under 50 characters), insightful, and varied. "
+          virtual_text_prompt = virtual_text_prompt .. "Avoid repetitive messages. Make it relevant to the code context shown above."
+          
+          if timer_log_file then
+            timer_log_file:write("Using filetype: " .. (filetype or "none") .. "\n")
+            timer_log_file:write("Using prompt: " .. virtual_text_prompt .. "\n")
+            timer_log_file:write("Calling Gemini API at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+          end
+          
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Calling Gemini API for virtual text advice")
+            print("[Nudge Two Hats Debug] Using prompt: " .. virtual_text_prompt)
+          end
+          
+          -- Store the current timer ID for reference in the callback
+          local current_timer_id = state.virtual_text.timers[buf]
+          
+          if api_log_file then
+            api_log_file:write("Calling Gemini API directly at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+          end
+          
+          get_gemini_advice(fake_diff, function(advice)
+            local api_callback_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if api_callback_log_file then
+              api_callback_log_file:write("=== Gemini API callback received at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+              api_callback_log_file:write("Buffer still valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
+              api_callback_log_file:write("Timer ID when API was called: " .. tostring(current_timer_id) .. "\n")
+              api_callback_log_file:write("Current timer ID: " .. tostring(state.virtual_text.timers[buf]) .. "\n")
+              api_callback_log_file:write("Advice received: " .. advice .. "\n")
+            end
+            
+            if vim.api.nvim_buf_is_valid(buf) then
+              state.virtual_text.last_advice[buf] = advice
+              
+              if api_callback_log_file then
+                api_callback_log_file:write("Calling display_virtual_text for buffer " .. buf .. "\n")
+              end
+              
+              vim.schedule(function()
+                if vim.api.nvim_buf_is_valid(buf) then
+                  M.display_virtual_text(buf, advice)
+                  
+                  if config.debug_mode then
+                    print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
+                  end
+                  
+                  if api_callback_log_file then
+                    api_callback_log_file:write("Successfully displayed virtual text advice\n")
+                    api_callback_log_file:close()
+                  end
+                else
+                  if api_callback_log_file then
+                    api_callback_log_file:write("Buffer no longer valid when trying to display advice\n")
+                    api_callback_log_file:close()
+                  end
+                end
+              end)
+            else
+              if api_callback_log_file then
+                api_callback_log_file:write("Buffer no longer valid, not displaying virtual text\n")
+                api_callback_log_file:close()
+              end
+            end
+            
+            if state.virtual_text.timers[buf] == current_timer_id then
+              state.virtual_text.timers[buf] = nil
+            end
+          end, virtual_text_prompt)
+        end)
+        end)
+        
+        if log_file then
+          log_file:write("Started virtual text timer with ID: " .. state.virtual_text.timers[buf] .. "\n\n")
+          log_file:close()
+        end
+      else
+        if log_file then
+          log_file:write("Idle condition not met, not setting virtual text timer\n\n")
+          log_file:close()
+        end
+      end
     end,
   })
 
@@ -730,21 +997,180 @@ local function create_autocmd(buf)
     callback = function()
       state.buf_content[buf] = nil
       state.buf_filetypes[buf] = nil
+      state.virtual_text.last_advice[buf] = nil
+      state.virtual_text.last_cursor_move[buf] = nil
+      M.clear_virtual_text(buf)
+      
       vim.api.nvim_del_augroup_by_id(augroup)
       return true
     end,
   })
 end
 
+function M.clear_virtual_text(buf)
+  if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
+    return
+  end
+  
+  vim.api.nvim_buf_del_extmark(buf, state.virtual_text.namespace, state.virtual_text.extmarks[buf])
+  state.virtual_text.extmarks[buf] = nil
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Virtual text cleared")
+  end
+end
+
+function M.display_virtual_text(buf, advice)
+  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+  if log_file then
+    log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    log_file:write("Buffer: " .. buf .. "\n")
+    log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+    log_file:write("Advice length: " .. #advice .. " characters\n")
+    log_file:write("Advice: " .. advice .. "\n")
+  end
+  
+  if not state.enabled then
+    if log_file then
+      log_file:write("Plugin not enabled, exiting display_virtual_text\n\n")
+      log_file:close()
+    end
+    return
+  end
+  
+  if not state.virtual_text.namespace then
+    state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
+    if log_file then
+      log_file:write("Created new namespace: nudge-two-hats-virtual-text\n")
+    end
+  end
+  
+  M.clear_virtual_text(buf)
+  
+  local ok, cursor_pos = pcall(vim.api.nvim_win_get_cursor, 0)
+  if not ok then
+    if log_file then
+      log_file:write("Error getting cursor position: " .. tostring(cursor_pos) .. "\n")
+      log_file:write("Exiting display_virtual_text\n\n")
+      log_file:close()
+    end
+    return
+  end
+  
+  local row = cursor_pos[1] - 1 -- Convert to 0-indexed
+  
+  if log_file then
+    log_file:write("Cursor position: line " .. (row + 1) .. ", col " .. cursor_pos[2] .. "\n")
+  end
+  
+  state.virtual_text.last_advice[buf] = advice
+  
+  local ok, extmark_id = pcall(vim.api.nvim_buf_set_extmark, buf, state.virtual_text.namespace, row, 0, {
+    virt_text = {{advice, "NudgeTwoHatsVirtualText"}},
+    virt_text_pos = "eol",
+    hl_mode = "combine",
+  })
+  
+  if not ok then
+    if log_file then
+      log_file:write("Error setting extmark: " .. tostring(extmark_id) .. "\n")
+      log_file:write("Exiting display_virtual_text\n\n")
+      log_file:close()
+    end
+    return
+  end
+  
+  state.virtual_text.extmarks[buf] = extmark_id
+  
+  if log_file then
+    log_file:write("Successfully set extmark with ID: " .. extmark_id .. "\n")
+    log_file:write("Virtual text should now be visible at line " .. (row + 1) .. "\n\n")
+    log_file:close()
+  end
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Virtual text displayed at line " .. (row + 1))
+  end
+end
+
 function M.setup(opts)
   if opts then
     config = vim.tbl_deep_extend("force", config, opts)
   end
-
+  
+  vim.api.nvim_set_hl(0, "NudgeTwoHatsVirtualText", {
+    fg = config.virtual_text.text_color,
+    bg = config.virtual_text.background_color,
+  })
+  
+  state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsToggle", function()
     state.enabled = not state.enabled
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
+    
+    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if log_file then
+      log_file:write("=== NudgeTwoHatsToggle called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      log_file:write("Plugin enabled state set to: " .. tostring(state.enabled) .. "\n\n")
+      log_file:close()
+    end
+    
+    if state.enabled then
+      if not state.original_updatetime then
+        state.original_updatetime = vim.o.updatetime
+      end
+      vim.o.updatetime = 1000
+      
+      local buf = vim.api.nvim_get_current_buf()
+      local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+      state.buf_filetypes[buf] = filetype
+      
+      local augroup_name = "nudge-two-hats-" .. buf
+      pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
+      
+      create_autocmd(buf)
+      
+      state.virtual_text.last_cursor_move[buf] = os.time()
+      
+      print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetype " .. filetype)
+      print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
+      print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+      
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
+      end
+    else
+      if state.original_updatetime then
+        vim.o.updatetime = state.original_updatetime
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Restored updatetime to " .. state.original_updatetime .. "ms")
+        end
+      end
+      
+      for buf, _ in pairs(state.virtual_text.extmarks) do
+        if vim.api.nvim_buf_is_valid(buf) then
+          M.clear_virtual_text(buf)
+        end
+      end
+      
+      for buf, timer_id in pairs(state.virtual_text.timers) do
+        if timer_id then
+          vim.fn.timer_stop(timer_id)
+          state.virtual_text.timers[buf] = nil
+          
+          if log_file then
+            log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if log_file then
+              log_file:write("Stopping virtual text timer with ID: " .. timer_id .. " when disabling plugin\n")
+              log_file:close()
+            end
+          end
+        end
+      end
+    end
   end, {})
 
   vim.api.nvim_create_user_command("NudgeTwoHatsSetApiKey", function(args)
@@ -770,6 +1196,235 @@ function M.setup(opts)
     end
   end, {})
   
+  -- Store debug autocmd group ID by buffer
+  state.debug_augroup_ids = state.debug_augroup_ids or {}
+  
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualText", function()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    M.clear_virtual_text(buf)
+    
+    if state.debug_augroup_ids[buf] then
+      pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
+      state.debug_augroup_ids[buf] = nil
+    end
+    
+    local augroup_name = "nudge-two-hats-debug-" .. buf
+    local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
+    state.debug_augroup_ids[buf] = augroup_id
+    
+    -- Get the appropriate prompt for this buffer's filetype
+    local prompt = get_prompt_for_buffer(buf)
+    
+    local fake_diff = "This is a test diff for debugging purposes.\n"
+    
+    local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if filetype and filetype ~= "" then
+      fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
+      fake_diff = fake_diff .. "Sample code or content changes for " .. filetype .. " files.\n"
+    end
+    
+    fake_diff = fake_diff .. "Added some new functionality.\n"
+    fake_diff = fake_diff .. "Refactored some existing code.\n"
+    fake_diff = fake_diff .. "Fixed a few bugs.\n"
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
+      print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
+    end
+    
+    local current_pos = vim.api.nvim_win_get_cursor(0)
+    state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
+    
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        if state.debug_cursor_pos then
+          local new_pos = vim.api.nvim_win_get_cursor(0)
+          if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
+            M.clear_virtual_text(buf)
+            vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
+            pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+            state.debug_augroup_ids[buf] = nil
+            state.debug_cursor_pos = nil
+          end
+        end
+      end
+    })
+    
+    vim.api.nvim_create_autocmd({"BufDelete", "BufWipeout"}, {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+        state.debug_augroup_ids[buf] = nil
+        return true
+      end
+    })
+    
+    local loading_message = "Loading advice from AI..."
+    state.virtual_text.last_advice[buf] = loading_message
+    M.display_virtual_text(buf, loading_message)
+    
+    vim.notify("Loading virtual text advice...", vim.log.levels.INFO)
+    
+    get_gemini_advice(fake_diff, function(advice)
+      if vim.api.nvim_buf_is_valid(buf) then
+        state.virtual_text.last_advice[buf] = advice
+        
+        if state.virtual_text.extmarks[buf] then
+          M.display_virtual_text(buf, advice)
+          
+          vim.notify("Debug virtual text updated with AI advice", vim.log.levels.INFO)
+          
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Virtual text message displayed")
+            print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
+            print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
+            print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
+          end
+        end
+      end
+    end, prompt)
+  end, {})
+  
+  -- Store timer IDs by buffer
+  state.debug_timers = state.debug_timers or {}
+  
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualTextTimer", function()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    M.clear_virtual_text(buf)
+    
+    if state.debug_timers[buf] then
+      vim.fn.timer_stop(state.debug_timers[buf])
+      state.debug_timers[buf] = nil
+    end
+    
+    if state.debug_augroup_ids[buf] then
+      pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
+      state.debug_augroup_ids[buf] = nil
+    end
+    
+    local augroup_name = "nudge-two-hats-debug-timer-" .. buf
+    local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
+    state.debug_augroup_ids[buf] = augroup_id
+    
+    local current_pos = vim.api.nvim_win_get_cursor(0)
+    state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
+    
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        if state.debug_cursor_pos then
+          local new_pos = vim.api.nvim_win_get_cursor(0)
+          if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
+            if state.debug_timers[buf] then
+              vim.fn.timer_stop(state.debug_timers[buf])
+              state.debug_timers[buf] = nil
+            end
+            
+            M.clear_virtual_text(buf)
+            
+            vim.notify("Timer stopped and virtual text cleared on cursor movement", vim.log.levels.INFO)
+            
+            pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+            state.debug_augroup_ids[buf] = nil
+            state.debug_cursor_pos = nil
+          end
+        end
+      end
+    })
+    
+    vim.api.nvim_create_autocmd({"BufDelete", "BufWipeout"}, {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        if state.debug_timers[buf] then
+          vim.fn.timer_stop(state.debug_timers[buf])
+          state.debug_timers[buf] = nil
+        end
+        
+        pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+        state.debug_augroup_ids[buf] = nil
+        return true
+      end
+    })
+    
+    local initial_message = "Loading advice from AI..."
+    state.virtual_text.last_advice[buf] = initial_message
+    M.display_virtual_text(buf, initial_message)
+    
+    vim.notify("Debug timer started - will display nudge messages every 10 seconds", vim.log.levels.INFO)
+    
+    get_gemini_advice(fake_diff, function(advice)
+      if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
+        state.virtual_text.last_advice[buf] = advice
+        M.display_virtual_text(buf, advice)
+      end
+    end, prompt)
+    
+    -- Get the appropriate prompt for this buffer's filetype
+    local prompt = get_prompt_for_buffer(buf)
+    
+    local fake_diff = "This is a test diff for debugging purposes.\n"
+    
+    local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if filetype and filetype ~= "" then
+      fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
+      fake_diff = fake_diff .. "Sample code or content changes for " .. filetype .. " files.\n"
+    end
+    
+    fake_diff = fake_diff .. "Added some new functionality.\n"
+    fake_diff = fake_diff .. "Refactored some existing code.\n"
+    fake_diff = fake_diff .. "Fixed a few bugs.\n"
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
+      print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
+    end
+    
+    local function update_virtual_text()
+      if not vim.api.nvim_buf_is_valid(buf) then
+        if state.debug_timers[buf] then
+          vim.fn.timer_stop(state.debug_timers[buf])
+          state.debug_timers[buf] = nil
+        end
+        return
+      end
+      
+      if state.debug_cursor_pos then
+        get_gemini_advice(fake_diff, function(advice)
+          if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
+            state.virtual_text.last_advice[buf] = advice
+            M.display_virtual_text(buf, advice)
+            
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Generated new advice at " .. os.date("%H:%M:%S"))
+              print("[Nudge Two Hats Debug] Advice: " .. advice)
+            end
+          end
+        end, prompt)
+      end
+    end
+    
+    state.debug_timers[buf] = vim.fn.timer_start(10000, function()
+      if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
+        update_virtual_text()
+      end
+      
+      return 10000
+    end, {["repeat"] = -1})
+  end, {})
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
@@ -780,18 +1435,17 @@ function M.setup(opts)
     
     local original_content = state.buf_content[buf]
     
-    if not original_content or original_content == current_content then
-      if current_content and #current_content > 0 then
-        state.buf_content[buf] = string.sub(current_content, 1, #current_content - 1)
-      else
-        state.buf_content[buf] = ""
-      end
+    -- Check if there are no changes and exit early
+    if original_content and original_content == current_content then
+      vim.notify(translate_message(translations.en.no_changes), vim.log.levels.INFO)
       
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] Forcing diff calculation for NudgeTwoHatsNow")
-        print("[Nudge Two Hats Debug] Original content length: " .. (original_content and #original_content or 0))
+        print("[Nudge Two Hats Debug] No changes detected for NudgeTwoHatsNow, exiting early")
+        print("[Nudge Two Hats Debug] Original content length: " .. #original_content)
         print("[Nudge Two Hats Debug] Current content length: " .. #current_content)
       end
+      
+      return
     end
     
     local content, diff = get_buf_diff(buf)
@@ -803,22 +1457,25 @@ function M.setup(opts)
       return
     end
     
-    -- Skip notification if current filetype doesn't match the one when NudgeTwoHatsStart was executed
     local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    local original_filetype = state.buf_filetypes[buf]
-    if current_filetype ~= original_filetype then
+    if not state.buf_filetypes[buf] then
+      state.buf_filetypes[buf] = current_filetype
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
-          current_filetype or "nil", original_filetype or "nil"))
-        local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-        if log_file then
-          log_file:write(string.format("スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
-            current_filetype or "nil", original_filetype or "nil"))
-          log_file:close()
-        end
+        print(string.format("[Nudge Two Hats Debug] 初期化：現在のfiletype (%s) を保存しました", 
+          current_filetype or "nil"))
       end
-      state.buf_content[buf] = original_content
-      return
+    end
+    
+    local original_filetype = state.buf_filetypes[buf]
+    if current_filetype ~= original_filetype and config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 注意：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
+        current_filetype or "nil", original_filetype or "nil"))
+      local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("注意：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
+          current_filetype or "nil", original_filetype or "nil"))
+        log_file:close()
+      end
     end
     
     state.buf_content[buf] = current_content
@@ -848,9 +1505,33 @@ function M.setup(opts)
         icon = "🎩",
       })
       
+      state.virtual_text.last_advice[buf] = advice
+      
       config.execution_delay = generate_random_delay()
     end, prompt)
   end, {})
+  
+  -- vim.api.nvim_create_autocmd("BufEnter", {
+  --   pattern = "*",
+  --   callback = function()
+  --     -- Only set updatetime if plugin is enabled
+  --     if state.enabled then
+  --       if not state.original_updatetime then
+  --         state.original_updatetime = vim.o.updatetime
+  --       end
+  --       vim.o.updatetime = 1000
+  --     end
+  --   end
+  -- })
+  
+  -- vim.api.nvim_create_autocmd("BufLeave", {
+  --   pattern = "*",
+  --   callback = function()
+  --     if state.original_updatetime then
+  --       vim.o.updatetime = state.original_updatetime
+  --     end
+  --   end
+  -- })
 end
 
 return M
