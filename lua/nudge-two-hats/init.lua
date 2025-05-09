@@ -965,6 +965,7 @@ local function create_autocmd(buf)
             end
           end, prompt)
         end)
+        end)
         
         if log_file then
           log_file:write("Started virtual text timer with ID: " .. state.virtual_text.timers[buf] .. "\n\n")
