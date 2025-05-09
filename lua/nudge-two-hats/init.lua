@@ -1280,9 +1280,10 @@ function M.start_notification_timer(buf, event_name)
     
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 最小間隔を満たしました。前回: %s, 現在: %s, 経過: %d秒",
-        os.date("%c", state.last_api_call - min_interval_seconds),
+        os.date("%c", math.max(0, state.last_api_call - min_interval_seconds)),
         os.date("%c", current_time),
         min_interval_seconds))
+    end
     
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
