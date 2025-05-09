@@ -150,18 +150,17 @@ local function sanitize_text(text)
     return b >= 128 and b <= 191
   end
   
-  local chunk_size = 1024 * 1024 -- 1MB chunks
+  local chunk_size = 1024 * 64 -- 64KB chunks (smaller to avoid string slice too long)
   local result = {}
   local total_processed = 0
   
   while total_processed < #sanitized do
     local chunk_end = math.min(total_processed + chunk_size, #sanitized)
     local chunk = string.sub(sanitized, total_processed + 1, chunk_end)
-    local bytes = {chunk:byte(1, -1)}
-    local i = 1
     
-    while i <= #bytes do
-      local b = bytes[i]
+    local i = 1
+    while i <= #chunk do
+      local b = string.byte(chunk, i)
       local width = 1
       
       if b >= 240 and b <= 247 then -- 4-byte sequence
@@ -176,7 +175,7 @@ local function sanitize_text(text)
       local valid = true
       if width > 1 then
         for j = 1, width - 1 do
-          if i + j > #bytes or not is_continuation_byte(bytes[i + j]) then
+          if i + j > #chunk or not is_continuation_byte(string.byte(chunk, i + j)) then
             valid = false
             break
           end
@@ -185,7 +184,7 @@ local function sanitize_text(text)
       
       if valid then
         for j = 0, width - 1 do
-          table.insert(result, bytes[i + j])
+          table.insert(result, string.byte(chunk, i + j))
         end
         i = i + width
       else
@@ -198,9 +197,21 @@ local function sanitize_text(text)
   end
   
   sanitized = ""
-  for _, b in ipairs(result) do
-    sanitized = sanitized .. string.char(b)
+  local result_chunk_size = 1024
+  local i = 1
+  
+  while i <= #result do
+    local chunk_end = math.min(i + result_chunk_size - 1, #result)
+    local chunk = ""
+    
+    for j = i, chunk_end do
+      chunk = chunk .. string.char(result[j])
+    end
+    
+    sanitized = sanitized .. chunk
+    i = chunk_end + 1
   end
+  
   
   if config.debug_mode then
     if sanitized ~= text then
