@@ -1617,6 +1617,43 @@ function M.setup(opts)
     end, {["repeat"] = -1})
   end, {})
   
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugTimerStatus", function()
+    print("========== Nudge Two Hats Timer Status ==========")
+    local active_timers = 0
+    local inactive_buffers = 0
+    
+    for buf, _ in pairs(state.buf_filetypes) do
+      if vim.api.nvim_buf_is_valid(buf) then
+        local filetypes = state.buf_filetypes[buf] or ""
+        local timer_id = state.virtual_text.timers[buf]
+        
+        if timer_id then
+          active_timers = active_timers + 1
+          local timer_info = vim.fn.timer_info(timer_id)
+          local remaining = "不明"
+          
+          if timer_info and #timer_info > 0 then
+            local time_ms = timer_info[1].time
+            if time_ms > 60000 then
+              remaining = string.format("%.1f分", time_ms / 60000)
+            else
+              remaining = string.format("%.1f秒", time_ms / 1000)
+            end
+          end
+          
+          print(string.format("バッファ: %d, Filetype: %s, 残り時間: %s", 
+                             buf, filetypes, remaining))
+        else
+          inactive_buffers = inactive_buffers + 1
+        end
+      end
+    end
+    
+    print(string.format("\n合計: アクティブなタイマー = %d, 非アクティブなバッファ = %d", 
+                       active_timers, inactive_buffers))
+    print("==========================================")
+  end, {})
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
