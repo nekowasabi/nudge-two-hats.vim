@@ -977,13 +977,15 @@ function M.start_virtual_text_timer(buf, event_name)
   
   local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
   if log_file then
-    log_file:write("=== " .. event_name .. " triggered virtual text timer start at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    local event_info = event_name and (" triggered by " .. event_name) or ""
+    log_file:write("=== Virtual text timer start" .. event_info .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
     log_file:write("Buffer: " .. buf .. "\n")
     log_file:close()
   end
   
   if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_name))
+    local event_str = event_name or "unknown"
+    print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_str))
   end
   
   -- Calculate timer duration in milliseconds
