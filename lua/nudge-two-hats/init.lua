@@ -2318,6 +2318,73 @@ function M.setup(opts)
     end, prompt, config.purpose)
   end, {})
   
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugNotify", function()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] 通知処理を強制的に発火させます")
+    end
+    
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    local current_content
+    
+    if line_count < 1000 then
+      current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    else
+      local chunks = {}
+      local chunk_size = 500
+      local total_chunks = math.ceil(line_count / chunk_size)
+      
+      for i = 0, total_chunks - 1 do
+        local start_line = i * chunk_size
+        local end_line = math.min((i + 1) * chunk_size, line_count)
+        table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
+      end
+      
+      current_content = table.concat(chunks, "\n")
+    end
+    
+    -- Create a forced diff if needed
+    local diff = "@@ -0,0 +1," .. line_count .. " @@\n+ " .. current_content
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    
+    -- Get the appropriate prompt for this buffer's filetype
+    local prompt = get_prompt_for_buffer(buf)
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] 強制的に通知処理を実行します")
+      print("[Nudge Two Hats Debug] Filetype: " .. (current_filetype or "unknown"))
+      print("[Nudge Two Hats Debug] バッファサイズ: " .. line_count .. " 行")
+    end
+    
+    state.last_api_call = 0
+    
+    get_gemini_advice(diff, function(advice)
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
+      end
+      
+      local title = "Nudge Two Hats (Debug)"
+      if selected_hat then
+        title = selected_hat .. " (Debug)"
+      end
+      
+      vim.notify(advice, vim.log.levels.INFO, {
+        title = title,
+        icon = "🐛",
+      })
+      
+      state.virtual_text.last_advice[buf] = advice
+    end, prompt, config.purpose)
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
+    end
+  end, {})
+  
   vim.api.nvim_create_autocmd("BufEnter", {
     pattern = "*",
     callback = function()
