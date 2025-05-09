@@ -832,38 +832,42 @@ local function create_autocmd(buf)
         return
       end
       
-      -- Check if cursor has been idle for the configured time
-      local current_time = os.time()
-      local idle_time_seconds = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
-      local last_move_time = state.virtual_text.last_cursor_move[buf] or 0
-      local idle_duration = current_time - last_move_time
-      
-      if log_file then
-        log_file:write("Current time: " .. current_time .. " (" .. os.date("%H:%M:%S", current_time) .. ")\n")
-        log_file:write("Last cursor move time: " .. last_move_time .. " (" .. os.date("%H:%M:%S", last_move_time) .. ")\n")
-        log_file:write("Idle duration: " .. idle_duration .. " seconds\n")
-        log_file:write("Required idle time: " .. idle_time_seconds .. " seconds\n")
-        log_file:write("Idle condition met: " .. tostring(idle_duration >= idle_time_seconds) .. "\n")
-      end
-      
-      if state.virtual_text.timers[buf] then
+      if not state.virtual_text.timers[buf] then
         if log_file then
-          log_file:write("Virtual text timer already running for buffer " .. buf .. "\n\n")
-          log_file:close()
-        end
-        return
-      end
-      
-      if idle_duration >= idle_time_seconds then
-        if log_file then
-          log_file:write("Idle condition met, setting up virtual text timer\n")
+          log_file:write("Setting up virtual text timer for buffer " .. buf .. "\n")
         end
         
-        local initial_message = "Loading advice from AI..."
+        local idle_time_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
+        
+        if log_file then
+          log_file:write("Setting timer to fire after " .. idle_time_ms .. "ms\n")
+        end
+        
+        local initial_message = "Virtual text timer started, will update in " .. config.virtual_text.idle_time .. " minute(s)..."
         state.virtual_text.last_advice[buf] = initial_message
         M.display_virtual_text(buf, initial_message)
         
-        state.virtual_text.timers[buf] = vim.fn.timer_start(100, function()
+        state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function() -- Use 5 seconds for testing
+          if log_file then
+            log_file:close()
+          end
+          
+          if not vim.api.nvim_buf_is_valid(buf) then
+            return
+          end
+          
+          local timer_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+          if timer_log_file then
+            timer_log_file:write("=== Virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+            timer_log_file:write("Buffer: " .. buf .. "\n")
+            timer_log_file:write("Timer ID: " .. state.virtual_text.timers[buf] .. "\n")
+          end
+          
+          local final_message = "Loading advice from AI..."
+          state.virtual_text.last_advice[buf] = final_message
+          M.display_virtual_text(buf, final_message)
+          
+          state.virtual_text.timers[buf] = nil
           if not vim.api.nvim_buf_is_valid(buf) then
             if state.virtual_text.timers[buf] then
               vim.fn.timer_stop(state.virtual_text.timers[buf])
