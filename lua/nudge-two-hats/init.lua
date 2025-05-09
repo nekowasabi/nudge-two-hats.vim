@@ -1038,7 +1038,15 @@ local function create_autocmd(buf)
         local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
         local filetype_match = false
         
-        if state.buf_filetypes[buf] then
+        if not state.buf_filetypes[buf] and current_filetype and current_filetype ~= "" then
+          state.buf_filetypes[buf] = current_filetype
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] 自動登録：バッファ %d のfiletype (%s) を登録しました", 
+              buf, current_filetype))
+          end
+          filetype_match = true
+        elseif state.buf_filetypes[buf] then
+          -- Check if current filetype matches any registered filetype
           for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
             if filetype == current_filetype then
               filetype_match = true
