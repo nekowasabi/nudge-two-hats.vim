@@ -1931,22 +1931,34 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] Using filetypes: " .. table.concat(filetypes, ", "))
     end
     
+    local stored_content = {}
+    local stored_content_by_filetype = {}
+    
+    if state.buf_content[buf] then
+      stored_content = state.buf_content[buf]
+      state.buf_content[buf] = nil
+    end
+    
+    if state.buf_content_by_filetype[buf] then
+      stored_content_by_filetype = state.buf_content_by_filetype[buf]
+      state.buf_content_by_filetype[buf] = {}
+    end
+    
     local content, diff, diff_filetype = get_buf_diff(buf)
     
     if not diff then
-      vim.notify(translate_message(translations.en.no_changes), vim.log.levels.INFO)
+      diff = "@@ -0,0 +1," .. #vim.api.nvim_buf_get_lines(buf, 0, -1, false) .. " @@\n"
+        .. "+ " .. current_content
+      diff_filetype = filetypes[1]
       
-      for _, filetype in ipairs(filetypes) do
-        if not state.buf_content_by_filetype[buf] then
-          state.buf_content_by_filetype[buf] = {}
-        end
-        state.buf_content_by_filetype[buf][filetype] = current_content
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Created forced diff for NudgeTwoHatsNow command")
       end
-      
-      state.buf_content[buf] = current_content
-      
-      return
     end
+    
+    -- Restore original stored content after diff generation
+    state.buf_content[buf] = stored_content
+    state.buf_content_by_filetype[buf] = stored_content_by_filetype
     
     for _, filetype in ipairs(filetypes) do
       if not state.buf_content_by_filetype[buf] then
