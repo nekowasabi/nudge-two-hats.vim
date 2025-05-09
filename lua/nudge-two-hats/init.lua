@@ -847,7 +847,10 @@ local function create_autocmd(buf)
         state.virtual_text.last_advice[buf] = initial_message
         M.display_virtual_text(buf, initial_message)
         
-        state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function() -- Use 5 seconds for testing
+        -- Use the actual idle_time setting (in minutes) converted to milliseconds
+        local timer_ms = config.virtual_text.idle_time * 60 * 1000
+        
+        state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
           if log_file then
             log_file:close()
           end
@@ -858,23 +861,33 @@ local function create_autocmd(buf)
           
           local timer_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
           if timer_log_file then
-            timer_log_file:write("=== Virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+            timer_log_file:write("=== Initial virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
             timer_log_file:write("Buffer: " .. buf .. "\n")
             timer_log_file:write("Timer ID: " .. state.virtual_text.timers[buf] .. "\n")
           end
           
-          local final_message = "Loading advice from AI..."
-          state.virtual_text.last_advice[buf] = final_message
-          M.display_virtual_text(buf, final_message)
+          local loading_message = "Loading advice from AI..."
+          state.virtual_text.last_advice[buf] = loading_message
+          M.display_virtual_text(buf, loading_message)
           
-          state.virtual_text.timers[buf] = nil
-          if not vim.api.nvim_buf_is_valid(buf) then
-            if state.virtual_text.timers[buf] then
-              vim.fn.timer_stop(state.virtual_text.timers[buf])
-              state.virtual_text.timers[buf] = nil
-            end
-            return
+          if timer_log_file then
+            timer_log_file:write("Displayed loading message, now setting up Gemini API timer\n")
           end
+          
+          vim.fn.timer_stop(state.virtual_text.timers[buf])
+          
+          state.virtual_text.timers[buf] = vim.fn.timer_start(100, function()
+            if timer_log_file then
+              timer_log_file:write("=== Gemini API timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+            end
+            
+            if not vim.api.nvim_buf_is_valid(buf) then
+              if timer_log_file then
+                timer_log_file:write("Buffer no longer valid, not calling Gemini API\n")
+                timer_log_file:close()
+              end
+              return
+            end
           
           local fake_diff = "This is a virtual text nudge for idle cursor.\n"
           
@@ -891,47 +904,64 @@ local function create_autocmd(buf)
           -- Get the appropriate prompt for this buffer's filetype
           local prompt = get_prompt_for_buffer(buf)
           
-          local timer_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
           if timer_log_file then
-            timer_log_file:write("=== Virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-            timer_log_file:write("Buffer: " .. buf .. "\n")
             timer_log_file:write("Using filetype: " .. (filetype or "none") .. "\n")
             timer_log_file:write("Using prompt: " .. prompt .. "\n")
+            timer_log_file:write("Calling Gemini API at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
           end
           
           if config.debug_mode then
-            print("[Nudge Two Hats Debug] Virtual text timer fired, generating advice")
+            print("[Nudge Two Hats Debug] Calling Gemini API for virtual text advice")
             print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
           end
           
-          vim.fn.timer_stop(state.virtual_text.timers[buf])
-          state.virtual_text.timers[buf] = nil
+          local current_timer_id = state.virtual_text.timers[buf]
           
           get_gemini_advice(fake_diff, function(advice)
-            if timer_log_file then
-              timer_log_file:write("Gemini API callback received at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
-              timer_log_file:write("Buffer still valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
-              timer_log_file:write("Advice received: " .. advice .. "\n")
+            local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if api_log_file then
+              api_log_file:write("=== Gemini API callback received at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+              api_log_file:write("Buffer still valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
+              api_log_file:write("Timer ID when API was called: " .. tostring(current_timer_id) .. "\n")
+              api_log_file:write("Current timer ID: " .. tostring(state.virtual_text.timers[buf]) .. "\n")
+              api_log_file:write("Advice received: " .. advice .. "\n")
             end
             
             if vim.api.nvim_buf_is_valid(buf) then
               state.virtual_text.last_advice[buf] = advice
               
-              if timer_log_file then
-                timer_log_file:write("Calling display_virtual_text for buffer " .. buf .. "\n")
-                timer_log_file:close() -- Close log file before calling display_virtual_text
+              if api_log_file then
+                api_log_file:write("Calling display_virtual_text for buffer " .. buf .. "\n")
               end
               
-              M.display_virtual_text(buf, advice)
-              
-              if config.debug_mode then
-                print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
-              end
+              vim.schedule(function()
+                if vim.api.nvim_buf_is_valid(buf) then
+                  M.display_virtual_text(buf, advice)
+                  
+                  if config.debug_mode then
+                    print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
+                  end
+                  
+                  if api_log_file then
+                    api_log_file:write("Successfully displayed virtual text advice\n")
+                    api_log_file:close()
+                  end
+                else
+                  if api_log_file then
+                    api_log_file:write("Buffer no longer valid when trying to display advice\n")
+                    api_log_file:close()
+                  end
+                end
+              end)
             else
-              if timer_log_file then
-                timer_log_file:write("Buffer no longer valid, not displaying virtual text\n")
-                timer_log_file:close()
+              if api_log_file then
+                api_log_file:write("Buffer no longer valid, not displaying virtual text\n")
+                api_log_file:close()
               end
+            end
+            
+            if state.virtual_text.timers[buf] == current_timer_id then
+              state.virtual_text.timers[buf] = nil
             end
           end, prompt)
         end)
