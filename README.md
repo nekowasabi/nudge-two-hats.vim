@@ -9,8 +9,11 @@ Inspired by [An example of preparatory refactoring](https://martinfowler.com/art
 
 - Monitors your code changes in real-time
 - Uses Gemini AI to analyze which "hat" you're wearing (refactoring or feature development)
-- Provides short advice via notifications
+- Provides short advice via notifications and virtual text
+- Buffer-specific timer management to reduce API calls
+- Filetype-specific prompts and tracking
 - Toggle functionality on/off as needed
+- Purpose parameter to enhance AI suggestions
 
 ## Installation
 
@@ -43,8 +46,17 @@ use {
 ```lua
 require("nudge-two-hats").setup({
   -- Prompt configuration
-  system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests.",
   purpose = "", -- Work purpose or objective (e.g., "code review", "refactoring", "feature development")
+  
+  -- Default CBT (Cognitive Behavioral Therapy) settings
+  default_cbt = {
+    role = "Cognitive behavioral therapy specialist",
+    direction = "Guide towards healthier thought patterns and behaviors",
+    emotion = "Empathetic and understanding",
+    tone = "Supportive and encouraging but direct",
+    hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
+  },
   
   -- File type specific prompts with enhanced structure
   filetype_prompts = {
@@ -55,6 +67,7 @@ require("nudge-two-hats").setup({
       direction = "Guide towards clearer and more structured writing",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
     },
     -- Other filetypes configured similarly
     
@@ -65,12 +78,17 @@ require("nudge-two-hats").setup({
       direction = "Guide towards clearer and more maintainable code",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
+      hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
     },
   },
   
   -- Message length configuration
   message_length = 10, -- Default length of the advice message
   length_type = "characters", -- Can be "characters" (for Japanese) or "words" (for English)
+  
+  -- Language configuration
+  output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
+  translate_messages = true, -- Whether to translate messages to the specified language
   
   -- Timing configuration
   execution_delay = 60000, -- Delay in milliseconds (1 minute)
@@ -82,6 +100,13 @@ require("nudge-two-hats").setup({
   
   -- Debug configuration
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+  
+  -- Virtual text configuration
+  virtual_text = {
+    idle_time = 10, -- Time in minutes before showing virtual text
+    text_color = "#000000", -- Text color in hex format
+    background_color = "#FFFFFF", -- Background color in hex format
+  },
 })
 ```
 
@@ -101,24 +126,54 @@ require("nudge-two-hats").setup({
    ```
 
 3. Start monitoring the current buffer:
-```
-:NudgeTwoHatsStart
-```
+   ```
+   :NudgeTwoHatsStart [filetype1 filetype2 ...]
+   ```
+   Optionally specify filetypes to monitor (defaults to current buffer's filetype)
 
 4. Toggle the plugin on/off:
-```
-:NudgeTwoHatsToggle
-```
+   ```
+   :NudgeTwoHatsToggle [filetype1 filetype2 ...]
+   ```
+   Optionally specify filetypes to monitor (defaults to current buffer's filetype)
 
 5. Execute a nudge immediately (without waiting for the interval):
-```
-:NudgeTwoHatsNow
-```
+   ```
+   :NudgeTwoHatsNow
+   ```
 
 6. Toggle debug mode (prints nudge text to Vim's `:messages`):
-```
-:NudgeTwoHatsDebugToggle
-```
+   ```
+   :NudgeTwoHatsDebugToggle
+   ```
+
+7. Debug virtual text display:
+   ```
+   :NudgeTwoHatsDebugVirtualText
+   ```
+
+8. Debug virtual text timer:
+   ```
+   :NudgeTwoHatsDebugVirtualTextTimer
+   ```
+
+## How It Works
+
+### Buffer-Specific Timer Management
+
+The plugin uses buffer-specific timers to reduce API calls and improve performance. Timers are only active for the current buffer and are automatically stopped when switching between buffers. This prevents unnecessary API calls from inactive buffers.
+
+### Virtual Text Display
+
+After a period of cursor inactivity (defined by `virtual_text.idle_time`), the plugin will display AI-generated advice as virtual text at the end of the current line. This provides contextual suggestions without disrupting your workflow.
+
+### Filetype-Specific Tracking
+
+The plugin tracks changes by filetype, allowing for more accurate and relevant suggestions based on the type of file you're editing. You can specify multiple filetypes to monitor for a single buffer.
+
+### Purpose Parameter
+
+The purpose parameter enhances AI suggestions by providing context about your current work objective. This helps the AI generate more relevant and helpful advice tailored to your specific task.
 
 ## Requirements
 
