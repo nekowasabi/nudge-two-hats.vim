@@ -825,6 +825,92 @@ local function create_autocmd(buf)
   })
 end
 
+local function start_notification_timer(buf, event_name)
+  if not state.enabled then
+    return
+  end
+  
+  -- Check if this is the current buffer
+  local current_buf = vim.api.nvim_get_current_buf()
+  if buf ~= current_buf then
+    return
+  end
+  
+  -- Check if buffer is valid
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+  
+  if state.virtual_text.timers[buf] then
+    return
+  end
+  
+  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+  if log_file then
+    log_file:write("=== " .. event_name .. " triggered timer start at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    log_file:write("Buffer: " .. buf .. "\n")
+  end
+  
+  local timer_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
+  
+  local current_log_file = log_file
+  log_file = nil -- Set to nil to prevent double closing
+  
+  -- Set up notification timer that won't be canceled by cursor movement
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Starting notification timer for buffer " .. buf .. " from " .. event_name .. " (initial 5s delay)")
+  end
+  
+  -- Always print this message regardless of debug mode to ensure timer activation is visible
+  print("[Nudge Two Hats] Timer activated for buffer " .. buf .. " from " .. event_name .. " at " .. os.date("%H:%M:%S"))
+  
+  state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
+    if current_log_file then
+      pcall(function() current_log_file:close() end)
+      current_log_file = nil
+    end
+    
+    vim.schedule(function()
+      print("[Nudge Two Hats] Initial notification timer fired at " .. os.date("%H:%M:%S"))
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Initial notification timer fired at " .. os.date("%H:%M:%S"))
+      end
+    end)
+    
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    local timer_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if timer_log_file then
+      timer_log_file:write("=== Initial virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      timer_log_file:write("Buffer: " .. buf .. "\n")
+      timer_log_file:write("Timer ID: " .. state.virtual_text.timers[buf] .. "\n")
+    end
+    
+    if timer_log_file then
+      timer_log_file:write("Setting up Gemini API timer\n")
+    end
+    
+    -- Store the timer ID in the state
+    vim.schedule(function()
+      print("[Nudge Two Hats] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
+      end
+    end)
+    
+    state.virtual_text.timers[buf] = vim.fn.timer_start(timer_ms, function()
+      vim.schedule(function()
+        print("[Nudge Two Hats] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
+        end
+      end)
+    end)
+  end)
+end
+
 local function setup_virtual_text(buf)
   -- Store the last cursor position to detect actual movement
   state.virtual_text.last_cursor_pos = state.virtual_text.last_cursor_pos or {}
@@ -889,6 +975,30 @@ local function setup_virtual_text(buf)
     end,
   })
   
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      start_notification_timer(buf, "BufWritePost")
+    end,
+  })
+  
+  vim.api.nvim_create_autocmd("InsertLeave", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      start_notification_timer(buf, "InsertLeave")
+    end,
+  })
+  
+  vim.api.nvim_create_autocmd("BufReadPost", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      start_notification_timer(buf, "BufReadPost")
+    end,
+  })
+  
   vim.api.nvim_create_autocmd("CursorHold", {
     group = augroup,
     buffer = buf,
@@ -938,71 +1048,17 @@ local function setup_virtual_text(buf)
       -- Only set up timer if cursor has been idle for the required time
       if idle_condition_met and not state.virtual_text.timers[buf] then
         if log_file then
-          log_file:write("Setting up virtual text timer for buffer " .. buf .. "\n")
+          log_file:close()
         end
         
-        local idle_time_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
-        
+        start_notification_timer(buf, "CursorHold")
+      else
         if log_file then
-          log_file:write("Setting timer to fire after " .. idle_time_ms .. "ms\n")
+          log_file:close()
         end
-        
-        local timer_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
-        
-        local current_log_file = log_file
-        log_file = nil -- Set to nil to prevent double closing
-        
-        -- Set up notification timer that won't be canceled by cursor movement
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] Starting notification timer for buffer " .. buf .. " (initial 5s delay)")
-        end
-        
-        -- Always print this message regardless of debug mode to ensure timer activation is visible
-        print("[Nudge Two Hats] Timer activated for buffer " .. buf .. " at " .. os.date("%H:%M:%S"))
-        
-        state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
-          if current_log_file then
-            pcall(function() current_log_file:close() end)
-            current_log_file = nil
-          end
-          
-          vim.schedule(function()
-            print("[Nudge Two Hats] Initial notification timer fired at " .. os.date("%H:%M:%S"))
-            if config.debug_mode then
-              print("[Nudge Two Hats Debug] Initial notification timer fired at " .. os.date("%H:%M:%S"))
-            end
-          end)
-          
-          if not vim.api.nvim_buf_is_valid(buf) then
-            return
-          end
-          
-          local timer_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-          if timer_log_file then
-            timer_log_file:write("=== Initial virtual text timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-            timer_log_file:write("Buffer: " .. buf .. "\n")
-            timer_log_file:write("Timer ID: " .. state.virtual_text.timers[buf] .. "\n")
-          end
-          
-          if timer_log_file then
-            timer_log_file:write("Setting up Gemini API timer\n")
-          end
-          
-          -- Store the timer ID in the state
-          vim.schedule(function()
-            print("[Nudge Two Hats] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
-            if config.debug_mode then
-              print("[Nudge Two Hats Debug] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
-            end
-          end)
-          
-          state.virtual_text.timers[buf] = vim.fn.timer_start(timer_ms, function()
-            vim.schedule(function()
-              print("[Nudge Two Hats] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
-              if config.debug_mode then
-                print("[Nudge Two Hats Debug] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
-              end
-            end)
+      end
+    end,
+  })
             
             local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
             if api_log_file then
