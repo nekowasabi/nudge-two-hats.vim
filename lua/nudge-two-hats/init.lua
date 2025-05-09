@@ -1255,7 +1255,6 @@ function M.start_notification_timer(buf, event_name)
       return
     end
     
-    -- Check if minimum interval has passed since last API call
     local current_time = os.time()
     
     -- Initialize last_api_call if not set
@@ -1263,17 +1262,11 @@ function M.start_notification_timer(buf, event_name)
       state.last_api_call = 0
     end
     
-    local min_interval_seconds = config.min_interval
-    
-    if (current_time - state.last_api_call) < min_interval_seconds then
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 通知をスキップ - 最小間隔に達していません。前回: %s, 現在: %s, 必要間隔: %d秒, 経過: %d秒",
-          os.date("%c", state.last_api_call),
-          os.date("%c", current_time),
-          min_interval_seconds,
-          (current_time - state.last_api_call)))
-      end
-      return
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 通知タイマー発火 - 前回のAPI呼び出し: %s, 現在時刻: %s, 経過: %d秒",
+        os.date("%c", state.last_api_call),
+        os.date("%c", current_time),
+        (current_time - state.last_api_call)))
     end
     
     state.last_api_call = current_time
