@@ -581,7 +581,24 @@ end
 
 
 local function get_buf_diff(buf)
-  local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  local content
+  
+  if line_count < 1000 then
+    content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  else
+    local chunks = {}
+    local chunk_size = 500
+    local total_chunks = math.ceil(line_count / chunk_size)
+    
+    for i = 0, total_chunks - 1 do
+      local start_line = i * chunk_size
+      local end_line = math.min((i + 1) * chunk_size, line_count)
+      table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
+    end
+    
+    content = table.concat(chunks, "\n")
+  end
   
   -- Get the filetypes for this buffer
   local filetypes = {}
@@ -688,6 +705,10 @@ local function get_prompt_for_buffer(buf)
   return config.system_prompt
 end
 
+local advice_cache = {}
+local advice_cache_keys = {}
+local MAX_ADVICE_CACHE_SIZE = 10
+
 local function get_gemini_advice(diff, callback, prompt, purpose)
   local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
   
@@ -695,6 +716,22 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
     local error_msg = translate_message(translations.en.api_key_not_set)
     vim.notify(error_msg, vim.log.levels.ERROR)
     return
+  end
+
+  local cache_key = nil
+  if #diff < 10000 then  -- Only cache for reasonably sized diffs
+    cache_key = diff .. (prompt or "") .. (purpose or "")
+    
+    -- Check if we have a cached response
+    if advice_cache[cache_key] then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Using cached API response")
+      end
+      vim.schedule(function()
+        callback(advice_cache[cache_key])
+      end)
+      return
+    end
   end
 
   local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
@@ -723,8 +760,17 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
     system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
   end
   
-  local sanitized_diff = sanitize_text(diff)
-  if config.debug_mode and sanitized_diff ~= diff then
+  local max_diff_size = 10000  -- 10KB is usually enough for context
+  local truncated_diff = diff
+  if #diff > max_diff_size then
+    truncated_diff = string.sub(diff, 1, max_diff_size) .. "\n... (truncated for performance)"
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Diff truncated from " .. #diff .. " to " .. #truncated_diff .. " bytes")
+    end
+  end
+  
+  local sanitized_diff = sanitize_text(truncated_diff)
+  if config.debug_mode and sanitized_diff ~= truncated_diff then
     print("[Nudge Two Hats Debug] Diff content sanitized for UTF-8 compliance")
   end
   
@@ -792,6 +838,16 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
                result.candidates[1].content and result.candidates[1].content.parts and 
                result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
               local advice = result.candidates[1].content.parts[1].text
+              
+              if cache_key then
+                advice_cache[cache_key] = advice
+                table.insert(advice_cache_keys, cache_key)
+                
+                if #advice_cache_keys > MAX_ADVICE_CACHE_SIZE then
+                  local to_remove = table.remove(advice_cache_keys, 1)
+                  advice_cache[to_remove] = nil
+                end
+              end
               
               if config.length_type == "characters" then
                 if #advice > config.message_length then
