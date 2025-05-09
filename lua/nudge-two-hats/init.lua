@@ -1336,21 +1336,16 @@ function M.setup(opts)
     create_autocmd(buf)
     setup_virtual_text(buf)
     
-    local should_show_notification = true
+    vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
     
-    -- Check if current filetype is in the list of specified filetypes
+    local should_show_notification = true
     if current_filetype and current_filetype ~= "" then
       for _, filetype in ipairs(filetypes) do
         if filetype == current_filetype then
-          -- Current filetype matches one of the specified filetypes
           should_show_notification = false
           break
         end
       end
-    end
-    
-    if should_show_notification then
-      vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
     end
     
     if config.debug_mode then
