@@ -897,30 +897,37 @@ local function create_autocmd(buf)
               return
             end
           
-          local fake_diff = "This is a virtual text nudge for idle cursor.\n"
+          local buffer_content = ""
+          local line_count = vim.api.nvim_buf_line_count(buf)
+          local current_line = vim.api.nvim_win_get_cursor(0)[1]
+          
+          local start_line = math.max(1, current_line - 10)
+          local end_line = math.min(line_count, current_line + 10)
+          
+          local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
+          buffer_content = table.concat(lines, "\n")
           
           local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-          if filetype and filetype ~= "" then
-            fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
-            fake_diff = fake_diff .. "Sample code or content for " .. filetype .. " files.\n"
-          end
-          
-          fake_diff = fake_diff .. "Added some new functionality.\n"
-          fake_diff = fake_diff .. "Refactored some existing code.\n"
-          fake_diff = fake_diff .. "Fixed a few bugs.\n"
+          local fake_diff = "Virtual text nudge for idle cursor in " .. (filetype or "unknown") .. " file.\n"
+          fake_diff = fake_diff .. "Current buffer context:\n```" .. (filetype or "") .. "\n"
+          fake_diff = fake_diff .. buffer_content .. "\n```\n"
           
           -- Get the appropriate prompt for this buffer's filetype
           local prompt = get_prompt_for_buffer(buf)
           
+          local virtual_text_prompt = prompt .. "\n\nThis is for a virtual text display at the end of a line in the editor. "
+          virtual_text_prompt = virtual_text_prompt .. "Keep your response very short (under 50 characters), insightful, and varied. "
+          virtual_text_prompt = virtual_text_prompt .. "Avoid repetitive messages. Make it relevant to the code context shown above."
+          
           if timer_log_file then
             timer_log_file:write("Using filetype: " .. (filetype or "none") .. "\n")
-            timer_log_file:write("Using prompt: " .. prompt .. "\n")
+            timer_log_file:write("Using prompt: " .. virtual_text_prompt .. "\n")
             timer_log_file:write("Calling Gemini API at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
           end
           
           if config.debug_mode then
             print("[Nudge Two Hats Debug] Calling Gemini API for virtual text advice")
-            print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
+            print("[Nudge Two Hats Debug] Using prompt: " .. virtual_text_prompt)
           end
           
           -- Store the current timer ID for reference in the callback
@@ -976,7 +983,7 @@ local function create_autocmd(buf)
             if state.virtual_text.timers[buf] == current_timer_id then
               state.virtual_text.timers[buf] = nil
             end
-          end, prompt)
+          end, virtual_text_prompt)
         end)
         end)
         
