@@ -142,9 +142,32 @@ local function sanitize_text(text)
     return ""
   end
   
-  -- Only replace truly invalid UTF-8 sequences
-  local sanitized = text:gsub("[\192-\193]", "?") -- Invalid UTF-8 lead bytes
-  sanitized = sanitized:gsub("[\245-\255]", "?") -- Invalid UTF-8 lead bytes
+  local function simple_sanitize(str)
+    local sanitized = str:gsub("[\000-\031]", "") -- Remove control characters
+    sanitized = sanitized:gsub("\\", "\\\\") -- Escape backslashes
+    sanitized = sanitized:gsub('"', '\\"') -- Escape double quotes
+    
+    -- Handle invalid UTF-8 sequences
+    sanitized = sanitized:gsub("[\192-\193]", "?") -- Invalid UTF-8 lead bytes
+    sanitized = sanitized:gsub("[\245-\255]", "?") -- Invalid UTF-8 lead bytes
+    
+    return sanitized
+  end
+  
+  local sanitized = simple_sanitize(text)
+  
+  local test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
+  
+  if test_ok then
+    if config.debug_mode and sanitized ~= text then
+      print("[Nudge Two Hats Debug] Text sanitized using simple method")
+    end
+    return sanitized
+  end
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Simple sanitization failed, using thorough method")
+  end
   
   local function is_continuation_byte(b)
     return b >= 128 and b <= 191
@@ -154,15 +177,21 @@ local function sanitize_text(text)
   local result = {}
   local total_processed = 0
   
-  while total_processed < #sanitized do
-    local chunk_end = math.min(total_processed + chunk_size, #sanitized)
-    local chunk = string.sub(sanitized, total_processed + 1, chunk_end)
+  while total_processed < #text do
+    local chunk_end = math.min(total_processed + chunk_size, #text)
+    local chunk = string.sub(text, total_processed + 1, chunk_end)
     
     local i = 1
     while i <= #chunk do
       local b = string.byte(chunk, i)
       local width = 1
       
+      if b <= 31 or b == 127 then
+        i = i + 1
+        goto continue
+      end
+      
+      -- Handle UTF-8 sequences
       if b >= 240 and b <= 247 then -- 4-byte sequence
         width = 4
       elseif b >= 224 and b <= 239 then -- 3-byte sequence
@@ -183,14 +212,26 @@ local function sanitize_text(text)
       end
       
       if valid then
-        for j = 0, width - 1 do
-          table.insert(result, string.byte(chunk, i + j))
+        if b == 92 then -- backslash
+          table.insert(result, 92) -- '\'
+          table.insert(result, 92) -- '\'
+          i = i + 1
+        elseif b == 34 then -- double quote
+          table.insert(result, 92) -- '\'
+          table.insert(result, 34) -- '"'
+          i = i + 1
+        else
+          for j = 0, width - 1 do
+            table.insert(result, string.byte(chunk, i + j))
+          end
+          i = i + width
         end
-        i = i + width
       else
         table.insert(result, 63) -- '?' character
         i = i + 1
       end
+      
+      ::continue::
     end
     
     total_processed = chunk_end
@@ -212,11 +253,8 @@ local function sanitize_text(text)
     i = chunk_end + 1
   end
   
-  
   if config.debug_mode then
-    if sanitized ~= text then
-      print("[Nudge Two Hats Debug] Text sanitized for UTF-8 compliance")
-    end
+    print("[Nudge Two Hats Debug] Text sanitized using thorough method")
   end
   
   return sanitized
