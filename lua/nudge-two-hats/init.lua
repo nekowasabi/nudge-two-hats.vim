@@ -217,7 +217,7 @@ local function sanitize_text(text)
   end
   
   if #text < 10240 then
-    local sanitized = text:gsub("[\0-\31\127]", "")
+    local sanitized = text:gsub("[\0-\31]", ""):gsub("\127", "")
     sanitized = sanitized:gsub("\\", "\\\\")
     sanitized = sanitized:gsub('"', '\\"')
     sanitized = sanitized:gsub("[\192-\193]", "?")
@@ -2328,28 +2328,47 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] 通知処理を強制的に発火させます")
     end
     
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    local current_content
-    
-    if line_count < 1000 then
-      current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-    else
-      local chunks = {}
-      local chunk_size = 500
-      local total_chunks = math.ceil(line_count / chunk_size)
-      
-      for i = 0, total_chunks - 1 do
-        local start_line = i * chunk_size
-        local end_line = math.min((i + 1) * chunk_size, line_count)
-        table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
+    -- Get current buffer filetypes
+    local filetypes = {}
+    if state.buf_filetypes[buf] then
+      for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+        table.insert(filetypes, filetype)
       end
-      
-      current_content = table.concat(chunks, "\n")
+    else
+      local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+      if current_filetype and current_filetype ~= "" then
+        table.insert(filetypes, current_filetype)
+        -- Store the filetype for future use
+        state.buf_filetypes[buf] = current_filetype
+      end
     end
     
-    -- Create a forced diff if needed
-    local diff = "@@ -0,0 +1," .. line_count .. " @@\n+ " .. current_content
-    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if #filetypes == 0 then
+      vim.notify("No filetypes specified or detected", vim.log.levels.INFO)
+      return
+    end
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Buffer filetypes: " .. table.concat(filetypes, ", "))
+    end
+    
+    local cursor_pos = vim.api.nvim_win_get_cursor(0)
+    local cursor_row = cursor_pos[1] -- 1-based
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    
+    -- Calculate context range (20 lines above and below cursor)
+    local context_start = math.max(1, cursor_row - 20)
+    local context_end = math.min(line_count, cursor_row + 20)
+    
+    local context_lines = vim.api.nvim_buf_get_lines(buf, context_start - 1, context_end, false)
+    local context_content = table.concat(context_lines, "\n")
+    
+    -- Create a diff with just the context
+    local diff = string.format("@@ -%d,%d +%d,%d @@\n+ %s", 
+                              context_start, #context_lines, context_start, #context_lines, 
+                              context_content)
+    
+    local current_filetype = filetypes[1]
     
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
@@ -2357,7 +2376,7 @@ function M.setup(opts)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 強制的に通知処理を実行します")
       print("[Nudge Two Hats Debug] Filetype: " .. (current_filetype or "unknown"))
-      print("[Nudge Two Hats Debug] バッファサイズ: " .. line_count .. " 行")
+      print("[Nudge Two Hats Debug] コンテキスト範囲: " .. context_start .. "-" .. context_end .. " 行")
     end
     
     state.last_api_call = 0
