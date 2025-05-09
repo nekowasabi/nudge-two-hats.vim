@@ -2202,25 +2202,6 @@ function M.setup(opts)
       return
     end
     
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    local current_content
-    
-    if line_count < 1000 then
-      current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-    else
-      local chunks = {}
-      local chunk_size = 500
-      local total_chunks = math.ceil(line_count / chunk_size)
-      
-      for i = 0, total_chunks - 1 do
-        local start_line = i * chunk_size
-        local end_line = math.min((i + 1) * chunk_size, line_count)
-        table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
-      end
-      
-      current_content = table.concat(chunks, "\n")
-    end
-    
     -- Get the filetypes for this buffer
     local filetypes = {}
     if state.buf_filetypes[buf] then
@@ -2249,6 +2230,18 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] Using filetypes: " .. table.concat(filetypes, ", "))
     end
     
+    -- Get cursor context (±20 lines) instead of entire buffer
+    local cursor_pos = vim.api.nvim_win_get_cursor(0)
+    local cursor_row = cursor_pos[1] -- 1-based
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    
+    -- Calculate context range (20 lines above and below cursor)
+    local context_start = math.max(1, cursor_row - 20)
+    local context_end = math.min(line_count, cursor_row + 20)
+    
+    local context_lines = vim.api.nvim_buf_get_lines(buf, context_start - 1, context_end, false)
+    local context_content = table.concat(context_lines, "\n")
+    
     local stored_content = {}
     local stored_content_by_filetype = {}
     
@@ -2265,12 +2258,15 @@ function M.setup(opts)
     local content, diff, diff_filetype = get_buf_diff(buf)
     
     if not diff then
-      diff = "@@ -0,0 +1," .. #vim.api.nvim_buf_get_lines(buf, 0, -1, false) .. " @@\n"
-        .. "+ " .. current_content
+      -- Create a diff with just the context
+      diff = string.format("@@ -%d,%d +%d,%d @@\n+ %s", 
+                          context_start, #context_lines, context_start, #context_lines, 
+                          context_content)
       diff_filetype = filetypes[1]
       
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Created forced diff for NudgeTwoHatsNow command")
+        print("[Nudge Two Hats Debug] コンテキスト範囲: " .. context_start .. "-" .. context_end .. " 行")
       end
     end
     
@@ -2282,10 +2278,10 @@ function M.setup(opts)
       if not state.buf_content_by_filetype[buf] then
         state.buf_content_by_filetype[buf] = {}
       end
-      state.buf_content_by_filetype[buf][filetype] = current_content
+      state.buf_content_by_filetype[buf][filetype] = context_content
     end
     
-    state.buf_content[buf] = current_content
+    state.buf_content[buf] = context_content
     
     state.last_api_call = 0
     
