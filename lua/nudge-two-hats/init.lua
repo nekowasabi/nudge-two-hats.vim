@@ -868,7 +868,24 @@ function M.setup(opts)
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
     
-    if not state.enabled then
+    if state.enabled then
+      if not state.original_updatetime then
+        state.original_updatetime = vim.o.updatetime
+      end
+      vim.o.updatetime = 1000
+      
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
+      end
+    else
+      if state.original_updatetime then
+        vim.o.updatetime = state.original_updatetime
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Restored updatetime to " .. state.original_updatetime .. "ms")
+        end
+      end
+      
       for buf, _ in pairs(state.virtual_text.extmarks) do
         if vim.api.nvim_buf_is_valid(buf) then
           M.clear_virtual_text(buf)
