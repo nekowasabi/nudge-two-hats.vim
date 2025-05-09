@@ -142,47 +142,35 @@ local function sanitize_text(text)
     return ""
   end
   
-  local function simple_sanitize(str)
-    local sanitized = ""
-    for i = 1, #str do
-      local char = str:sub(i, i)
-      local byte = string.byte(char)
-      if byte > 31 then
-        sanitized = sanitized .. char
-      end
-    end
+  if #text < 10240 then
+    local sanitized = text:gsub("[\0-\31\127]", "")
     
     -- Escape backslashes and double quotes
     sanitized = sanitized:gsub("\\", "\\\\")
     sanitized = sanitized:gsub('"', '\\"')
     
-    -- Handle invalid UTF-8 sequences using valid Lua patterns
+    -- Handle invalid UTF-8 sequences
     sanitized = sanitized:gsub("[\192-\193]", "?") -- Invalid UTF-8 lead bytes
     sanitized = sanitized:gsub("[\245-\255]", "?") -- Invalid UTF-8 lead bytes
     
-    return sanitized
-  end
-  
-  local sanitized = simple_sanitize(text)
-  
-  local test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
-  
-  if test_ok then
-    if config.debug_mode and sanitized ~= text then
-      print("[Nudge Two Hats Debug] Text sanitized using simple method")
+    local test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
+    if test_ok then
+      if config.debug_mode and sanitized ~= text then
+        print("[Nudge Two Hats Debug] Text sanitized using fast method")
+      end
+      return sanitized
     end
-    return sanitized
   end
   
   if config.debug_mode then
-    print("[Nudge Two Hats Debug] Simple sanitization failed, using thorough method")
+    print("[Nudge Two Hats Debug] Using optimized chunk processing for text sanitization")
   end
   
   local function is_continuation_byte(b)
     return b >= 128 and b <= 191
   end
   
-  local chunk_size = 1024 * 64 -- 64KB chunks (smaller to avoid string slice too long)
+  local chunk_size = 1024 * 64 -- 64KB chunks
   local result = {}
   local total_processed = 0
   
@@ -190,7 +178,9 @@ local function sanitize_text(text)
     local chunk_end = math.min(total_processed + chunk_size, #text)
     local chunk = string.sub(text, total_processed + 1, chunk_end)
     
+    local chunk_result = {}
     local i = 1
+    
     while i <= #chunk do
       local b = string.byte(chunk, i)
       local width = 1
@@ -222,48 +212,31 @@ local function sanitize_text(text)
       
       if valid then
         if b == 92 then -- backslash
-          table.insert(result, 92) -- '\'
-          table.insert(result, 92) -- '\'
+          table.insert(chunk_result, "\\\\")
           i = i + 1
         elseif b == 34 then -- double quote
-          table.insert(result, 92) -- '\'
-          table.insert(result, 34) -- '"'
+          table.insert(chunk_result, '\\"')
           i = i + 1
         else
-          for j = 0, width - 1 do
-            table.insert(result, string.byte(chunk, i + j))
-          end
+          table.insert(chunk_result, chunk:sub(i, i + width - 1))
           i = i + width
         end
       else
-        table.insert(result, 63) -- '?' character
+        table.insert(chunk_result, "?")
         i = i + 1
       end
       
       ::continue::
     end
     
+    table.insert(result, table.concat(chunk_result))
     total_processed = chunk_end
   end
   
-  sanitized = ""
-  local result_chunk_size = 1024
-  local i = 1
-  
-  while i <= #result do
-    local chunk_end = math.min(i + result_chunk_size - 1, #result)
-    local chunk = ""
-    
-    for j = i, chunk_end do
-      chunk = chunk .. string.char(result[j])
-    end
-    
-    sanitized = sanitized .. chunk
-    i = chunk_end + 1
-  end
+  local sanitized = table.concat(result)
   
   if config.debug_mode then
-    print("[Nudge Two Hats Debug] Text sanitized using thorough method")
+    print("[Nudge Two Hats Debug] Text sanitized using optimized method")
   end
   
   return sanitized
