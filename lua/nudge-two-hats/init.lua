@@ -1361,18 +1361,17 @@ function M.setup(opts)
     
     local original_content = state.buf_content[buf]
     
-    if not original_content or original_content == current_content then
-      if current_content and #current_content > 0 then
-        state.buf_content[buf] = string.sub(current_content, 1, #current_content - 1)
-      else
-        state.buf_content[buf] = ""
-      end
+    -- Check if there are no changes and exit early
+    if original_content and original_content == current_content then
+      vim.notify(translate_message(translations.en.no_changes), vim.log.levels.INFO)
       
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] Forcing diff calculation for NudgeTwoHatsNow")
-        print("[Nudge Two Hats Debug] Original content length: " .. (original_content and #original_content or 0))
+        print("[Nudge Two Hats Debug] No changes detected for NudgeTwoHatsNow, exiting early")
+        print("[Nudge Two Hats Debug] Original content length: " .. #original_content)
         print("[Nudge Two Hats Debug] Current content length: " .. #current_content)
       end
+      
+      return
     end
     
     local content, diff = get_buf_diff(buf)
