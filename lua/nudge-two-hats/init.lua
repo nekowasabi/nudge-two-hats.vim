@@ -970,6 +970,112 @@ function M.setup(opts)
     end, prompt)
   end, {})
   
+  -- Store timer IDs by buffer
+  state.debug_timers = state.debug_timers or {}
+  
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualTextTimer", function()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    M.clear_virtual_text(buf)
+    
+    if state.debug_timers[buf] then
+      vim.fn.timer_stop(state.debug_timers[buf])
+      state.debug_timers[buf] = nil
+    end
+    
+    if state.debug_augroup_ids[buf] then
+      pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
+      state.debug_augroup_ids[buf] = nil
+    end
+    
+    local augroup_name = "nudge-two-hats-debug-timer-" .. buf
+    local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
+    state.debug_augroup_ids[buf] = augroup_id
+    
+    local current_pos = vim.api.nvim_win_get_cursor(0)
+    state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
+    
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        if state.debug_cursor_pos then
+          local new_pos = vim.api.nvim_win_get_cursor(0)
+          if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
+            if state.debug_timers[buf] then
+              vim.fn.timer_stop(state.debug_timers[buf])
+              state.debug_timers[buf] = nil
+            end
+            
+            M.clear_virtual_text(buf)
+            
+            vim.notify("Timer stopped and virtual text cleared on cursor movement", vim.log.levels.INFO)
+            
+            pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+            state.debug_augroup_ids[buf] = nil
+            state.debug_cursor_pos = nil
+          end
+        end
+      end
+    })
+    
+    vim.api.nvim_create_autocmd({"BufDelete", "BufWipeout"}, {
+      group = augroup_id,
+      buffer = buf,
+      callback = function()
+        if state.debug_timers[buf] then
+          vim.fn.timer_stop(state.debug_timers[buf])
+          state.debug_timers[buf] = nil
+        end
+        
+        pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+        state.debug_augroup_ids[buf] = nil
+        return true
+      end
+    })
+    
+    local initial_message = "Debug timer started - virtual text will update every 10 seconds"
+    state.virtual_text.last_advice[buf] = initial_message
+    M.display_virtual_text(buf, initial_message)
+    
+    vim.notify("Debug timer started - virtual text will update every 10 seconds", vim.log.levels.INFO)
+    
+    local function update_virtual_text()
+      if not vim.api.nvim_buf_is_valid(buf) then
+        if state.debug_timers[buf] then
+          vim.fn.timer_stop(state.debug_timers[buf])
+          state.debug_timers[buf] = nil
+        end
+        return
+      end
+      
+      if state.debug_cursor_pos then
+        local current_time = os.date("%H:%M:%S")
+        local message = "Virtual text update at " .. current_time .. " - cursor idle"
+        
+        state.virtual_text.last_advice[buf] = message
+        M.display_virtual_text(buf, message)
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Timer fired at " .. current_time)
+          print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
+          print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
+        end
+      end
+    end
+    
+    state.debug_timers[buf] = vim.fn.timer_start(10000, function()
+      update_virtual_text()
+      
+      return 10000
+    end, {["repeat"] = -1})
+    
+    update_virtual_text()
+  end, {})
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
