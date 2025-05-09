@@ -651,7 +651,16 @@ local function create_autocmd(buf)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   state.buf_content[buf] = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
   
-  state.virtual_text.last_cursor_move[buf] = os.time()
+  local current_time = os.time()
+  state.virtual_text.last_cursor_move[buf] = current_time
+  
+  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+  if log_file then
+    log_file:write("=== create_autocmd called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    log_file:write("Buffer: " .. buf .. "\n")
+    log_file:write("Initialized last_cursor_move to " .. current_time .. "\n\n")
+    log_file:close()
+  end
 
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
     group = augroup,
@@ -734,14 +743,61 @@ local function create_autocmd(buf)
     end,
   })
   
+  -- Store the last cursor position to detect actual movement
+  state.virtual_text.last_cursor_pos = state.virtual_text.last_cursor_pos or {}
+  state.virtual_text.last_cursor_pos[buf] = nil -- Initialize to nil to force update on first move
+  
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = augroup,
     buffer = buf,
     callback = function()
-      state.virtual_text.last_cursor_move[buf] = os.time()
+      local current_pos = vim.api.nvim_win_get_cursor(0)
+      local cursor_row = current_pos[1]
+      local cursor_col = current_pos[2]
       
-      if state.virtual_text.extmarks[buf] then
-        M.clear_virtual_text(buf)
+      -- Check if cursor has actually moved from its previous position
+      local last_pos = state.virtual_text.last_cursor_pos[buf]
+      local cursor_actually_moved = true
+      
+      if last_pos then
+        cursor_actually_moved = (last_pos.row ~= cursor_row or last_pos.col ~= cursor_col)
+      end
+      
+      state.virtual_text.last_cursor_pos[buf] = { row = cursor_row, col = cursor_col }
+      
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write("=== CursorMoved triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+        log_file:write("Buffer: " .. buf .. "\n")
+        log_file:write("Current position: row=" .. cursor_row .. ", col=" .. cursor_col .. "\n")
+        if last_pos then
+          log_file:write("Previous position: row=" .. last_pos.row .. ", col=" .. last_pos.col .. "\n")
+        else
+          log_file:write("Previous position: nil (first move)\n")
+        end
+        log_file:write("Cursor actually moved: " .. tostring(cursor_actually_moved) .. "\n")
+      end
+      
+      if cursor_actually_moved then
+        local old_time = state.virtual_text.last_cursor_move[buf] or 0
+        local new_time = os.time()
+        state.virtual_text.last_cursor_move[buf] = new_time
+        
+        if log_file then
+          log_file:write("Updated last_cursor_move from " .. old_time .. " to " .. new_time .. "\n")
+        end
+        
+        if state.virtual_text.extmarks[buf] then
+          M.clear_virtual_text(buf)
+        end
+      else
+        if log_file then
+          log_file:write("Cursor didn't actually move, not updating last_cursor_move time\n")
+        end
+      end
+      
+      if log_file then
+        log_file:close()
       end
     end,
   })
