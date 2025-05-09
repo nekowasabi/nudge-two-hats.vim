@@ -217,11 +217,25 @@ local function sanitize_text(text)
   end
   
   if #text < 10240 then
-    local sanitized = text:gsub("[\0-\31]", ""):gsub("\127", "")
-    sanitized = sanitized:gsub("\\", "\\\\")
-    sanitized = sanitized:gsub('"', '\\"')
-    sanitized = sanitized:gsub("[\192-\193]", "?")
-    sanitized = sanitized:gsub("[\245-\255]", "?")
+    -- Use individual character replacements to avoid pattern issues with multibyte characters
+    local sanitized = ""
+    for i = 1, #text do
+      local c = text:sub(i, i)
+      local b = string.byte(c)
+      if b < 32 or b == 127 then
+        -- Skip control characters
+      elseif b == 92 then -- backslash
+        sanitized = sanitized .. "\\\\"
+      elseif b == 34 then -- double quote
+        sanitized = sanitized .. "\\\""
+      elseif b == 192 or b == 193 then -- Invalid UTF-8 lead bytes
+        sanitized = sanitized .. "?"
+      elseif b >= 245 and b <= 255 then -- Invalid UTF-8 lead bytes
+        sanitized = sanitized .. "?"
+      else
+        sanitized = sanitized .. c
+      end
+    end
     
     local test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
     if test_ok then
