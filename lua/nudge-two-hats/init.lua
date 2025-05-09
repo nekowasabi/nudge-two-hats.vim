@@ -874,6 +874,27 @@ function M.setup(opts)
     end
   end, {})
   
+  vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualText", function()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+    
+    local test_message = "This is a test virtual text message"
+    
+    state.virtual_text.last_advice[buf] = test_message
+    
+    display_virtual_text(buf, test_message)
+    
+    vim.notify("Debug virtual text displayed at cursor position", vim.log.levels.INFO)
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Virtual text test message displayed")
+      print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
+      print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
+    end
+  end, {})
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
