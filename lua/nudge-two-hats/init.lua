@@ -847,12 +847,16 @@ local function create_autocmd(buf)
         state.virtual_text.last_advice[buf] = initial_message
         M.display_virtual_text(buf, initial_message)
         
-        -- Use the actual idle_time setting (in minutes) converted to milliseconds
-        local timer_ms = config.virtual_text.idle_time * 60 * 1000
+        -- local timer_ms = config.virtual_text.idle_time * 60 * 1000
+        local timer_ms = 10000 -- 10 seconds for testing
+        
+        local current_log_file = log_file
+        log_file = nil -- Set to nil to prevent double closing
         
         state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
-          if log_file then
-            log_file:close()
+          if current_log_file then
+            pcall(function() current_log_file:close() end)
+            current_log_file = nil
           end
           
           if not vim.api.nvim_buf_is_valid(buf) then
@@ -874,17 +878,25 @@ local function create_autocmd(buf)
             timer_log_file:write("Displayed loading message, now setting up Gemini API timer\n")
           end
           
-          vim.fn.timer_stop(state.virtual_text.timers[buf])
+          local first_timer_id = state.virtual_text.timers[buf]
+          if first_timer_id then
+            vim.fn.timer_stop(first_timer_id)
+          end
           
-          state.virtual_text.timers[buf] = vim.fn.timer_start(100, function()
-            if timer_log_file then
-              timer_log_file:write("=== Gemini API timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+          -- Store the timer ID in the state
+          state.virtual_text.timers[buf] = vim.fn.timer_start(10000, function()
+            local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if api_log_file then
+              api_log_file:write("=== Gemini API timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+              api_log_file:write("Timer ID: " .. tostring(state.virtual_text.timers[buf]) .. "\n")
+              api_log_file:write("Buffer: " .. buf .. "\n")
+              api_log_file:write("Buffer valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
             end
             
             if not vim.api.nvim_buf_is_valid(buf) then
-              if timer_log_file then
-                timer_log_file:write("Buffer no longer valid, not calling Gemini API\n")
-                timer_log_file:close()
+              if api_log_file then
+                api_log_file:write("Buffer no longer valid, not calling Gemini API\n")
+                api_log_file:close()
               end
               return
             end
@@ -915,23 +927,28 @@ local function create_autocmd(buf)
             print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
           end
           
+          -- Store the current timer ID for reference in the callback
           local current_timer_id = state.virtual_text.timers[buf]
           
+          if api_log_file then
+            api_log_file:write("Calling Gemini API directly at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+          end
+          
           get_gemini_advice(fake_diff, function(advice)
-            local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-            if api_log_file then
-              api_log_file:write("=== Gemini API callback received at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-              api_log_file:write("Buffer still valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
-              api_log_file:write("Timer ID when API was called: " .. tostring(current_timer_id) .. "\n")
-              api_log_file:write("Current timer ID: " .. tostring(state.virtual_text.timers[buf]) .. "\n")
-              api_log_file:write("Advice received: " .. advice .. "\n")
+            local api_callback_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if api_callback_log_file then
+              api_callback_log_file:write("=== Gemini API callback received at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+              api_callback_log_file:write("Buffer still valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
+              api_callback_log_file:write("Timer ID when API was called: " .. tostring(current_timer_id) .. "\n")
+              api_callback_log_file:write("Current timer ID: " .. tostring(state.virtual_text.timers[buf]) .. "\n")
+              api_callback_log_file:write("Advice received: " .. advice .. "\n")
             end
             
             if vim.api.nvim_buf_is_valid(buf) then
               state.virtual_text.last_advice[buf] = advice
               
-              if api_log_file then
-                api_log_file:write("Calling display_virtual_text for buffer " .. buf .. "\n")
+              if api_callback_log_file then
+                api_callback_log_file:write("Calling display_virtual_text for buffer " .. buf .. "\n")
               end
               
               vim.schedule(function()
@@ -942,21 +959,21 @@ local function create_autocmd(buf)
                     print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
                   end
                   
-                  if api_log_file then
-                    api_log_file:write("Successfully displayed virtual text advice\n")
-                    api_log_file:close()
+                  if api_callback_log_file then
+                    api_callback_log_file:write("Successfully displayed virtual text advice\n")
+                    api_callback_log_file:close()
                   end
                 else
-                  if api_log_file then
-                    api_log_file:write("Buffer no longer valid when trying to display advice\n")
-                    api_log_file:close()
+                  if api_callback_log_file then
+                    api_callback_log_file:write("Buffer no longer valid when trying to display advice\n")
+                    api_callback_log_file:close()
                   end
                 end
               end)
             else
-              if api_log_file then
-                api_log_file:write("Buffer no longer valid, not displaying virtual text\n")
-                api_log_file:close()
+              if api_callback_log_file then
+                api_callback_log_file:write("Buffer no longer valid, not displaying virtual text\n")
+                api_callback_log_file:close()
               end
             end
             
