@@ -142,6 +142,22 @@ local function sanitize_text(text)
     return ""
   end
   
+  local is_ascii_only = true
+  for i = 1, #text do
+    local b = string.byte(text, i)
+    if b >= 128 or b <= 31 or b == 34 or b == 92 or b == 127 then
+      is_ascii_only = false
+      break
+    end
+  end
+  
+  if is_ascii_only then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Text is ASCII-only, no sanitization needed")
+    end
+    return text
+  end
+  
   if #text < 10240 then
     local sanitized = text:gsub("[\0-\31\127]", "")
     
@@ -160,83 +176,132 @@ local function sanitize_text(text)
       end
       return sanitized
     end
+    
+    sanitized = ""
+    for i = 1, #text do
+      local char = text:sub(i, i)
+      local b = string.byte(char)
+      
+      if b <= 31 or b == 127 then
+      -- Handle special JSON characters
+      elseif b == 34 then -- double quote
+        sanitized = sanitized .. '\\"'
+      elseif b == 92 then -- backslash
+        sanitized = sanitized .. '\\\\'
+      -- Handle potentially problematic byte sequences
+      elseif b >= 128 and b <= 191 then
+        sanitized = sanitized .. "?"
+      elseif (b == 0x82 or b == 0xE3) then
+        -- Just add Unicode replacement character
+        sanitized = sanitized .. "\\u{FFFD}"
+      else
+        sanitized = sanitized .. char
+      end
+    end
+    
+    test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
+    if test_ok then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Text sanitized using aggressive method")
+      end
+      return sanitized
+    end
   end
   
   if config.debug_mode then
-    print("[Nudge Two Hats Debug] Using optimized chunk processing for text sanitization")
+    print("[Nudge Two Hats Debug] Using thorough byte-by-byte processing for text sanitization")
   end
   
-  local function is_continuation_byte(b)
-    return b >= 128 and b <= 191
-  end
-  
-  local chunk_size = 1024 * 64 -- 64KB chunks
   local result = {}
-  local total_processed = 0
+  local i = 1
   
-  while total_processed < #text do
-    local chunk_end = math.min(total_processed + chunk_size, #text)
-    local chunk = string.sub(text, total_processed + 1, chunk_end)
+  while i <= #text do
+    local b = string.byte(text, i)
     
-    local chunk_result = {}
-    local i = 1
-    
-    while i <= #chunk do
-      local b = string.byte(chunk, i)
-      local width = 1
-      
-      if b <= 31 or b == 127 then
-        i = i + 1
-        goto continue
-      end
-      
-      -- Handle UTF-8 sequences
-      if b >= 240 and b <= 247 then -- 4-byte sequence
-        width = 4
-      elseif b >= 224 and b <= 239 then -- 3-byte sequence
-        width = 3
-      elseif b >= 192 and b <= 223 then -- 2-byte sequence
-        width = 2
-      end
-      
-      -- Check if we have a complete sequence
-      local valid = true
-      if width > 1 then
-        for j = 1, width - 1 do
-          if i + j > #chunk or not is_continuation_byte(string.byte(chunk, i + j)) then
-            valid = false
-            break
-          end
-        end
-      end
-      
-      if valid then
-        if b == 92 then -- backslash
-          table.insert(chunk_result, "\\\\")
-          i = i + 1
-        elseif b == 34 then -- double quote
-          table.insert(chunk_result, '\\"')
-          i = i + 1
-        else
-          table.insert(chunk_result, chunk:sub(i, i + width - 1))
-          i = i + width
-        end
+    if b <= 31 or b == 127 then
+      i = i + 1
+    -- Handle special JSON characters
+    elseif b == 34 then -- double quote
+      table.insert(result, '\\"')
+      i = i + 1
+    elseif b == 92 then -- backslash
+      table.insert(result, '\\\\')
+      i = i + 1
+    -- Handle UTF-8 sequences
+    elseif b >= 240 and b <= 247 then -- 4-byte sequence
+      if i + 3 <= #text and 
+         string.byte(text, i+1) >= 128 and string.byte(text, i+1) <= 191 and
+         string.byte(text, i+2) >= 128 and string.byte(text, i+2) <= 191 and
+         string.byte(text, i+3) >= 128 and string.byte(text, i+3) <= 191 then
+        -- Valid 4-byte sequence
+        table.insert(result, text:sub(i, i+3))
+        i = i + 4
       else
-        table.insert(chunk_result, "?")
+        table.insert(result, "?")
         i = i + 1
       end
-      
-      ::continue::
+    elseif b >= 224 and b <= 239 then -- 3-byte sequence
+      if i + 2 <= #text and 
+         string.byte(text, i+1) >= 128 and string.byte(text, i+1) <= 191 and
+         string.byte(text, i+2) >= 128 and string.byte(text, i+2) <= 191 then
+        -- Valid 3-byte sequence
+        table.insert(result, text:sub(i, i+2))
+        i = i + 3
+      else
+        table.insert(result, "?")
+        i = i + 1
+      end
+    elseif b >= 192 and b <= 223 then -- 2-byte sequence
+      if i + 1 <= #text and 
+         string.byte(text, i+1) >= 128 and string.byte(text, i+1) <= 191 then
+        -- Valid 2-byte sequence
+        table.insert(result, text:sub(i, i+1))
+        i = i + 2
+      else
+        table.insert(result, "?")
+        i = i + 1
+      end
+    -- Handle problematic byte sequences
+    elseif b == 0x82 or b == 0xE3 then
+      table.insert(result, "?")
+      i = i + 1
+    elseif b >= 128 and b <= 191 then
+      table.insert(result, "?")
+      i = i + 1
+    else
+      table.insert(result, text:sub(i, i))
+      i = i + 1
     end
-    
-    table.insert(result, table.concat(chunk_result))
-    total_processed = chunk_end
   end
   
   local sanitized = table.concat(result)
   
+  local final_ok, err = pcall(vim.fn.json_encode, { text = sanitized })
+  if not final_ok then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] JSON encoding still failed after thorough sanitization: " .. tostring(err))
+      print("[Nudge Two Hats Debug] Falling back to extreme sanitization (ASCII only)")
+    end
+    
+    sanitized = ""
+    for i = 1, #text do
+      local b = string.byte(text, i)
+      if b >= 32 and b <= 126 and b ~= 34 and b ~= 92 then
+        sanitized = sanitized .. string.char(b)
+      elseif b == 34 then -- double quote
+        sanitized = sanitized .. '\\"'
+      elseif b == 92 then -- backslash
+        sanitized = sanitized .. '\\\\'
+      elseif b == 10 or b == 13 or b == 9 then -- newline, carriage return, tab
+        sanitized = sanitized .. string.char(b)
+      else
+        sanitized = sanitized .. "?"
+      end
+    end
+  end
+  
   if config.debug_mode then
-    print("[Nudge Two Hats Debug] Text sanitized using optimized method")
+    print("[Nudge Two Hats Debug] Text sanitization complete")
   end
   
   return sanitized
