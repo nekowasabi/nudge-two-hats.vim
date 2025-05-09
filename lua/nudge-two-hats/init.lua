@@ -1064,6 +1064,13 @@ function M.setup(opts)
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
     
+    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if log_file then
+      log_file:write("=== NudgeTwoHatsToggle called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      log_file:write("Plugin enabled state set to: " .. tostring(state.enabled) .. "\n\n")
+      log_file:close()
+    end
+    
     if state.enabled then
       if not state.original_updatetime then
         state.original_updatetime = vim.o.updatetime
@@ -1073,7 +1080,13 @@ function M.setup(opts)
       local buf = vim.api.nvim_get_current_buf()
       local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
       state.buf_filetypes[buf] = filetype
+      
+      local augroup_name = "nudge-two-hats-" .. buf
+      pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
+      
       create_autocmd(buf)
+      
+      state.virtual_text.last_cursor_move[buf] = os.time()
       
       print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetype " .. filetype)
       print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
@@ -1094,6 +1107,21 @@ function M.setup(opts)
       for buf, _ in pairs(state.virtual_text.extmarks) do
         if vim.api.nvim_buf_is_valid(buf) then
           M.clear_virtual_text(buf)
+        end
+      end
+      
+      for buf, timer_id in pairs(state.virtual_text.timers) do
+        if timer_id then
+          vim.fn.timer_stop(timer_id)
+          state.virtual_text.timers[buf] = nil
+          
+          if log_file then
+            log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+            if log_file then
+              log_file:write("Stopping virtual text timer with ID: " .. timer_id .. " when disabling plugin\n")
+              log_file:close()
+            end
+          end
         end
       end
     end
