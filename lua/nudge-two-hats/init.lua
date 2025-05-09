@@ -1132,6 +1132,16 @@ function M.display_virtual_text(buf, advice)
   
   M.clear_virtual_text(buf)
   
+  M.stop_timer(buf)
+  
+  if log_file then
+    log_file:write("Reset timer for buffer " .. buf .. " when displaying virtual text\n")
+  end
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Reset timer for buffer " .. buf .. " when displaying virtual text")
+  end
+  
   local ok, cursor_pos = pcall(vim.api.nvim_win_get_cursor, 0)
   if not ok then
     if log_file then
