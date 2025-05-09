@@ -1257,18 +1257,32 @@ function M.start_notification_timer(buf, event_name)
     
     -- Check if minimum interval has passed since last API call
     local current_time = os.time()
-    local random_interval = math.random(0, config.min_interval * 60)
-    if (current_time - state.last_api_call) < random_interval then
+    
+    -- Initialize last_api_call if not set
+    if not state.last_api_call then
+      state.last_api_call = 0
+    end
+    
+    local min_interval_seconds = config.min_interval
+    
+    if (current_time - state.last_api_call) < min_interval_seconds then
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Skipping API call - minimum interval not reached. Last call: %s, Current time: %s, Random interval: %d seconds",
+        print(string.format("[Nudge Two Hats Debug] 通知をスキップ - 最小間隔に達していません。前回: %s, 現在: %s, 必要間隔: %d秒, 経過: %d秒",
           os.date("%c", state.last_api_call),
           os.date("%c", current_time),
-          random_interval))
+          min_interval_seconds,
+          (current_time - state.last_api_call)))
       end
       return
     end
     
     state.last_api_call = current_time
+    
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 最小間隔を満たしました。前回: %s, 現在: %s, 経過: %d秒",
+        os.date("%c", state.last_api_call - min_interval_seconds),
+        os.date("%c", current_time),
+        min_interval_seconds))
     
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
