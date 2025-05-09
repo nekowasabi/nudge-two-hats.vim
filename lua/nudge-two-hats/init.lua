@@ -783,6 +783,19 @@ local function create_autocmd(buf)
   })
 end
 
+local function clear_virtual_text(buf)
+  if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
+    return
+  end
+  
+  vim.api.nvim_buf_del_extmark(buf, state.virtual_text.namespace, state.virtual_text.extmarks[buf])
+  state.virtual_text.extmarks[buf] = nil
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Virtual text cleared")
+  end
+end
+
 local function display_virtual_text(buf, advice)
   if not state.enabled then
     return
@@ -809,19 +822,6 @@ local function display_virtual_text(buf, advice)
   
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text displayed at line " .. (row + 1))
-  end
-end
-
-local function clear_virtual_text(buf)
-  if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
-    return
-  end
-  
-  vim.api.nvim_buf_del_extmark(buf, state.virtual_text.namespace, state.virtual_text.extmarks[buf])
-  state.virtual_text.extmarks[buf] = nil
-  
-  if config.debug_mode then
-    print("[Nudge Two Hats Debug] Virtual text cleared")
   end
 end
 
