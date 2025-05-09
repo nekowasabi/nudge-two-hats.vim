@@ -880,18 +880,34 @@ function M.setup(opts)
       return
     end
     
-    local test_message = "This is a test virtual text message"
+    local messages = {
+      "リファクタリングに集中しましょう。コードの品質を向上させる時間です。",
+      "新機能の開発に集中しましょう。ユーザーに価値を届ける時間です。",
+      "テストを書く時間です。品質を確保しましょう。",
+      "コードレビューの時間です。他の人のコードから学びましょう。"
+    }
+    local advice = messages[math.random(1, #messages)]
     
-    state.virtual_text.last_advice[buf] = test_message
+    state.virtual_text.last_advice[buf] = advice
     
-    display_virtual_text(buf, test_message)
+    display_virtual_text(buf, advice)
+    
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      buffer = buf,
+      once = true,
+      callback = function()
+        clear_virtual_text(buf)
+        vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
+      end
+    })
     
     vim.notify("Debug virtual text displayed at cursor position", vim.log.levels.INFO)
     
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] Virtual text test message displayed")
+      print("[Nudge Two Hats Debug] Virtual text message displayed")
       print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
       print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
+      print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
     end
   end, {})
   
