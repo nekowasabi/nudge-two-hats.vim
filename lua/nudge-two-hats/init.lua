@@ -404,9 +404,10 @@ local function get_prompt_for_buffer(buf)
         if #hats > 0 then
           math.randomseed(os.time())
           selected_hat = hats[math.random(1, #hats)]
-        
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+          
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+          end
         end
         
         return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
