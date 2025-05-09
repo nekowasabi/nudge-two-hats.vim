@@ -924,7 +924,7 @@ local function setup_virtual_text(buf)
       local current_time = os.time()
       local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
       local idle_time = current_time - last_cursor_move_time
-      local required_idle_time = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
+      local required_idle_time = (config.virtual_text.cursor_idle_delay or 5) * 60 -- Convert minutes to seconds
       local idle_condition_met = idle_time >= required_idle_time
       
       if log_file then
