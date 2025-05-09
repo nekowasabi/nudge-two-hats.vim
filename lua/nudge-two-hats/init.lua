@@ -874,12 +874,8 @@ local function setup_virtual_text(buf)
           M.clear_virtual_text(buf)
         end
         
-        if state.virtual_text.timers[buf] then
-          if log_file then
-            log_file:write("Stopping virtual text timer with ID: " .. state.virtual_text.timers[buf] .. "\n")
-          end
-          vim.fn.timer_stop(state.virtual_text.timers[buf])
-          state.virtual_text.timers[buf] = nil
+        if log_file then
+          log_file:write("Cursor moved but not stopping virtual text timer\n")
         end
       else
         if log_file then
@@ -924,7 +920,23 @@ local function setup_virtual_text(buf)
         return
       end
       
-      if not state.virtual_text.timers[buf] then
+      -- Check if cursor has been idle for the required time
+      local current_time = os.time()
+      local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
+      local idle_time = current_time - last_cursor_move_time
+      local required_idle_time = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
+      local idle_condition_met = idle_time >= required_idle_time
+      
+      if log_file then
+        log_file:write("Current time: " .. os.date("%Y-%m-%d %H:%M:%S", current_time) .. "\n")
+        log_file:write("Last cursor move time: " .. os.date("%Y-%m-%d %H:%M:%S", last_cursor_move_time) .. "\n")
+        log_file:write("Idle time: " .. idle_time .. " seconds\n")
+        log_file:write("Required idle time: " .. required_idle_time .. " seconds\n")
+        log_file:write("Idle condition met: " .. tostring(idle_condition_met) .. "\n")
+      end
+      
+      -- Only set up timer if cursor has been idle for the required time
+      if idle_condition_met and not state.virtual_text.timers[buf] then
         if log_file then
           log_file:write("Setting up virtual text timer for buffer " .. buf .. "\n")
         end
@@ -935,12 +947,12 @@ local function setup_virtual_text(buf)
           log_file:write("Setting timer to fire after " .. idle_time_ms .. "ms\n")
         end
         
-        
         local timer_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
         
         local current_log_file = log_file
         log_file = nil -- Set to nil to prevent double closing
         
+        -- Set up notification timer that won't be canceled by cursor movement
         state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
           if current_log_file then
             pcall(function() current_log_file:close() end)
@@ -959,12 +971,7 @@ local function setup_virtual_text(buf)
           end
           
           if timer_log_file then
-            timer_log_file:write("Skipping loading message, setting up Gemini API timer directly\n")
-          end
-          
-          local first_timer_id = state.virtual_text.timers[buf]
-          if first_timer_id then
-            vim.fn.timer_stop(first_timer_id)
+            timer_log_file:write("Setting up Gemini API timer\n")
           end
           
           -- Store the timer ID in the state
