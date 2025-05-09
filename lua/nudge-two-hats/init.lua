@@ -967,6 +967,15 @@ function M.setup(opts)
       end
       vim.o.updatetime = 1000
       
+      local buf = vim.api.nvim_get_current_buf()
+      local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+      state.buf_filetypes[buf] = filetype
+      create_autocmd(buf)
+      
+      print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetype " .. filetype)
+      print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
+      print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+      
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
       end
