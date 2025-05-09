@@ -750,15 +750,42 @@ local function create_autocmd(buf)
     group = augroup,
     buffer = buf,
     callback = function()
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write("=== CursorHold triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+        log_file:write("Buffer: " .. buf .. "\n")
+        log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+        log_file:write("updatetime: " .. vim.o.updatetime .. "ms\n")
+        log_file:write("idle_time setting: " .. config.virtual_text.idle_time .. " minutes (" .. (config.virtual_text.idle_time * 60) .. " seconds)\n")
+      end
+      
       if not state.enabled then
+        if log_file then
+          log_file:write("Plugin not enabled, exiting CursorHold handler\n\n")
+          log_file:close()
+        end
         return
       end
       
       -- Check if cursor has been idle for the configured time
       local current_time = os.time()
       local idle_time_seconds = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
+      local last_move_time = state.virtual_text.last_cursor_move[buf] or 0
+      local idle_duration = current_time - last_move_time
       
-      if (current_time - state.virtual_text.last_cursor_move[buf]) >= idle_time_seconds then
+      if log_file then
+        log_file:write("Current time: " .. current_time .. " (" .. os.date("%H:%M:%S", current_time) .. ")\n")
+        log_file:write("Last cursor move time: " .. last_move_time .. " (" .. os.date("%H:%M:%S", last_move_time) .. ")\n")
+        log_file:write("Idle duration: " .. idle_duration .. " seconds\n")
+        log_file:write("Required idle time: " .. idle_time_seconds .. " seconds\n")
+        log_file:write("Idle condition met: " .. tostring(idle_duration >= idle_time_seconds) .. "\n")
+      end
+      
+      if idle_duration >= idle_time_seconds then
+        if log_file then
+          log_file:write("Idle condition met, generating virtual text\n")
+        end
+        
         local fake_diff = "This is a virtual text nudge for idle cursor.\n"
         
         local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
@@ -774,18 +801,40 @@ local function create_autocmd(buf)
         -- Get the appropriate prompt for this buffer's filetype
         local prompt = get_prompt_for_buffer(buf)
         
+        if log_file then
+          log_file:write("Using filetype: " .. (filetype or "none") .. "\n")
+          log_file:write("Using prompt: " .. prompt .. "\n")
+        end
+        
         if config.debug_mode then
           print("[Nudge Two Hats Debug] Generating virtual text advice after " .. idle_time_seconds .. " seconds of idle cursor")
           print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
         end
         
         get_gemini_advice(fake_diff, function(advice)
+          if log_file then
+            log_file:write("Gemini API callback received at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+            log_file:write("Buffer still valid: " .. tostring(vim.api.nvim_buf_is_valid(buf)) .. "\n")
+            log_file:write("Advice received: " .. advice .. "\n")
+          end
+          
           if vim.api.nvim_buf_is_valid(buf) then
             state.virtual_text.last_advice[buf] = advice
+            
+            if log_file then
+              log_file:write("Calling display_virtual_text for buffer " .. buf .. "\n")
+              log_file:close() -- Close log file before calling display_virtual_text
+            end
+            
             M.display_virtual_text(buf, advice)
             
             if config.debug_mode then
               print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
+            end
+          else
+            if log_file then
+              log_file:write("Buffer no longer valid, not displaying virtual text\n")
+              log_file:close()
             end
           end
         end, prompt)
@@ -823,28 +872,72 @@ function M.clear_virtual_text(buf)
 end
 
 function M.display_virtual_text(buf, advice)
+  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+  if log_file then
+    log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+    log_file:write("Buffer: " .. buf .. "\n")
+    log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+    log_file:write("Advice length: " .. #advice .. " characters\n")
+    log_file:write("Advice: " .. advice .. "\n")
+  end
+  
   if not state.enabled then
+    if log_file then
+      log_file:write("Plugin not enabled, exiting display_virtual_text\n\n")
+      log_file:close()
+    end
     return
   end
   
   if not state.virtual_text.namespace then
     state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
+    if log_file then
+      log_file:write("Created new namespace: nudge-two-hats-virtual-text\n")
+    end
   end
   
   M.clear_virtual_text(buf)
   
-  local cursor_pos = vim.api.nvim_win_get_cursor(0)
+  local ok, cursor_pos = pcall(vim.api.nvim_win_get_cursor, 0)
+  if not ok then
+    if log_file then
+      log_file:write("Error getting cursor position: " .. tostring(cursor_pos) .. "\n")
+      log_file:write("Exiting display_virtual_text\n\n")
+      log_file:close()
+    end
+    return
+  end
+  
   local row = cursor_pos[1] - 1 -- Convert to 0-indexed
+  
+  if log_file then
+    log_file:write("Cursor position: line " .. (row + 1) .. ", col " .. cursor_pos[2] .. "\n")
+  end
   
   state.virtual_text.last_advice[buf] = advice
   
-  local extmark_id = vim.api.nvim_buf_set_extmark(buf, state.virtual_text.namespace, row, 0, {
+  local ok, extmark_id = pcall(vim.api.nvim_buf_set_extmark, buf, state.virtual_text.namespace, row, 0, {
     virt_text = {{advice, "NudgeTwoHatsVirtualText"}},
     virt_text_pos = "eol",
     hl_mode = "combine",
   })
   
+  if not ok then
+    if log_file then
+      log_file:write("Error setting extmark: " .. tostring(extmark_id) .. "\n")
+      log_file:write("Exiting display_virtual_text\n\n")
+      log_file:close()
+    end
+    return
+  end
+  
   state.virtual_text.extmarks[buf] = extmark_id
+  
+  if log_file then
+    log_file:write("Successfully set extmark with ID: " .. extmark_id .. "\n")
+    log_file:write("Virtual text should now be visible at line " .. (row + 1) .. "\n\n")
+    log_file:close()
+  end
   
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text displayed at line " .. (row + 1))
