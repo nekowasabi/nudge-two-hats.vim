@@ -1354,8 +1354,20 @@ function M.setup(opts)
     
     state.enabled = true
     
-    -- Always show notification regardless of file paths or filetypes
+    create_autocmd(buf)
+    setup_virtual_text(buf)
+    
     vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
+    
+    local should_show_notification = true
+    if current_filetype and current_filetype ~= "" then
+      for _, filetype in ipairs(filetypes) do
+        if filetype == current_filetype then
+          should_show_notification = false
+          break
+        end
+      end
+    end
     
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
