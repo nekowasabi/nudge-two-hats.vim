@@ -92,8 +92,7 @@ local config = {
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
   
   virtual_text = {
-    enabled = true, -- Whether to display nudges as virtual text
-    idle_time = 600000, -- Time in milliseconds before showing virtual text (10 minutes)
+    idle_time = 10, -- Time in minutes before showing virtual text
     text_color = "#000000", -- Text color in hex format
     background_color = "#FFFFFF", -- Background color in hex format
   },

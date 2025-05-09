@@ -7,7 +7,6 @@ local state = {
   api_key = nil, -- Gemini API key
   last_api_call = 0, -- Timestamp of the last API call
   virtual_text = {
-    enabled = true, -- Whether virtual text is enabled
     namespace = nil, -- Namespace for virtual text extmarks
     extmarks = {}, -- Store extmark IDs by buffer
     last_advice = {}, -- Store last advice by buffer
@@ -751,7 +750,7 @@ local function create_autocmd(buf)
     group = augroup,
     buffer = buf,
     callback = function()
-      if not state.enabled or not state.virtual_text.enabled or not config.virtual_text.enabled then
+      if not state.enabled then
         return
       end
       
@@ -759,7 +758,7 @@ local function create_autocmd(buf)
       if state.virtual_text.last_advice[buf] then
         -- Check if cursor has been idle for the configured time
         local current_time = os.time()
-        local idle_time_seconds = config.virtual_text.idle_time / 1000
+        local idle_time_seconds = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
         
         if (current_time - state.virtual_text.last_cursor_move[buf]) >= idle_time_seconds then
           display_virtual_text(buf, state.virtual_text.last_advice[buf])
@@ -785,7 +784,7 @@ local function create_autocmd(buf)
 end
 
 local function display_virtual_text(buf, advice)
-  if not state.virtual_text.enabled or not config.virtual_text.enabled then
+  if not state.enabled then
     return
   end
   
@@ -842,14 +841,8 @@ function M.setup(opts)
     state.enabled = not state.enabled
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
-  end, {})
-  
-  vim.api.nvim_create_user_command("NudgeTwoHatsVirtualTextToggle", function()
-    state.virtual_text.enabled = not state.virtual_text.enabled
-    local status = state.virtual_text.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
-    vim.notify("Nudge Two Hats virtual text " .. status, vim.log.levels.INFO)
     
-    if not state.virtual_text.enabled then
+    if not state.enabled then
       for buf, _ in pairs(state.virtual_text.extmarks) do
         if vim.api.nvim_buf_is_valid(buf) then
           clear_virtual_text(buf)
@@ -968,12 +961,13 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd("BufEnter", {
     pattern = "*",
     callback = function()
-      -- Only set updatetime if virtual text is enabled
-      if state.enabled and state.virtual_text.enabled and config.virtual_text.enabled then
+      -- Only set updatetime if plugin is enabled
+      if state.enabled then
         if not state.original_updatetime then
           state.original_updatetime = vim.o.updatetime
         end
-        vim.o.updatetime = config.virtual_text.idle_time
+        -- Convert minutes to milliseconds for updatetime
+        vim.o.updatetime = config.virtual_text.idle_time * 60 * 1000
       end
     end
   })
