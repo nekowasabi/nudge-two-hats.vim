@@ -2,7 +2,8 @@ local M = {}
 
 local state = {
   enabled = false,
-  buf_content = {}, -- Store buffer content for diff calculation
+  buf_content = {}, -- Store buffer content for diff calculation (legacy, kept for backward compatibility)
+  buf_content_by_filetype = {}, -- Store buffer content by buffer ID and filetype
   buf_filetypes = {}, -- Store buffer filetypes when NudgeTwoHatsStart is executed
   api_key = nil, -- Gemini API key
   last_api_call = 0, -- Timestamp of the last API call
@@ -346,51 +347,96 @@ end
 
 local function get_buf_diff(buf)
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-  local old = state.buf_content[buf]
-  if old and old ~= content then
-    local diff = vim.diff(old, content, { result_type = "unified" })
-    if type(diff) == "string" then
-      return content, diff
+  
+  -- Get the filetypes for this buffer
+  local filetypes = {}
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
+  else
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
     end
   end
-  return content, nil
+  
+  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+  
+  -- Check for diff in any of the filetypes
+  for _, filetype in ipairs(filetypes) do
+    local old = state.buf_content_by_filetype[buf][filetype]
+    
+    if not old and state.buf_content[buf] then
+      old = state.buf_content[buf]
+    end
+    
+    if old and old ~= content then
+      local diff = vim.diff(old, content, { result_type = "unified" })
+      if type(diff) == "string" then
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] Found diff for filetype: %s", filetype))
+        end
+        return content, diff, filetype
+      end
+    end
+  end
+  
+  return content, nil, nil
 end
 
 local selected_hat = nil
 
 local function get_prompt_for_buffer(buf)
-  local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+  local filetypes = {}
   
-  if config.debug_mode then
-    print("[Nudge Two Hats Debug] Buffer filetype: " .. filetype)
+  -- Check if we have stored filetypes for this buffer
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
   end
   
-  -- Check if we have a specific prompt for this filetype
-  if filetype and config.filetype_prompts[filetype] then
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
+  -- If no stored filetypes, use the current buffer's filetype
+  if #filetypes == 0 then
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
     end
-    
-    local filetype_prompt = config.filetype_prompts[filetype]
-    
-    if type(filetype_prompt) == "string" then
-      selected_hat = nil
-      return filetype_prompt
-    elseif type(filetype_prompt) == "table" then
-      local role = filetype_prompt.role or config.default_cbt.role
-      local direction = filetype_prompt.direction or config.default_cbt.direction
-      local emotion = filetype_prompt.emotion or config.default_cbt.emotion
-      local tone = filetype_prompt.tone or config.default_cbt.tone
-      local prompt_text = filetype_prompt.prompt
+  end
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Buffer filetypes: " .. table.concat(filetypes, ", "))
+  end
+  
+  -- Check if we have a specific prompt for any of the filetypes
+  for _, filetype in ipairs(filetypes) do
+    if filetype and config.filetype_prompts[filetype] then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
+      end
       
-      local hats = filetype_prompt.hats or config.default_cbt.hats or {}
+      local filetype_prompt = config.filetype_prompts[filetype]
       
-      if #hats > 0 then
-        math.randomseed(os.time())
-        selected_hat = hats[math.random(1, #hats)]
+      if type(filetype_prompt) == "string" then
+        selected_hat = nil
+        return filetype_prompt
+      elseif type(filetype_prompt) == "table" then
+        local role = filetype_prompt.role or config.default_cbt.role
+        local direction = filetype_prompt.direction or config.default_cbt.direction
+        local emotion = filetype_prompt.emotion or config.default_cbt.emotion
+        local tone = filetype_prompt.tone or config.default_cbt.tone
+        local prompt_text = filetype_prompt.prompt
         
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+        local hats = filetype_prompt.hats or config.default_cbt.hats or {}
+        
+        if #hats > 0 then
+          math.randomseed(os.time())
+          selected_hat = hats[math.random(1, #hats)]
+          
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+          end
         end
         
         return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
@@ -645,17 +691,34 @@ end
 
 local function create_autocmd(buf)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
-  state.buf_content[buf] = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  
+  local filetypes = {}
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
+  else
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
+      state.buf_filetypes[buf] = current_filetype
+    end
+  end
+  
+  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+  for _, filetype in ipairs(filetypes) do
+    state.buf_content_by_filetype[buf][filetype] = content
+  end
+  
+  state.buf_content[buf] = content
   
   local current_time = os.time()
   state.virtual_text.last_cursor_move[buf] = current_time
   
-  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-  if log_file then
-    log_file:write("=== create_autocmd called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-    log_file:write("Buffer: " .. buf .. "\n")
-    log_file:write("Initialized last_cursor_move to " .. current_time .. "\n\n")
-    log_file:close()
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s", 
+      buf, table.concat(filetypes, ", ")))
   end
 
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
@@ -669,51 +732,66 @@ local function create_autocmd(buf)
       vim.defer_fn(function()
         if not vim.api.nvim_buf_is_valid(buf) then
           state.buf_content[buf] = nil
+          state.buf_content_by_filetype[buf] = nil
           vim.api.nvim_del_augroup_by_id(augroup)
           return
         end
 
-        local content, diff = get_buf_diff(buf)
+        local content, diff, diff_filetype = get_buf_diff(buf)
         
         if not diff then
           return
         end
 
-        -- Skip notification if current filetype doesn't match the one when NudgeTwoHatsStart was executed
+        -- Check if current filetype is in the list of registered filetypes
         local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-        local original_filetype = state.buf_filetypes[buf]
-        if current_filetype ~= original_filetype then
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
-              current_filetype or "nil", original_filetype or "nil"))
-            local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-            if log_file then
-              log_file:write(string.format("スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
-                current_filetype or "nil", original_filetype or "nil"))
-              log_file:close()
+        local filetype_match = false
+        
+        if state.buf_filetypes[buf] then
+          for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+            if filetype == current_filetype then
+              filetype_match = true
+              break
             end
+          end
+        end
+        
+        if not filetype_match then
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が登録されたfiletypes (%s) に含まれていません", 
+              current_filetype or "nil", state.buf_filetypes[buf] or "nil"))
           end
           return
         end
 
+        for _, filetype in ipairs(filetypes) do
+          if not state.buf_content_by_filetype[buf] then
+            state.buf_content_by_filetype[buf] = {}
+          end
+          state.buf_content_by_filetype[buf][filetype] = content
+        end
+        
         state.buf_content[buf] = content
         
         -- Check if minimum interval has passed since last API call
         local current_time = os.time()
         local random_interval = math.random(0, config.min_interval * 60)
         if (current_time - state.last_api_call) < random_interval then
-          local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-          if log_file then
-            log_file:write("Skipping API call - minimum interval not reached. Last call: " .. 
-                          os.date("%c", state.last_api_call) .. ", Current time: " .. 
-                          os.date("%c", current_time) .. ", Random interval: " .. 
-                          random_interval .. " seconds (" .. config.min_interval .. " minutes max)\n")
-            log_file:close()
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] Skipping API call - minimum interval not reached. Last call: %s, Current time: %s, Random interval: %d seconds",
+              os.date("%c", state.last_api_call),
+              os.date("%c", current_time),
+              random_interval))
           end
           return
         end
         
         state.last_api_call = current_time
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
+          print(diff)
+        end
         
         -- Get the appropriate prompt for this buffer's filetype
         local prompt = get_prompt_for_buffer(buf)
@@ -728,17 +806,21 @@ local function create_autocmd(buf)
             title = selected_hat
           end
           
-          state.virtual_text.last_advice[buf] = advice
-          
           vim.notify(advice, vim.log.levels.INFO, {
             title = title,
             icon = "🎩",
           })
+          
+          state.virtual_text.last_advice[buf] = advice
+          
+          config.execution_delay = generate_random_delay()
         end, prompt)
       end, config.execution_delay)
     end,
   })
-  
+end
+
+local function setup_virtual_text(buf)
   -- Store the last cursor position to detect actual movement
   state.virtual_text.last_cursor_pos = state.virtual_text.last_cursor_pos or {}
   state.virtual_text.last_cursor_pos[buf] = nil -- Initialize to nil to force update on first move
@@ -1105,17 +1187,10 @@ function M.setup(opts)
   
   state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
   
-  vim.api.nvim_create_user_command("NudgeTwoHatsToggle", function()
+  vim.api.nvim_create_user_command("NudgeTwoHatsToggle", function(args)
     state.enabled = not state.enabled
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
-    
-    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-    if log_file then
-      log_file:write("=== NudgeTwoHatsToggle called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-      log_file:write("Plugin enabled state set to: " .. tostring(state.enabled) .. "\n\n")
-      log_file:close()
-    end
     
     if state.enabled then
       if not state.original_updatetime then
@@ -1124,8 +1199,23 @@ function M.setup(opts)
       vim.o.updatetime = 1000
       
       local buf = vim.api.nvim_get_current_buf()
-      local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-      state.buf_filetypes[buf] = filetype
+      local filetypes = {}
+      
+      if args.args and args.args ~= "" then
+        for filetype in string.gmatch(args.args, "%S+") do
+          table.insert(filetypes, filetype)
+        end
+        print("[Nudge Two Hats] Using specified filetypes: " .. args.args)
+      else
+        local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+        if current_filetype and current_filetype ~= "" then
+          table.insert(filetypes, current_filetype)
+          print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
+        end
+      end
+      
+      -- Store the filetypes in state
+      state.buf_filetypes[buf] = table.concat(filetypes, ",")
       
       local augroup_name = "nudge-two-hats-" .. buf
       pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
@@ -1134,7 +1224,7 @@ function M.setup(opts)
       
       state.virtual_text.last_cursor_move[buf] = os.time()
       
-      print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetype " .. filetype)
+      print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
       print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
       print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
       
@@ -1178,14 +1268,68 @@ function M.setup(opts)
     vim.notify(translate_message(translations.en.api_key_set), vim.log.levels.INFO)
   end, { nargs = 1 })
 
-  vim.api.nvim_create_user_command("NudgeTwoHatsStart", function()
+  vim.api.nvim_create_user_command("NudgeTwoHatsStart", function(args)
     local buf = vim.api.nvim_get_current_buf()
-    local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    state.buf_filetypes[buf] = filetype
-    create_autocmd(buf)
+    local filetypes = {}
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    local using_current_filetype = false
+    
+    if args.args and args.args ~= "" then
+      for filetype in string.gmatch(args.args, "%S+") do
+        table.insert(filetypes, filetype)
+      end
+      print("[Nudge Two Hats] Using specified filetypes: " .. args.args)
+    else
+      if current_filetype and current_filetype ~= "" then
+        table.insert(filetypes, current_filetype)
+        using_current_filetype = true
+        print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
+      end
+    end
+    
+    -- Store the filetypes in state
+    state.buf_filetypes[buf] = table.concat(filetypes, ",")
+    
+    -- Set up virtual text and updatetime
+    if not state.original_updatetime then
+      state.original_updatetime = vim.o.updatetime
+    end
+    vim.o.updatetime = 1000
+    
+    -- Initialize virtual text state for this buffer
+    state.virtual_text.last_cursor_move = state.virtual_text.last_cursor_move or {}
+    state.virtual_text.last_cursor_move[buf] = os.time()
+    
     state.enabled = true
-    vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
-  end, {})
+    
+    create_autocmd(buf)
+    setup_virtual_text(buf)
+    
+    local should_show_notification = true
+    
+    -- Check if current filetype is in the list of specified filetypes
+    if current_filetype and current_filetype ~= "" then
+      for _, filetype in ipairs(filetypes) do
+        if filetype == current_filetype then
+          -- Current filetype matches one of the specified filetypes
+          should_show_notification = false
+          break
+        end
+      end
+    end
+    
+    if should_show_notification then
+      vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
+    end
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
+      print("[Nudge Two Hats Debug] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+      print("[Nudge Two Hats Debug] Registered filetypes: " .. table.concat(filetypes, ", "))
+      print("[Nudge Two Hats Debug] Current filetype: " .. (current_filetype or "nil"))
+      print("[Nudge Two Hats Debug] Should show notification: " .. tostring(should_show_notification))
+    end
+  end, { nargs = "?" })
   
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugToggle", function()
     config.debug_mode = not config.debug_mode
@@ -1433,49 +1577,56 @@ function M.setup(opts)
     
     local current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
     
-    local original_content = state.buf_content[buf]
-    
-    -- Check if there are no changes and exit early
-    if original_content and original_content == current_content then
-      vim.notify(translate_message(translations.en.no_changes), vim.log.levels.INFO)
-      
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] No changes detected for NudgeTwoHatsNow, exiting early")
-        print("[Nudge Two Hats Debug] Original content length: " .. #original_content)
-        print("[Nudge Two Hats Debug] Current content length: " .. #current_content)
+    -- Get the filetypes for this buffer
+    local filetypes = {}
+    if state.buf_filetypes[buf] then
+      for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+        table.insert(filetypes, filetype)
       end
-      
+    else
+      local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+      if current_filetype and current_filetype ~= "" then
+        table.insert(filetypes, current_filetype)
+        -- Store the filetype for future use
+        state.buf_filetypes[buf] = current_filetype
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] 初期化：現在のfiletype (%s) を保存しました", 
+            current_filetype or "nil"))
+        end
+      end
+    end
+    
+    if #filetypes == 0 then
+      vim.notify("No filetypes specified or detected", vim.log.levels.INFO)
       return
     end
     
-    local content, diff = get_buf_diff(buf)
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using filetypes: " .. table.concat(filetypes, ", "))
+    end
+    
+    local content, diff, diff_filetype = get_buf_diff(buf)
     
     if not diff then
       vim.notify(translate_message(translations.en.no_changes), vim.log.levels.INFO)
       
-      state.buf_content[buf] = original_content
+      for _, filetype in ipairs(filetypes) do
+        if not state.buf_content_by_filetype[buf] then
+          state.buf_content_by_filetype[buf] = {}
+        end
+        state.buf_content_by_filetype[buf][filetype] = current_content
+      end
+      
+      state.buf_content[buf] = current_content
+      
       return
     end
     
-    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    if not state.buf_filetypes[buf] then
-      state.buf_filetypes[buf] = current_filetype
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 初期化：現在のfiletype (%s) を保存しました", 
-          current_filetype or "nil"))
+    for _, filetype in ipairs(filetypes) do
+      if not state.buf_content_by_filetype[buf] then
+        state.buf_content_by_filetype[buf] = {}
       end
-    end
-    
-    local original_filetype = state.buf_filetypes[buf]
-    if current_filetype ~= original_filetype and config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 注意：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
-        current_filetype or "nil", original_filetype or "nil"))
-      local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-      if log_file then
-        log_file:write(string.format("注意：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
-          current_filetype or "nil", original_filetype or "nil"))
-        log_file:close()
-      end
+      state.buf_content_by_filetype[buf][filetype] = current_content
     end
     
     state.buf_content[buf] = current_content
@@ -1483,7 +1634,7 @@ function M.setup(opts)
     state.last_api_call = 0
     
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] Sending diff to Gemini API:")
+      print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
       print(diff)
     end
     
