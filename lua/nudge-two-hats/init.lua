@@ -1131,7 +1131,7 @@ function M.stop_notification_timer(buf)
     vim.fn.timer_stop(timer_id)
     
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] Stopped notification timer for buffer %d with ID %d", 
+      print(string.format("[Nudge Two Hats Debug] 通知タイマー停止: バッファ %d, タイマーID %d", 
         buf, timer_id))
     end
     
@@ -1144,6 +1144,11 @@ function M.stop_notification_timer(buf)
     
     local old_timer_id = timer_id
     state.timers.notification[buf] = nil
+    
+    if state.timers.notification_start_time and state.timers.notification_start_time[buf] then
+      state.timers.notification_start_time[buf] = nil
+    end
+    
     return old_timer_id
   end
   return nil
@@ -1191,16 +1196,38 @@ function M.start_notification_timer(buf, event_name)
     return
   end
   
+  -- Check if a notification timer is already running for this buffer
   if state.timers.notification[buf] then
     local timer_info = vim.fn.timer_info(state.timers.notification[buf])
     if timer_info and #timer_info > 0 then
+      -- Store the start time if not already set
+      if not state.timers.notification_start_time then
+        state.timers.notification_start_time = {}
+      end
+      
+      if not state.timers.notification_start_time[buf] then
+        state.timers.notification_start_time[buf] = os.time()
+      end
+      
+      -- Calculate elapsed and remaining time
+      local current_time = os.time()
+      local elapsed_time = current_time - state.timers.notification_start_time[buf]
+      local total_time = config.execution_delay / 1000  -- Convert to seconds
+      local remaining_time = math.max(0, total_time - elapsed_time)
+      
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 残り時間: %.1f秒", 
-                           buf, timer_info[1].time / 1000))
+        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒", 
+                           buf, elapsed_time, remaining_time))
       end
       return
     end
   end
+  
+  -- Reset the start time for this buffer
+  if not state.timers.notification_start_time then
+    state.timers.notification_start_time = {}
+  end
+  state.timers.notification_start_time[buf] = os.time()
   
   -- Stop any existing notification timer that might be invalid
   M.stop_notification_timer(buf)
@@ -1550,21 +1577,6 @@ function M.clear_virtual_text(buf)
   end
 end
 
-function M.stop_notification_timer(buf)
-  if state.timers.notification[buf] then
-    local timer_id = state.timers.notification[buf]
-    vim.fn.timer_stop(timer_id)
-    state.timers.notification[buf] = nil
-    
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 通知タイマー停止: バッファ %d, タイマーID %d", buf, timer_id))
-    end
-    
-    return timer_id
-  end
-  
-  return nil
-end
 
 function M.stop_virtual_text_timer(buf)
   if state.timers.virtual_text[buf] then
