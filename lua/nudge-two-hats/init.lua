@@ -1218,12 +1218,12 @@ function M.setup(opts)
         for filetype in string.gmatch(args.args, "%S+") do
           table.insert(filetypes, filetype)
         end
-        print("[Nudge Two Hats] Using specified filetypes: " .. args.args)
+        -- print("[Nudge Two Hats] Using specified filetypes: " .. args.args)
       else
         local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
         if current_filetype and current_filetype ~= "" then
           table.insert(filetypes, current_filetype)
-          print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
+          -- print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
         end
       end
       
@@ -1237,9 +1237,9 @@ function M.setup(opts)
       
       state.virtual_text.last_cursor_move[buf] = os.time()
       
-      print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
-      print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
-      print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+      -- print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
+      -- print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
+      -- print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
       
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
@@ -1313,22 +1313,22 @@ function M.setup(opts)
             create_autocmd(file_buf)
             setup_virtual_text(file_buf)
             
-            print("[Nudge Two Hats] Added file: " .. file_path .. " with filetype: " .. file_filetype)
+            -- print("[Nudge Two Hats] Added file: " .. file_path .. " with filetype: " .. file_filetype)
           else
-            print("[Nudge Two Hats] Warning: Could not determine filetype for " .. file_path)
+            -- print("[Nudge Two Hats] Warning: Could not determine filetype for " .. file_path)
           end
         else
-          print("[Nudge Two Hats] Warning: File does not exist: " .. file_path)
+          -- print("[Nudge Two Hats] Warning: File does not exist: " .. file_path)
         end
       end
       
-      print("[Nudge Two Hats] Using specified file paths: " .. args.args)
+      -- print("[Nudge Two Hats] Using specified file paths: " .. args.args)
     else
       -- No arguments, use current buffer
       if current_filetype and current_filetype ~= "" then
         table.insert(filetypes, current_filetype)
         using_current_filetype = true
-        print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
+        -- print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
       end
     end
     
@@ -1357,7 +1357,7 @@ function M.setup(opts)
     create_autocmd(buf)
     setup_virtual_text(buf)
     
-    vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
+    -- vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
     
     local should_show_notification = true
     if current_filetype and current_filetype ~= "" then
