@@ -917,17 +917,6 @@ function M.setup(opts)
     local current_pos = vim.api.nvim_win_get_cursor(0)
     state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
     
-    local messages = {
-      "リファクタリングに集中しましょう。コードの品質を向上させる時間です。",
-      "新機能の開発に集中しましょう。ユーザーに価値を届ける時間です。",
-      "テストを書く時間です。品質を確保しましょう。",
-      "コードレビューの時間です。他の人のコードから学びましょう。"
-    }
-    local immediate_advice = messages[math.random(1, #messages)]
-    state.virtual_text.last_advice[buf] = immediate_advice
-    
-    display_virtual_text(buf, immediate_advice)
-    
     vim.api.nvim_create_autocmd("CursorMoved", {
       group = augroup_id,
       buffer = buf,
@@ -955,22 +944,27 @@ function M.setup(opts)
       end
     })
     
-    vim.notify("Debug virtual text displayed at cursor position", vim.log.levels.INFO)
+    local loading_message = "Loading advice from AI..."
+    state.virtual_text.last_advice[buf] = loading_message
+    display_virtual_text(buf, loading_message)
     
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] Virtual text message displayed")
-      print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
-      print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
-      print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
-    end
+    vim.notify("Loading virtual text advice...", vim.log.levels.INFO)
     
     get_gemini_advice(fake_diff, function(advice)
-      if state.virtual_text.extmarks[buf] then
+      if vim.api.nvim_buf_is_valid(buf) then
         state.virtual_text.last_advice[buf] = advice
-        display_virtual_text(buf, advice)
         
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] Updated virtual text with API-generated message")
+        if state.virtual_text.extmarks[buf] then
+          display_virtual_text(buf, advice)
+          
+          vim.notify("Debug virtual text updated with AI advice", vim.log.levels.INFO)
+          
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Virtual text message displayed")
+            print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
+            print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
+            print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
+          end
         end
       end
     end, prompt)
