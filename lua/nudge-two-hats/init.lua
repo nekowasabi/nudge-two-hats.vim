@@ -754,15 +754,41 @@ local function create_autocmd(buf)
         return
       end
       
-      -- Check if we have advice to display
-      if state.virtual_text.last_advice[buf] then
-        -- Check if cursor has been idle for the configured time
-        local current_time = os.time()
-        local idle_time_seconds = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
+      -- Check if cursor has been idle for the configured time
+      local current_time = os.time()
+      local idle_time_seconds = config.virtual_text.idle_time * 60 -- Convert minutes to seconds
+      
+      if (current_time - state.virtual_text.last_cursor_move[buf]) >= idle_time_seconds then
+        local fake_diff = "This is a virtual text nudge for idle cursor.\n"
         
-        if (current_time - state.virtual_text.last_cursor_move[buf]) >= idle_time_seconds then
-          M.display_virtual_text(buf, state.virtual_text.last_advice[buf])
+        local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+        if filetype and filetype ~= "" then
+          fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
+          fake_diff = fake_diff .. "Sample code or content for " .. filetype .. " files.\n"
         end
+        
+        fake_diff = fake_diff .. "Added some new functionality.\n"
+        fake_diff = fake_diff .. "Refactored some existing code.\n"
+        fake_diff = fake_diff .. "Fixed a few bugs.\n"
+        
+        -- Get the appropriate prompt for this buffer's filetype
+        local prompt = get_prompt_for_buffer(buf)
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Generating virtual text advice after " .. idle_time_seconds .. " seconds of idle cursor")
+          print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
+        end
+        
+        get_gemini_advice(fake_diff, function(advice)
+          if vim.api.nvim_buf_is_valid(buf) then
+            state.virtual_text.last_advice[buf] = advice
+            M.display_virtual_text(buf, advice)
+            
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
+            end
+          end
+        end, prompt)
       end
     end,
   })
