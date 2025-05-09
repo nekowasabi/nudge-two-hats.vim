@@ -909,6 +909,16 @@ local function setup_virtual_text(buf)
         return
       end
       
+      -- Check if this is the current buffer
+      local current_buf = vim.api.nvim_get_current_buf()
+      if buf ~= current_buf then
+        if log_file then
+          log_file:write("Buffer " .. buf .. " is not the current buffer (" .. current_buf .. "), skipping timer setup\n\n")
+          log_file:close()
+        end
+        return
+      end
+      
       if not state.virtual_text.timers[buf] then
         if log_file then
           log_file:write("Setting up virtual text timer for buffer " .. buf .. "\n")
@@ -1100,6 +1110,22 @@ function M.clear_virtual_text(buf)
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text cleared")
   end
+end
+
+function M.stop_timer(buf)
+  if state.virtual_text.timers[buf] then
+    local timer_id = state.virtual_text.timers[buf]
+    vim.fn.timer_stop(timer_id)
+    state.virtual_text.timers[buf] = nil
+    
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] Stopped timer %d for buffer %d", timer_id, buf))
+    end
+    
+    return timer_id
+  end
+  
+  return nil
 end
 
 function M.display_virtual_text(buf, advice)
@@ -1662,27 +1688,57 @@ function M.setup(opts)
     end, prompt)
   end, {})
   
-  -- vim.api.nvim_create_autocmd("BufEnter", {
-  --   pattern = "*",
-  --   callback = function()
-  --     -- Only set updatetime if plugin is enabled
-  --     if state.enabled then
-  --       if not state.original_updatetime then
-  --         state.original_updatetime = vim.o.updatetime
-  --       end
-  --       vim.o.updatetime = 1000
-  --     end
-  --   end
-  -- })
+  vim.api.nvim_create_autocmd("BufEnter", {
+    pattern = "*",
+    callback = function()
+      local buf = vim.api.nvim_get_current_buf()
+      
+      -- Only set updatetime if plugin is enabled
+      if state.enabled then
+        if not state.original_updatetime then
+          state.original_updatetime = vim.o.updatetime
+        end
+        vim.o.updatetime = 1000
+        
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] BufEnter: Switched to buffer %d", buf))
+        end
+        
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write("=== BufEnter triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+          log_file:write("Current buffer: " .. buf .. "\n")
+          log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+          log_file:close()
+        end
+      end
+    end
+  })
   
-  -- vim.api.nvim_create_autocmd("BufLeave", {
-  --   pattern = "*",
-  --   callback = function()
-  --     if state.original_updatetime then
-  --       vim.o.updatetime = state.original_updatetime
-  --     end
-  --   end
-  -- })
+  vim.api.nvim_create_autocmd("BufLeave", {
+    pattern = "*",
+    callback = function()
+      local buf = vim.api.nvim_get_current_buf()
+      
+      -- Stop any running timers for this buffer
+      local timer_id = M.stop_timer(buf)
+      
+      if timer_id then
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write("=== BufLeave triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+          log_file:write("Leaving buffer: " .. buf .. "\n")
+          log_file:write("Stopped timer: " .. timer_id .. "\n")
+          log_file:close()
+        end
+      end
+      
+      -- Restore original updatetime
+      if state.original_updatetime then
+        vim.o.updatetime = state.original_updatetime
+      end
+    end
+  })
 end
 
 return M
