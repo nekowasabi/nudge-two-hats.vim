@@ -1379,39 +1379,16 @@ function M.setup(opts)
     
     state.enabled = true
     
+    -- Always show notification regardless of file paths or filetypes
     vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
     
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
       print("[Nudge Two Hats Debug] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+      print("[Nudge Two Hats Debug] Cursor idle delay: " .. (config.virtual_text.cursor_idle_delay or 5) .. " minutes")
       print("[Nudge Two Hats Debug] Registered filetypes: " .. table.concat(filetypes, ", "))
       print("[Nudge Two Hats Debug] Current filetype: " .. (current_filetype or "nil"))
       print("[Nudge Two Hats Debug] Processed file paths: " .. table.concat(file_paths, ", "))
-    end
-    
-    local should_show_notification = true
-    
-    -- Check if current filetype is in the list of specified filetypes
-    if current_filetype and current_filetype ~= "" then
-      for _, filetype in ipairs(filetypes) do
-        if filetype == current_filetype then
-          -- Current filetype matches one of the specified filetypes
-          should_show_notification = false
-          break
-        end
-      end
-    end
-    
-    if should_show_notification then
-      vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
-    end
-    
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
-      print("[Nudge Two Hats Debug] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
-      print("[Nudge Two Hats Debug] Registered filetypes: " .. table.concat(filetypes, ", "))
-      print("[Nudge Two Hats Debug] Current filetype: " .. (current_filetype or "nil"))
-      print("[Nudge Two Hats Debug] Should show notification: " .. tostring(should_show_notification))
     end
   end, { nargs = "?" })
   
