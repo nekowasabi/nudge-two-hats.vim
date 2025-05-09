@@ -1037,11 +1037,38 @@ function M.setup(opts)
       end
     })
     
-    local initial_message = "Debug timer started - virtual text will update every 10 seconds"
+    local initial_message = "Loading advice from AI..."
     state.virtual_text.last_advice[buf] = initial_message
     M.display_virtual_text(buf, initial_message)
     
-    vim.notify("Debug timer started - virtual text will update every 10 seconds", vim.log.levels.INFO)
+    vim.notify("Debug timer started - will display nudge messages every 10 seconds", vim.log.levels.INFO)
+    
+    get_gemini_advice(fake_diff, function(advice)
+      if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
+        state.virtual_text.last_advice[buf] = advice
+        M.display_virtual_text(buf, advice)
+      end
+    end, prompt)
+    
+    -- Get the appropriate prompt for this buffer's filetype
+    local prompt = get_prompt_for_buffer(buf)
+    
+    local fake_diff = "This is a test diff for debugging purposes.\n"
+    
+    local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if filetype and filetype ~= "" then
+      fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
+      fake_diff = fake_diff .. "Sample code or content changes for " .. filetype .. " files.\n"
+    end
+    
+    fake_diff = fake_diff .. "Added some new functionality.\n"
+    fake_diff = fake_diff .. "Refactored some existing code.\n"
+    fake_diff = fake_diff .. "Fixed a few bugs.\n"
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
+      print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
+    end
     
     local function update_virtual_text()
       if not vim.api.nvim_buf_is_valid(buf) then
@@ -1053,27 +1080,27 @@ function M.setup(opts)
       end
       
       if state.debug_cursor_pos then
-        local current_time = os.date("%H:%M:%S")
-        local message = "Virtual text update at " .. current_time .. " - cursor idle"
-        
-        state.virtual_text.last_advice[buf] = message
-        M.display_virtual_text(buf, message)
-        
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] Timer fired at " .. current_time)
-          print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
-          print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
-        end
+        get_gemini_advice(fake_diff, function(advice)
+          if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
+            state.virtual_text.last_advice[buf] = advice
+            M.display_virtual_text(buf, advice)
+            
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Generated new advice at " .. os.date("%H:%M:%S"))
+              print("[Nudge Two Hats Debug] Advice: " .. advice)
+            end
+          end
+        end, prompt)
       end
     end
     
     state.debug_timers[buf] = vim.fn.timer_start(10000, function()
-      update_virtual_text()
+      if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
+        update_virtual_text()
+      end
       
       return 10000
     end, {["repeat"] = -1})
-    
-    update_virtual_text()
   end, {})
   
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
