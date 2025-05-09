@@ -44,6 +44,7 @@ use {
 require("nudge-two-hats").setup({
   -- Prompt configuration
   system_prompt = "Give advice about this code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+  purpose = "", -- Work purpose or objective (e.g., "code review", "refactoring", "feature development")
   
   -- File type specific prompts with enhanced structure
   filetype_prompts = {
@@ -90,22 +91,31 @@ require("nudge-two-hats").setup({
    - Set the GEMINI_API_KEY environment variable in your shell environment
    - Example: `export GEMINI_API_KEY="your_api_key_here"`
 
-2. Start monitoring the current buffer:
+2. Configure the purpose parameter (optional):
+   ```lua
+   require("nudge-two-hats").setup({
+     -- Set the purpose for your current work
+     purpose = "code review", -- or "refactoring", "feature development", etc.
+     -- Other configuration options...
+   })
+   ```
+
+3. Start monitoring the current buffer:
 ```
 :NudgeTwoHatsStart
 ```
 
-3. Toggle the plugin on/off:
+4. Toggle the plugin on/off:
 ```
 :NudgeTwoHatsToggle
 ```
 
-4. Execute a nudge immediately (without waiting for the interval):
+5. Execute a nudge immediately (without waiting for the interval):
 ```
 :NudgeTwoHatsNow
 ```
 
-5. Toggle debug mode (prints nudge text to Vim's `:messages`):
+6. Toggle debug mode (prints nudge text to Vim's `:messages`):
 ```
 :NudgeTwoHatsDebugToggle
 ```

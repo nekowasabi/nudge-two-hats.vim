@@ -453,7 +453,7 @@ local function get_prompt_for_buffer(buf)
   return config.system_prompt
 end
 
-local function get_gemini_advice(diff, callback, prompt)
+local function get_gemini_advice(diff, callback, prompt, purpose)
   local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
   
   if not api_key then
@@ -475,6 +475,11 @@ local function get_gemini_advice(diff, callback, prompt)
   end
 
   local system_prompt = prompt or config.system_prompt
+  
+  local purpose_text = purpose or config.purpose
+  if purpose_text and purpose_text ~= "" then
+    system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
+  end
   
   local output_lang = get_language()
   if output_lang == "ja" then
@@ -814,7 +819,7 @@ local function create_autocmd(buf)
           state.virtual_text.last_advice[buf] = advice
           
           config.execution_delay = generate_random_delay()
-        end, prompt)
+        end, prompt, config.purpose)
       end, config.execution_delay)
     end,
   })
@@ -1459,7 +1464,7 @@ function M.setup(opts)
           end
         end
       end
-    end, prompt)
+    end, prompt, config.purpose)
   end, {})
   
   -- Store timer IDs by buffer
@@ -1540,7 +1545,7 @@ function M.setup(opts)
         state.virtual_text.last_advice[buf] = advice
         M.display_virtual_text(buf, advice)
       end
-    end, prompt)
+    end, prompt, config.purpose)
     
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
@@ -1582,7 +1587,7 @@ function M.setup(opts)
               print("[Nudge Two Hats Debug] Advice: " .. advice)
             end
           end
-        end, prompt)
+        end, prompt, config.purpose)
       end
     end
     
@@ -1685,7 +1690,7 @@ function M.setup(opts)
       state.virtual_text.last_advice[buf] = advice
       
       config.execution_delay = generate_random_delay()
-    end, prompt)
+    end, prompt, config.purpose)
   end, {})
   
   vim.api.nvim_create_autocmd("BufEnter", {
