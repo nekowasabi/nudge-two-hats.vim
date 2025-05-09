@@ -143,11 +143,20 @@ local function sanitize_text(text)
   end
   
   local function simple_sanitize(str)
-    local sanitized = str:gsub("[\000-\031]", "") -- Remove control characters
-    sanitized = sanitized:gsub("\\", "\\\\") -- Escape backslashes
-    sanitized = sanitized:gsub('"', '\\"') -- Escape double quotes
+    local sanitized = ""
+    for i = 1, #str do
+      local char = str:sub(i, i)
+      local byte = string.byte(char)
+      if byte > 31 then
+        sanitized = sanitized .. char
+      end
+    end
     
-    -- Handle invalid UTF-8 sequences
+    -- Escape backslashes and double quotes
+    sanitized = sanitized:gsub("\\", "\\\\")
+    sanitized = sanitized:gsub('"', '\\"')
+    
+    -- Handle invalid UTF-8 sequences using valid Lua patterns
     sanitized = sanitized:gsub("[\192-\193]", "?") -- Invalid UTF-8 lead bytes
     sanitized = sanitized:gsub("[\245-\255]", "?") -- Invalid UTF-8 lead bytes
     
