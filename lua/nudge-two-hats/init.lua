@@ -870,12 +870,8 @@ local function create_autocmd(buf)
             timer_log_file:write("Timer ID: " .. state.virtual_text.timers[buf] .. "\n")
           end
           
-          local loading_message = "Loading advice from AI..."
-          state.virtual_text.last_advice[buf] = loading_message
-          M.display_virtual_text(buf, loading_message)
-          
           if timer_log_file then
-            timer_log_file:write("Displayed loading message, now setting up Gemini API timer\n")
+            timer_log_file:write("Skipping loading message, setting up Gemini API timer directly\n")
           end
           
           local first_timer_id = state.virtual_text.timers[buf]
