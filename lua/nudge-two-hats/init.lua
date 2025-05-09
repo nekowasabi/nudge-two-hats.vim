@@ -843,12 +843,8 @@ local function create_autocmd(buf)
           log_file:write("Setting timer to fire after " .. idle_time_ms .. "ms\n")
         end
         
-        local initial_message = "Virtual text timer started, will update in " .. config.virtual_text.idle_time .. " minute(s)..."
-        state.virtual_text.last_advice[buf] = initial_message
-        M.display_virtual_text(buf, initial_message)
         
-        -- local timer_ms = config.virtual_text.idle_time * 60 * 1000
-        local timer_ms = 10000 -- 10 seconds for testing
+        local timer_ms = config.virtual_text.idle_time * 60 * 1000 -- Convert minutes to milliseconds
         
         local current_log_file = log_file
         log_file = nil -- Set to nil to prevent double closing
@@ -880,7 +876,7 @@ local function create_autocmd(buf)
           end
           
           -- Store the timer ID in the state
-          state.virtual_text.timers[buf] = vim.fn.timer_start(10000, function()
+          state.virtual_text.timers[buf] = vim.fn.timer_start(timer_ms, function()
             local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
             if api_log_file then
               api_log_file:write("=== Gemini API timer fired at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
