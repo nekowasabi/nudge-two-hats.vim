@@ -32,11 +32,6 @@ local function generate_random_delay()
   
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] 新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）", new_delay, current_delay, random_factor))
-    local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-    if log_file then
-      log_file:write(string.format("新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）\n", new_delay, current_delay, random_factor))
-      log_file:close()
-    end
   end
   
   return new_delay
