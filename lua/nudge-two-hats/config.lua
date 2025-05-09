@@ -94,6 +94,7 @@ local config = {
   
   virtual_text = {
     idle_time = 10, -- Time in minutes before showing virtual text
+    cursor_idle_delay = 5, -- Time in minutes before setting timers after cursor stops
     text_color = "#000000", -- Text color in hex format
     background_color = "#FFFFFF", -- Background color in hex format
   },
