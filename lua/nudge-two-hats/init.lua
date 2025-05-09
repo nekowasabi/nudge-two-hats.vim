@@ -894,31 +894,60 @@ function M.setup(opts)
     local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
     state.debug_augroup_ids[buf] = augroup_id
     
-    local messages = {
-      "リファクタリングに集中しましょう。コードの品質を向上させる時間です。",
-      "新機能の開発に集中しましょう。ユーザーに価値を届ける時間です。",
-      "テストを書く時間です。品質を確保しましょう。",
-      "コードレビューの時間です。他の人のコードから学びましょう。"
-    }
-    local advice = messages[math.random(1, #messages)]
+    -- Get the appropriate prompt for this buffer's filetype
+    local prompt = get_prompt_for_buffer(buf)
     
-    state.virtual_text.last_advice[buf] = advice
+    local fake_diff = "This is a test diff for debugging purposes.\n"
     
-    local current_pos = vim.api.nvim_win_get_cursor(0)
-    state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
+    local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if filetype and filetype ~= "" then
+      fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
+      fake_diff = fake_diff .. "Sample code or content changes for " .. filetype .. " files.\n"
+    end
     
-    display_virtual_text(buf, advice)
+    fake_diff = fake_diff .. "Added some new functionality.\n"
+    fake_diff = fake_diff .. "Refactored some existing code.\n"
+    fake_diff = fake_diff .. "Fixed a few bugs.\n"
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
+      print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
+    end
+    
+    get_gemini_advice(fake_diff, function(advice)
+      state.virtual_text.last_advice[buf] = advice
+      
+      local current_pos = vim.api.nvim_win_get_cursor(0)
+      state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
+      
+      display_virtual_text(buf, advice)
+      
+      vim.notify("Debug virtual text displayed at cursor position", vim.log.levels.INFO)
+      
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Virtual text message displayed")
+        print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
+        print("[Nudge Two Hats Debug] Plugin enabled: " .. tostring(state.enabled))
+        print("[Nudge Two Hats Debug] Move cursor to clear virtual text")
+      end
+    end, prompt)
+    
+    return
+    
     
     vim.api.nvim_create_autocmd("CursorMoved", {
       group = augroup_id,
       buffer = buf,
       callback = function()
-        local new_pos = vim.api.nvim_win_get_cursor(0)
-        if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
-          clear_virtual_text(buf)
-          vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
-          pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
-          state.debug_augroup_ids[buf] = nil
+        if state.debug_cursor_pos then
+          local new_pos = vim.api.nvim_win_get_cursor(0)
+          if new_pos[1] ~= state.debug_cursor_pos.row or new_pos[2] ~= state.debug_cursor_pos.col then
+            clear_virtual_text(buf)
+            vim.notify("Virtual text cleared on cursor movement", vim.log.levels.INFO)
+            pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
+            state.debug_augroup_ids[buf] = nil
+            state.debug_cursor_pos = nil
+          end
         end
       end
     })
@@ -976,22 +1005,25 @@ function M.setup(opts)
       return
     end
     
-    -- Skip notification if current filetype doesn't match the one when NudgeTwoHatsStart was executed
     local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    local original_filetype = state.buf_filetypes[buf]
-    if current_filetype ~= original_filetype then
+    if not state.buf_filetypes[buf] then
+      state.buf_filetypes[buf] = current_filetype
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
-          current_filetype or "nil", original_filetype or "nil"))
-        local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-        if log_file then
-          log_file:write(string.format("スキップ：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
-            current_filetype or "nil", original_filetype or "nil"))
-          log_file:close()
-        end
+        print(string.format("[Nudge Two Hats Debug] 初期化：現在のfiletype (%s) を保存しました", 
+          current_filetype or "nil"))
       end
-      state.buf_content[buf] = original_content
-      return
+    end
+    
+    local original_filetype = state.buf_filetypes[buf]
+    if current_filetype ~= original_filetype and config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 注意：現在のfiletype (%s) が元のfiletype (%s) と一致しません", 
+        current_filetype or "nil", original_filetype or "nil"))
+      local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("注意：現在のfiletype (%s) が元のfiletype (%s) と一致しません\n", 
+          current_filetype or "nil", original_filetype or "nil"))
+        log_file:close()
+      end
     end
     
     state.buf_content[buf] = current_content
