@@ -1191,7 +1191,18 @@ function M.start_notification_timer(buf, event_name)
     return
   end
   
-  -- Stop any existing notification timer
+  if state.timers.notification[buf] then
+    local timer_info = vim.fn.timer_info(state.timers.notification[buf])
+    if timer_info and #timer_info > 0 then
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 残り時間: %.1f秒", 
+                           buf, timer_info[1].time / 1000))
+      end
+      return
+    end
+  end
+  
+  -- Stop any existing notification timer that might be invalid
   M.stop_notification_timer(buf)
   
   local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
