@@ -966,8 +966,7 @@ function M.setup(opts)
         if not state.original_updatetime then
           state.original_updatetime = vim.o.updatetime
         end
-        -- Convert minutes to milliseconds for updatetime
-        vim.o.updatetime = config.virtual_text.idle_time * 60 * 1000
+        vim.o.updatetime = 1000
       end
     end
   })
