@@ -6,6 +6,13 @@ local state = {
   buf_filetypes = {}, -- Store buffer filetypes when NudgeTwoHatsStart is executed
   api_key = nil, -- Gemini API key
   last_api_call = 0, -- Timestamp of the last API call
+  virtual_text = {
+    enabled = true, -- Whether virtual text is enabled
+    namespace = nil, -- Namespace for virtual text extmarks
+    extmarks = {}, -- Store extmark IDs by buffer
+    last_advice = {}, -- Store last advice by buffer
+    last_cursor_move = {}, -- Store last cursor move timestamp by buffer
+  }
 }
 
 math.randomseed(os.time())
@@ -644,6 +651,8 @@ end
 local function create_autocmd(buf)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   state.buf_content[buf] = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  
+  state.virtual_text.last_cursor_move[buf] = os.time()
 
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
     group = augroup,
@@ -715,12 +724,47 @@ local function create_autocmd(buf)
             title = selected_hat
           end
           
+          state.virtual_text.last_advice[buf] = advice
+          
           vim.notify(advice, vim.log.levels.INFO, {
             title = title,
             icon = "🎩",
           })
         end, prompt)
       end, config.execution_delay)
+    end,
+  })
+  
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      state.virtual_text.last_cursor_move[buf] = os.time()
+      
+      if state.virtual_text.extmarks[buf] then
+        clear_virtual_text(buf)
+      end
+    end,
+  })
+  
+  vim.api.nvim_create_autocmd("CursorHold", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      if not state.enabled or not state.virtual_text.enabled or not config.virtual_text.enabled then
+        return
+      end
+      
+      -- Check if we have advice to display
+      if state.virtual_text.last_advice[buf] then
+        -- Check if cursor has been idle for the configured time
+        local current_time = os.time()
+        local idle_time_seconds = config.virtual_text.idle_time / 1000
+        
+        if (current_time - state.virtual_text.last_cursor_move[buf]) >= idle_time_seconds then
+          display_virtual_text(buf, state.virtual_text.last_advice[buf])
+        end
+      end
     end,
   })
 
@@ -730,21 +774,88 @@ local function create_autocmd(buf)
     callback = function()
       state.buf_content[buf] = nil
       state.buf_filetypes[buf] = nil
+      state.virtual_text.last_advice[buf] = nil
+      state.virtual_text.last_cursor_move[buf] = nil
+      clear_virtual_text(buf)
+      
       vim.api.nvim_del_augroup_by_id(augroup)
       return true
     end,
   })
 end
 
+local function display_virtual_text(buf, advice)
+  if not state.virtual_text.enabled or not config.virtual_text.enabled then
+    return
+  end
+  
+  if not state.virtual_text.namespace then
+    state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
+  end
+  
+  clear_virtual_text(buf)
+  
+  local cursor_pos = vim.api.nvim_win_get_cursor(0)
+  local row = cursor_pos[1] - 1 -- Convert to 0-indexed
+  
+  state.virtual_text.last_advice[buf] = advice
+  
+  local extmark_id = vim.api.nvim_buf_set_extmark(buf, state.virtual_text.namespace, row, 0, {
+    virt_text = {{advice, "NudgeTwoHatsVirtualText"}},
+    virt_text_pos = "eol",
+    hl_mode = "combine",
+  })
+  
+  state.virtual_text.extmarks[buf] = extmark_id
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Virtual text displayed at line " .. (row + 1))
+  end
+end
+
+local function clear_virtual_text(buf)
+  if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
+    return
+  end
+  
+  vim.api.nvim_buf_del_extmark(buf, state.virtual_text.namespace, state.virtual_text.extmarks[buf])
+  state.virtual_text.extmarks[buf] = nil
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Virtual text cleared")
+  end
+end
+
 function M.setup(opts)
   if opts then
     config = vim.tbl_deep_extend("force", config, opts)
   end
-
+  
+  vim.api.nvim_set_hl(0, "NudgeTwoHatsVirtualText", {
+    fg = config.virtual_text.text_color,
+    bg = config.virtual_text.background_color,
+  })
+  
+  state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
+  
   vim.api.nvim_create_user_command("NudgeTwoHatsToggle", function()
     state.enabled = not state.enabled
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
+  end, {})
+  
+  vim.api.nvim_create_user_command("NudgeTwoHatsVirtualTextToggle", function()
+    state.virtual_text.enabled = not state.virtual_text.enabled
+    local status = state.virtual_text.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
+    vim.notify("Nudge Two Hats virtual text " .. status, vim.log.levels.INFO)
+    
+    if not state.virtual_text.enabled then
+      for buf, _ in pairs(state.virtual_text.extmarks) do
+        if vim.api.nvim_buf_is_valid(buf) then
+          clear_virtual_text(buf)
+        end
+      end
+    end
   end, {})
 
   vim.api.nvim_create_user_command("NudgeTwoHatsSetApiKey", function(args)
@@ -848,9 +959,33 @@ function M.setup(opts)
         icon = "🎩",
       })
       
+      state.virtual_text.last_advice[buf] = advice
+      
       config.execution_delay = generate_random_delay()
     end, prompt)
   end, {})
+  
+  vim.api.nvim_create_autocmd("BufEnter", {
+    pattern = "*",
+    callback = function()
+      -- Only set updatetime if virtual text is enabled
+      if state.enabled and state.virtual_text.enabled and config.virtual_text.enabled then
+        if not state.original_updatetime then
+          state.original_updatetime = vim.o.updatetime
+        end
+        vim.o.updatetime = config.virtual_text.idle_time
+      end
+    end
+  })
+  
+  vim.api.nvim_create_autocmd("BufLeave", {
+    pattern = "*",
+    callback = function()
+      if state.original_updatetime then
+        vim.o.updatetime = state.original_updatetime
+      end
+    end
+  })
 end
 
 return M

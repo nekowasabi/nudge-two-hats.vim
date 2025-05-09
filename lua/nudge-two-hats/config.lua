@@ -90,6 +90,13 @@ local config = {
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
   
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+  
+  virtual_text = {
+    enabled = true, -- Whether to display nudges as virtual text
+    idle_time = 600000, -- Time in milliseconds before showing virtual text (10 minutes)
+    text_color = "#000000", -- Text color in hex format
+    background_color = "#FFFFFF", -- Background color in hex format
+  },
 }
 
 return config
