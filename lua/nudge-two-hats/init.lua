@@ -860,12 +860,19 @@ local function create_autocmd(buf)
         if log_file then
           log_file:write("Using filetype: " .. (filetype or "none") .. "\n")
           log_file:write("Using prompt: " .. prompt .. "\n")
+          log_file:write("Displaying initial loading message\n")
         end
         
         if config.debug_mode then
           print("[Nudge Two Hats Debug] Generating virtual text advice after " .. idle_time_seconds .. " seconds of idle cursor")
           print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
         end
+        
+        local initial_message = "Loading advice from AI..."
+        state.virtual_text.last_advice[buf] = initial_message
+        M.display_virtual_text(buf, initial_message)
+        
+        vim.notify("Nudge Two Hats: Generating advice after " .. idle_time_seconds .. " seconds of idle cursor", vim.log.levels.INFO)
         
         get_gemini_advice(fake_diff, function(advice)
           if log_file then
@@ -883,6 +890,8 @@ local function create_autocmd(buf)
             end
             
             M.display_virtual_text(buf, advice)
+            
+            vim.notify("Nudge Two Hats: " .. advice, vim.log.levels.INFO)
             
             if config.debug_mode then
               print("[Nudge Two Hats Debug] Generated virtual text advice: " .. advice)
@@ -1391,27 +1400,27 @@ function M.setup(opts)
     end, prompt)
   end, {})
   
-  vim.api.nvim_create_autocmd("BufEnter", {
-    pattern = "*",
-    callback = function()
-      -- Only set updatetime if plugin is enabled
-      if state.enabled then
-        if not state.original_updatetime then
-          state.original_updatetime = vim.o.updatetime
-        end
-        vim.o.updatetime = 1000
-      end
-    end
-  })
+  -- vim.api.nvim_create_autocmd("BufEnter", {
+  --   pattern = "*",
+  --   callback = function()
+  --     -- Only set updatetime if plugin is enabled
+  --     if state.enabled then
+  --       if not state.original_updatetime then
+  --         state.original_updatetime = vim.o.updatetime
+  --       end
+  --       vim.o.updatetime = 1000
+  --     end
+  --   end
+  -- })
   
-  vim.api.nvim_create_autocmd("BufLeave", {
-    pattern = "*",
-    callback = function()
-      if state.original_updatetime then
-        vim.o.updatetime = state.original_updatetime
-      end
-    end
-  })
+  -- vim.api.nvim_create_autocmd("BufLeave", {
+  --   pattern = "*",
+  --   callback = function()
+  --     if state.original_updatetime then
+  --       vim.o.updatetime = state.original_updatetime
+  --     end
+  --   end
+  -- })
 end
 
 return M
