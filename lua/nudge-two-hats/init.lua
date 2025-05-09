@@ -1287,9 +1287,27 @@ function M.setup(opts)
     
     -- Store the filetypes in state
     state.buf_filetypes[buf] = table.concat(filetypes, ",")
+    
+    -- Set up virtual text and updatetime
+    if not state.original_updatetime then
+      state.original_updatetime = vim.o.updatetime
+    end
+    vim.o.updatetime = 1000
+    
+    -- Initialize virtual text state for this buffer
+    state.virtual_text.last_cursor_move = state.virtual_text.last_cursor_move or {}
+    state.virtual_text.last_cursor_move[buf] = os.time()
+    
     create_autocmd(buf)
+    setup_virtual_text(buf)
+    
     state.enabled = true
     vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
+    
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
+      print("[Nudge Two Hats Debug] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+    end
   end, { nargs = "?" })
   
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugToggle", function()
