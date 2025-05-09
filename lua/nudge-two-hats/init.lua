@@ -957,15 +957,21 @@ local function setup_virtual_text(buf)
           print("[Nudge Two Hats Debug] Starting notification timer for buffer " .. buf .. " (initial 5s delay)")
         end
         
+        -- Always print this message regardless of debug mode to ensure timer activation is visible
+        print("[Nudge Two Hats] Timer activated for buffer " .. buf .. " at " .. os.date("%H:%M:%S"))
+        
         state.virtual_text.timers[buf] = vim.fn.timer_start(5000, function()
           if current_log_file then
             pcall(function() current_log_file:close() end)
             current_log_file = nil
           end
           
-          if config.debug_mode then
-            print("[Nudge Two Hats Debug] Initial notification timer fired at " .. os.date("%H:%M:%S"))
-          end
+          vim.schedule(function()
+            print("[Nudge Two Hats] Initial notification timer fired at " .. os.date("%H:%M:%S"))
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Initial notification timer fired at " .. os.date("%H:%M:%S"))
+            end
+          end)
           
           if not vim.api.nvim_buf_is_valid(buf) then
             return
@@ -983,14 +989,20 @@ local function setup_virtual_text(buf)
           end
           
           -- Store the timer ID in the state
-          if config.debug_mode then
-            print("[Nudge Two Hats Debug] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
-          end
+          vim.schedule(function()
+            print("[Nudge Two Hats] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Starting Gemini API timer for buffer " .. buf .. " (delay: " .. (timer_ms/1000) .. "s)")
+            end
+          end)
           
           state.virtual_text.timers[buf] = vim.fn.timer_start(timer_ms, function()
-            if config.debug_mode then
-              print("[Nudge Two Hats Debug] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
-            end
+            vim.schedule(function()
+              print("[Nudge Two Hats] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
+              if config.debug_mode then
+                print("[Nudge Two Hats Debug] Gemini API timer fired at " .. os.date("%H:%M:%S") .. " for buffer " .. buf)
+              end
+            end)
             
             local api_log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
             if api_log_file then
