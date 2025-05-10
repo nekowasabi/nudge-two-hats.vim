@@ -731,28 +731,59 @@ local function get_buf_diff(buf)
     return context_content, diff, first_filetype
   end
   
-  -- Check for diff in any of the filetypes
-  for _, filetype in ipairs(filetypes) do
-    local old = state.buf_content_by_filetype[buf][filetype]
+  local old = nil
+  
+  -- First try to use the temporary file if available
+  if state.temp_files and state.temp_files[buf] then
+    local temp_file_path = state.temp_files[buf]
+    local temp_file = io.open(temp_file_path, "r")
     
+    if temp_file then
+      old = temp_file:read("*all")
+      temp_file:close()
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
+          temp_file_path, #old))
+      end
+    else
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] テンポラリファイルの読み込みに失敗しました: %s", temp_file_path))
+      end
+    end
+  else
+    for _, filetype in ipairs(filetypes) do
+      if state.buf_content_by_filetype[buf] and state.buf_content_by_filetype[buf][filetype] then
+        old = state.buf_content_by_filetype[buf][filetype]
+        
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] filetype=%sの内容を使用します", filetype))
+        end
+        
+        break
+      end
+    end
+    
+    -- If still no content, try using the buffer content
     if not old and state.buf_content[buf] then
       old = state.buf_content[buf]
       
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] filetype=%sの内容が見つからないため、バッファ全体の内容を使用します", filetype))
+        print(string.format("[Nudge Two Hats Debug] バッファ全体の内容を使用します"))
       end
     end
-    
-    if old then
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 比較: filetype=%s, 古い内容=%d文字, 新しい内容=%d文字", 
-          filetype, #old, #content))
-        
-        local old_sample = string.sub(old, 1, 100)
-        local new_sample = string.sub(content, 1, 100)
-        print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
-        print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
-      end
+  end
+  
+  if old then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字", 
+        #old, #content))
+      
+      local old_sample = string.sub(old, 1, 100)
+      local new_sample = string.sub(content, 1, 100)
+      print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
+      print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
+    end
       
       if force_diff or old ~= content then
         local diff = vim.diff(old, content, { result_type = "unified" })
@@ -779,6 +810,20 @@ local function get_buf_diff(buf)
           state.buf_content_by_filetype[buf][filetype] = content
           state.buf_content[buf] = content
           
+          -- Delete the temporary file after notification
+          if state.temp_files and state.temp_files[buf] then
+            local temp_file_path = state.temp_files[buf]
+            
+            os.execute("chmod 644 " .. temp_file_path)
+            os.remove(temp_file_path)
+            
+            if config.debug_mode then
+              print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
+            end
+            
+            state.temp_files[buf] = nil
+          end
+          
           return content, diff, filetype
         elseif force_diff then
           -- For BufWritePost, create a minimal diff if none was found
@@ -787,6 +832,20 @@ local function get_buf_diff(buf)
           
           if config.debug_mode then
             print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
+          end
+          
+          -- Delete the temporary file after notification
+          if state.temp_files and state.temp_files[buf] then
+            local temp_file_path = state.temp_files[buf]
+            
+            os.execute("chmod 644 " .. temp_file_path)
+            os.remove(temp_file_path)
+            
+            if config.debug_mode then
+              print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
+            end
+            
+            state.temp_files[buf] = nil
           end
           
           return content, minimal_diff, filetype
@@ -1408,7 +1467,42 @@ function M.start_notification_timer(buf, event_name)
     -- Get the entire buffer content
     current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
     
-    -- Initialize buffer content storage if needed
+    -- Initialize temp file storage if needed
+    if not state.temp_files then
+      state.temp_files = {}
+    end
+    
+    -- Create a unique temporary file path for this buffer
+    local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d_%d.txt", buf, os.time())
+    
+    local temp_file = io.open(temp_file_path, "w")
+    if temp_file then
+      temp_file:write(current_content)
+      temp_file:close()
+      
+      os.execute("chmod 444 " .. temp_file_path)
+      
+      -- Store the temp file path for this buffer
+      state.temp_files[buf] = temp_file_path
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] タイマー開始時に元のバッファ内容をテンポラリファイルに保存: バッファ %d, ファイル %s, サイズ=%d文字", 
+          buf, temp_file_path, #current_content))
+        
+        -- Calculate content hash for comparison
+        local content_hash = 0
+        for i = 1, #current_content do
+          content_hash = (content_hash * 31 + string.byte(current_content, i)) % 1000000007
+        end
+        print(string.format("[Nudge Two Hats Debug] 元のバッファ内容ハッシュ: %d", content_hash))
+      end
+    else
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] テンポラリファイルの作成に失敗しました: %s", temp_file_path))
+      end
+    end
+    
+    -- Initialize buffer content storage if needed (for backward compatibility)
     if not state.buf_content_by_filetype[buf] then
       state.buf_content_by_filetype[buf] = {}
     end
@@ -1431,7 +1525,7 @@ function M.start_notification_timer(buf, event_name)
       end
     end
     
-    -- Store the content for each filetype
+    -- Store the content for each filetype (for backward compatibility)
     for _, filetype in ipairs(filetypes) do
       state.buf_content_by_filetype[buf][filetype] = current_content
       
