@@ -1251,7 +1251,15 @@ function M.start_notification_timer(buf, event_name)
     
     local content, diff, diff_filetype = get_buf_diff(buf)
     
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] get_buf_diff結果: バッファ %d, diff %s, filetype %s", 
+                         buf, diff and "あり" or "なし", diff_filetype or "なし"))
+    end
+    
     if not diff then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] diffが検出されなかったため、通知をスキップします")
+      end
       return
     end
     
@@ -1283,9 +1291,13 @@ function M.start_notification_timer(buf, event_name)
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
     
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
+    end
+    
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] Advice: " .. advice)
+        print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       
       local title = "Nudge Two Hats"
@@ -2335,9 +2347,13 @@ function M.setup(opts)
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
     
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
+    end
+    
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] Advice: " .. advice)
+        print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       
       local title = "Nudge Two Hats"
