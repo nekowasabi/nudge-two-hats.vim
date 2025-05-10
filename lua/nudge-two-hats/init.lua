@@ -23,23 +23,6 @@ math.randomseed(os.time())
 
 local config = require("nudge-two-hats.config")
 
-local function generate_random_delay()
-  local current_delay = config.execution_delay
-  local min_value = 60000 -- 最小値は1分（60000ミリ秒）
-  local max_value = config.min_interval * 60 * 1000 -- min_intervalを分からミリ秒に変換
-  
-  local random_factor = 0.7 + math.random() * 0.6 -- 0.7から1.3の間（±30%）
-  local new_delay = math.floor(current_delay * random_factor)
-  
-  new_delay = math.max(new_delay, min_value) -- 最小値の適用
-  new_delay = math.min(new_delay, max_value) -- 最大値の適用
-  
-  if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] 新しいランダム遅延を生成: %dms（元の遅延: %dms、乗数: %.2f）", new_delay, current_delay, random_factor))
-  end
-  
-  return new_delay
-end
 
 local translations = {
   en = {
@@ -1083,7 +1066,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
               
               callback(advice)
               
-              config.execution_delay = generate_random_delay()
             else
               callback(translate_message(translations.en.api_error))
             end
@@ -1162,7 +1144,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
               
               callback(advice)
               
-              config.execution_delay = generate_random_delay()
             else
               callback(translate_message(translations.en.api_error))
             end
@@ -1410,7 +1391,7 @@ function M.start_notification_timer(buf, event_name)
       -- Calculate elapsed and remaining time
       local current_time = os.time()
       local elapsed_time = current_time - state.timers.notification_start_time[buf]
-      local total_time = config.execution_delay / 1000  -- Convert to seconds
+      local total_time = config.min_interval  -- Use min_interval directly in seconds
       local remaining_time = math.max(0, total_time - elapsed_time)
       
       if config.debug_mode then
@@ -1419,6 +1400,49 @@ function M.start_notification_timer(buf, event_name)
       end
       return
     end
+  end
+  
+  local current_content = ""
+  if vim.api.nvim_buf_is_valid(buf) then
+    vim.cmd("checktime " .. buf)
+    
+    -- Get the entire buffer content
+    current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    
+    -- Initialize buffer content storage if needed
+    if not state.buf_content_by_filetype[buf] then
+      state.buf_content_by_filetype[buf] = {}
+    end
+    
+    -- Get filetypes for this buffer
+    local filetypes = {}
+    if state.buf_filetypes[buf] then
+      for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+        table.insert(filetypes, filetype)
+      end
+    end
+    
+    -- If no stored filetypes, use the current buffer's filetype
+    if #filetypes == 0 then
+      local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+      if current_filetype and current_filetype ~= "" then
+        table.insert(filetypes, current_filetype)
+      else
+        table.insert(filetypes, "text")  -- Default to text if no filetype
+      end
+    end
+    
+    -- Store the content for each filetype
+    for _, filetype in ipairs(filetypes) do
+      state.buf_content_by_filetype[buf][filetype] = current_content
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字", 
+          filetype, #current_content))
+      end
+    end
+    
+    state.buf_content[buf] = current_content
   end
   
   -- Reset the start time for this buffer
@@ -1441,11 +1465,13 @@ function M.start_notification_timer(buf, event_name)
     print(string.format("[Nudge Two Hats Debug] 通知タイマー開始: バッファ %d, イベント %s", buf, event_name))
   end
   
-  -- Create a new notification timer with execution_delay
-  state.timers.notification[buf] = vim.fn.timer_start(config.execution_delay, function()
+  -- Create a new notification timer with min_interval (in seconds)
+  state.timers.notification[buf] = vim.fn.timer_start(config.min_interval * 1000, function()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
+    
+    vim.cmd("checktime " .. buf)
     
     local content, diff, diff_filetype = get_buf_diff(buf)
     
@@ -1552,7 +1578,6 @@ function M.start_notification_timer(buf, event_name)
         end
       end
       
-      config.execution_delay = generate_random_delay()
     end, prompt, config.purpose)
   end)
 end
@@ -2669,7 +2694,6 @@ function M.setup(opts)
         end
       end
       
-      config.execution_delay = generate_random_delay()
     end, prompt, config.purpose)
   end, {})
   
