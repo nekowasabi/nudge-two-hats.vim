@@ -795,83 +795,82 @@ local function get_buf_diff(buf)
       print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
       print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
     end
+    
+    if force_diff or old ~= content then
+      local diff = vim.diff(old, content, { result_type = "unified" })
       
-      if force_diff or old ~= content then
-        local diff = vim.diff(old, content, { result_type = "unified" })
-        
-        if config.debug_mode then
-          if diff then
-            print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
-            local diff_preview = diff:sub(1, 100):gsub("\n", "\\n")
-            print(string.format("[Nudge Two Hats Debug] diff内容プレビュー: %s...", diff_preview))
-          else
-            print("[Nudge Two Hats Debug] vim.diffの結果: nil")
-          end
-          
-          print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
-            tostring(old ~= content)))
+      if config.debug_mode then
+        if diff then
+          print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
+          local diff_preview = diff:sub(1, 100):gsub("\n", "\\n")
+          print(string.format("[Nudge Two Hats Debug] diff内容プレビュー: %s...", diff_preview))
+        else
+          print("[Nudge Two Hats Debug] vim.diffの結果: nil")
         end
         
-        if type(diff) == "string" and diff ~= "" then
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", detected_filetype))
-            print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
-          end
-          
-          if detected_filetype then
-            state.buf_content_by_filetype[buf][detected_filetype] = content
-          end
-          state.buf_content[buf] = content
-          
-          -- Delete the temporary file after notification
-          if state.temp_files and state.temp_files[buf] then
-            local temp_file_path = state.temp_files[buf]
-            
-            os.execute("chmod 644 " .. temp_file_path)
-            os.remove(temp_file_path)
-            
-            if config.debug_mode then
-              print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
-            end
-            
-            state.temp_files[buf] = nil
-          end
-          
-          return content, diff, detected_filetype
-        elseif force_diff then
-          -- For BufWritePost, create a minimal diff if none was found
-          local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
-            "No changes detected, but file was saved", "File saved at " .. os.date("%c"))
-          
-          if config.debug_mode then
-            print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
-          end
-          
-          -- Delete the temporary file after notification
-          if state.temp_files and state.temp_files[buf] then
-            local temp_file_path = state.temp_files[buf]
-            
-            os.execute("chmod 644 " .. temp_file_path)
-            os.remove(temp_file_path)
-            
-            if config.debug_mode then
-              print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
-            end
-            
-            state.temp_files[buf] = nil
-          end
-          
-          return content, minimal_diff, detected_filetype
-        end
-      else
+        print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
+          tostring(old ~= content)))
+      end
+      
+      if type(diff) == "string" and diff ~= "" then
         if config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug] 内容が同一のため、差分なし: filetype=%s", detected_filetype or "unknown"))
+          print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", detected_filetype))
+          print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
         end
+        
+        if detected_filetype then
+          state.buf_content_by_filetype[buf][detected_filetype] = content
+        end
+        state.buf_content[buf] = content
+        
+        -- Delete the temporary file after notification
+        if state.temp_files and state.temp_files[buf] then
+          local temp_file_path = state.temp_files[buf]
+          
+          os.execute("chmod 644 " .. temp_file_path)
+          os.remove(temp_file_path)
+          
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
+          end
+          
+          state.temp_files[buf] = nil
+        end
+        
+        return content, diff, detected_filetype
+      elseif force_diff then
+        -- For BufWritePost, create a minimal diff if none was found
+        local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
+          "No changes detected, but file was saved", "File saved at " .. os.date("%c"))
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
+        end
+        
+        -- Delete the temporary file after notification
+        if state.temp_files and state.temp_files[buf] then
+          local temp_file_path = state.temp_files[buf]
+          
+          os.execute("chmod 644 " .. temp_file_path)
+          os.remove(temp_file_path)
+          
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
+          end
+          
+          state.temp_files[buf] = nil
+        end
+        
+        return content, minimal_diff, detected_filetype
       end
     else
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", detected_filetype or "unknown"))
+        print(string.format("[Nudge Two Hats Debug] 内容が同一のため、差分なし: filetype=%s", detected_filetype or "unknown"))
       end
+    end
+  else
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", detected_filetype or "unknown"))
     end
   end
   
