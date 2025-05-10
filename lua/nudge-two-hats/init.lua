@@ -1325,6 +1325,7 @@ function M.start_notification_timer(buf, event_name)
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)
         print("==========================")
+      end
       
       state.virtual_text.last_advice[buf] = advice
       
@@ -2390,6 +2391,7 @@ function M.setup(opts)
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)
         print("==========================")
+      end
       
       state.virtual_text.last_advice[buf] = advice
       
