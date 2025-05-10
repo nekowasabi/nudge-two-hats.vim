@@ -644,19 +644,42 @@ local function get_buf_diff(buf)
   
   if first_notification and content and content ~= "" then
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] 初回通知のためダミーdiffを作成します")
+      print("[Nudge Two Hats Debug] 初回通知のためダミーdiffを作成します（カーソル位置周辺のみ）")
     end
     
     local first_filetype = filetypes[1]
     state.buf_content_by_filetype[buf][first_filetype] = ""
     
-    -- Create a diff showing the entire file as added
-    local diff = "--- a/dummy\n+++ b/current\n@@ -0,0 +1," .. line_count .. " @@\n"
-    for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+    -- Get cursor position
+    local cursor_pos = vim.api.nvim_win_get_cursor(0)
+    local cursor_line = cursor_pos[1]
+    
+    -- Calculate range (cursor position ±10 lines)
+    local context_lines = 10
+    local start_line = math.max(1, cursor_line - context_lines)
+    local end_line = math.min(line_count, cursor_line + context_lines)
+    local context_line_count = end_line - start_line + 1
+    
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] カーソル位置: %d行目, 範囲: %d-%d行 (合計%d行)", 
+        cursor_line, start_line, end_line, context_line_count))
+    end
+    
+    -- Create a diff showing only lines around cursor position
+    local diff = string.format("--- a/dummy\n+++ b/current\n@@ -0,0 +1,%d @@\n", context_line_count)
+    for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)) do
       diff = diff .. "+" .. line .. "\n"
     end
     
-    return content, diff, first_filetype
+    local context_content = table.concat(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false), "\n")
+    state.buf_content_by_filetype[buf][first_filetype] = context_content
+    state.buf_content[buf] = context_content
+    
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 初回通知用のコンテキスト: %d文字", #context_content))
+    end
+    
+    return context_content, diff, first_filetype
   end
   
   -- Check for diff in any of the filetypes
