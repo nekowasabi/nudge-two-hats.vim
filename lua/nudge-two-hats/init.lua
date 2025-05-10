@@ -1325,8 +1325,23 @@ function M.start_notification_timer(buf, event_name)
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)
         print("==========================")
+      end
       
       state.virtual_text.last_advice[buf] = advice
+      
+      if content then
+        -- Update content for all filetypes
+        state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+        for _, filetype in ipairs(filetypes) do
+          state.buf_content_by_filetype[buf][filetype] = content
+        end
+        
+        state.buf_content[buf] = content
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] バッファ内容を更新しました")
+        end
+      end
       
       config.execution_delay = generate_random_delay()
     end, prompt, config.purpose)
@@ -2390,8 +2405,23 @@ function M.setup(opts)
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)
         print("==========================")
+      end
       
       state.virtual_text.last_advice[buf] = advice
+      
+      if content then
+        -- Update content for all filetypes
+        state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+        for _, filetype in ipairs(filetypes) do
+          state.buf_content_by_filetype[buf][filetype] = content
+        end
+        
+        state.buf_content[buf] = content
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] バッファ内容を更新しました")
+        end
+      end
       
       config.execution_delay = generate_random_delay()
     end, prompt, config.purpose)
