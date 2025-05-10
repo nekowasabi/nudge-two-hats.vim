@@ -1332,14 +1332,32 @@ function M.start_notification_timer(buf, event_name)
       if content then
         -- Update content for all filetypes
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-        for _, filetype in ipairs(filetypes) do
-          state.buf_content_by_filetype[buf][filetype] = content
+        
+        -- Get the filetypes for this buffer within the callback
+        local callback_filetypes = {}
+        if state.buf_filetypes[buf] then
+          for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+            table.insert(callback_filetypes, filetype)
+          end
+        else
+          local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+          if current_filetype and current_filetype ~= "" then
+            table.insert(callback_filetypes, current_filetype)
+          end
+        end
+        
+        if #callback_filetypes > 0 then
+          for _, filetype in ipairs(callback_filetypes) do
+            state.buf_content_by_filetype[buf][filetype] = content
+          end
+        else
+          state.buf_content_by_filetype[buf]["_default"] = content
         end
         
         state.buf_content[buf] = content
         
         if config.debug_mode then
-          print("[Nudge Two Hats Debug] バッファ内容を更新しました")
+          print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
       
@@ -2412,14 +2430,32 @@ function M.setup(opts)
       if content then
         -- Update content for all filetypes
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-        for _, filetype in ipairs(filetypes) do
-          state.buf_content_by_filetype[buf][filetype] = content
+        
+        -- Get the filetypes for this buffer within the callback
+        local callback_filetypes = {}
+        if state.buf_filetypes[buf] then
+          for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+            table.insert(callback_filetypes, filetype)
+          end
+        else
+          local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+          if current_filetype and current_filetype ~= "" then
+            table.insert(callback_filetypes, current_filetype)
+          end
+        end
+        
+        if #callback_filetypes > 0 then
+          for _, filetype in ipairs(callback_filetypes) do
+            state.buf_content_by_filetype[buf][filetype] = content
+          end
+        else
+          state.buf_content_by_filetype[buf]["_default"] = content
         end
         
         state.buf_content[buf] = content
         
         if config.debug_mode then
-          print("[Nudge Two Hats Debug] バッファ内容を更新しました")
+          print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
       
