@@ -596,9 +596,11 @@ end
 
 local function get_buf_diff(buf)
   if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] get_buf_diff開始: バッファ %d", buf))
+    print(string.format("[Nudge Two Hats Debug] get_buf_diff開始: バッファ %d, 時刻: %s", buf, os.date("%Y-%m-%d %H:%M:%S")))
   end
 
+  vim.cmd("checktime " .. buf)
+  
   local line_count = vim.api.nvim_buf_line_count(buf)
   local content
   
@@ -620,6 +622,14 @@ local function get_buf_diff(buf)
   
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] 現在のバッファ内容: %d文字", #content))
+    local content_preview = content:sub(1, 50):gsub("\n", "\\n")
+    print(string.format("[Nudge Two Hats Debug] バッファ内容プレビュー: %s...", content_preview))
+    -- Calculate content hash for comparison
+    local content_hash = 0
+    for i = 1, #content do
+      content_hash = (content_hash * 31 + string.byte(content, i)) % 1000000007
+    end
+    print(string.format("[Nudge Two Hats Debug] バッファ内容ハッシュ: %d", content_hash))
   end
   
   -- Get the filetypes for this buffer
@@ -768,15 +778,25 @@ local function get_buf_diff(buf)
         if config.debug_mode then
           if diff then
             print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
+            local diff_preview = diff:sub(1, 100):gsub("\n", "\\n")
+            print(string.format("[Nudge Two Hats Debug] diff内容プレビュー: %s...", diff_preview))
           else
             print("[Nudge Two Hats Debug] vim.diffの結果: nil")
           end
+          
+          print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
+            tostring(old ~= content)))
         end
         
         if type(diff) == "string" and diff ~= "" then
           if config.debug_mode then
             print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", filetype))
+            print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
           end
+          
+          state.buf_content_by_filetype[buf][filetype] = content
+          state.buf_content[buf] = content
+          
           return content, diff, filetype
         elseif force_diff then
           -- For BufWritePost, create a minimal diff if none was found
@@ -1331,6 +1351,9 @@ end
 
 -- Stop virtual text timer for a buffer
 function M.stop_virtual_text_timer(buf)
+  state.timers = state.timers or {}
+  state.timers.virtual_text = state.timers.virtual_text or {}
+  
   local timer_id = state.timers.virtual_text[buf]
   if timer_id then
     vim.fn.timer_stop(timer_id)
@@ -1554,6 +1577,9 @@ function M.start_virtual_text_timer(buf, event_name)
     return
   end
   
+  state.timers = state.timers or {}
+  state.timers.virtual_text = state.timers.virtual_text or {}
+  
   -- Stop any existing timer first
   M.stop_virtual_text_timer(buf)
   
@@ -1701,6 +1727,15 @@ local function setup_virtual_text(buf)
     group = augroup,
     buffer = buf,
     callback = function()
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] BufWritePost イベント発生: バッファ %d", buf))
+        print(string.format("[Nudge Two Hats Debug] ファイル保存時刻: %s", os.date("%Y-%m-%d %H:%M:%S")))
+        
+        local line_count = vim.api.nvim_buf_line_count(buf)
+        local first_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
+        print(string.format("[Nudge Two Hats Debug] バッファ行数: %d, 先頭行: %s", line_count, first_line:sub(1, 30)))
+      end
+      
       start_notification_timer(buf, "BufWritePost")
     end,
   })
@@ -1813,6 +1848,9 @@ end
 
 
 function M.stop_virtual_text_timer(buf)
+  state.timers = state.timers or {}
+  state.timers.virtual_text = state.timers.virtual_text or {}
+  
   if state.timers.virtual_text[buf] then
     local timer_id = state.timers.virtual_text[buf]
     vim.fn.timer_stop(timer_id)
@@ -2473,6 +2511,10 @@ function M.setup(opts)
       return
     end
     
+    state.timers = state.timers or {}
+    state.timers.virtual_text = state.timers.virtual_text or {}
+    state.timers.notification = state.timers.notification or {}
+    
     -- Get the filetypes for this buffer
     local filetypes = {}
     if state.buf_filetypes[buf] then
@@ -2636,6 +2678,10 @@ function M.setup(opts)
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
+    
+    state.timers = state.timers or {}
+    state.timers.virtual_text = state.timers.virtual_text or {}
+    state.timers.notification = state.timers.notification or {}
     
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理を強制的に発火させます")
