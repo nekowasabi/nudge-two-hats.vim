@@ -1312,10 +1312,19 @@ function M.start_notification_timer(buf, event_name)
         title = selected_hat
       end
       
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
+      end
+      
       vim.notify(advice, vim.log.levels.INFO, {
         title = title,
         icon = "🎩",
       })
+      
+      if config.debug_mode then
+        print("\n=== Nudge Two Hats 通知 ===")
+        print(advice)
+        print("==========================")
       
       state.virtual_text.last_advice[buf] = advice
       
@@ -2368,10 +2377,19 @@ function M.setup(opts)
         title = selected_hat
       end
       
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
+      end
+      
       vim.notify(advice, vim.log.levels.INFO, {
         title = title,
         icon = "🎩",
       })
+      
+      if config.debug_mode then
+        print("\n=== Nudge Two Hats 通知 ===")
+        print(advice)
+        print("==========================")
       
       state.virtual_text.last_advice[buf] = advice
       
