@@ -627,7 +627,37 @@ local function get_buf_diff(buf)
     end
   end
   
+  if #filetypes == 0 then
+    table.insert(filetypes, "_default")
+  end
+  
+  -- Initialize buffer content storage if needed
   state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+  
+  local first_notification = true
+  for _, filetype in ipairs(filetypes) do
+    if state.buf_content_by_filetype[buf][filetype] then
+      first_notification = false
+      break
+    end
+  end
+  
+  if first_notification and content and content ~= "" then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] 初回通知のためダミーdiffを作成します")
+    end
+    
+    local first_filetype = filetypes[1]
+    state.buf_content_by_filetype[buf][first_filetype] = ""
+    
+    -- Create a diff showing the entire file as added
+    local diff = "--- a/dummy\n+++ b/current\n@@ -0,0 +1," .. line_count .. " @@\n"
+    for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+      diff = diff .. "+" .. line .. "\n"
+    end
+    
+    return content, diff, first_filetype
+  end
   
   -- Check for diff in any of the filetypes
   for _, filetype in ipairs(filetypes) do
@@ -639,7 +669,7 @@ local function get_buf_diff(buf)
     
     if old and old ~= content then
       local diff = vim.diff(old, content, { result_type = "unified" })
-      if type(diff) == "string" then
+      if type(diff) == "string" and diff ~= "" then
         if config.debug_mode then
           print(string.format("[Nudge Two Hats Debug] Found diff for filetype: %s", filetype))
         end
@@ -647,6 +677,16 @@ local function get_buf_diff(buf)
       end
     end
   end
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] 差分が見つかりませんでした。バッファ内容を更新します。")
+  end
+  
+  -- Update buffer content even if no diff was found
+  for _, filetype in ipairs(filetypes) do
+    state.buf_content_by_filetype[buf][filetype] = content
+  end
+  state.buf_content[buf] = content
   
   return content, nil, nil
 end
