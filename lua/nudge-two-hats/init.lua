@@ -726,8 +726,15 @@ local MAX_ADVICE_CACHE_SIZE = 10
 local function get_gemini_advice(diff, callback, prompt, purpose)
   local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
   
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] API Key: %s", api_key and "設定済み" or "未設定"))
+  end
+  
   if not api_key then
     local error_msg = translate_message(translations.en.api_key_not_set)
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] APIキーが設定されていません")
+    end
     vim.notify(error_msg, vim.log.levels.ERROR)
     return
   end
