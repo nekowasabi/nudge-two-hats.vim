@@ -732,6 +732,7 @@ local function get_buf_diff(buf)
   end
   
   local old = nil
+  local detected_filetype = nil
   
   -- First try to use the temporary file if available
   if state.temp_files and state.temp_files[buf] then
@@ -746,6 +747,11 @@ local function get_buf_diff(buf)
         print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
           temp_file_path, #old))
       end
+      
+      -- Use the first filetype as the detected filetype
+      if #filetypes > 0 then
+        detected_filetype = filetypes[1]
+      end
     else
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] テンポラリファイルの読み込みに失敗しました: %s", temp_file_path))
@@ -755,6 +761,7 @@ local function get_buf_diff(buf)
     for _, filetype in ipairs(filetypes) do
       if state.buf_content_by_filetype[buf] and state.buf_content_by_filetype[buf][filetype] then
         old = state.buf_content_by_filetype[buf][filetype]
+        detected_filetype = filetype
         
         if config.debug_mode then
           print(string.format("[Nudge Two Hats Debug] filetype=%sの内容を使用します", filetype))
@@ -767,6 +774,10 @@ local function get_buf_diff(buf)
     -- If still no content, try using the buffer content
     if not old and state.buf_content[buf] then
       old = state.buf_content[buf]
+      
+      if not detected_filetype and #filetypes > 0 then
+        detected_filetype = filetypes[1]
+      end
       
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] バッファ全体の内容を使用します"))
@@ -803,11 +814,13 @@ local function get_buf_diff(buf)
         
         if type(diff) == "string" and diff ~= "" then
           if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", filetype))
+            print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", detected_filetype))
             print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
           end
           
-          state.buf_content_by_filetype[buf][filetype] = content
+          if detected_filetype then
+            state.buf_content_by_filetype[buf][detected_filetype] = content
+          end
           state.buf_content[buf] = content
           
           -- Delete the temporary file after notification
@@ -824,7 +837,7 @@ local function get_buf_diff(buf)
             state.temp_files[buf] = nil
           end
           
-          return content, diff, filetype
+          return content, diff, detected_filetype
         elseif force_diff then
           -- For BufWritePost, create a minimal diff if none was found
           local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
@@ -848,16 +861,16 @@ local function get_buf_diff(buf)
             state.temp_files[buf] = nil
           end
           
-          return content, minimal_diff, filetype
+          return content, minimal_diff, detected_filetype
         end
       else
         if config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug] 内容が同一のため、差分なし: filetype=%s", filetype))
+          print(string.format("[Nudge Two Hats Debug] 内容が同一のため、差分なし: filetype=%s", detected_filetype or "unknown"))
         end
       end
     else
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", filetype))
+        print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", detected_filetype or "unknown"))
       end
     end
   end
