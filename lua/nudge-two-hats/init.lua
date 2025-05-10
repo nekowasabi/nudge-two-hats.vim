@@ -504,6 +504,14 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
   
   local output = vim.fn.system(curl_command)
   
+  -- Delete the temporary file after API call
+  if vim.fn.filereadable(temp_file) == 1 then
+    vim.fn.delete(temp_file)
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Deleted temporary file: " .. temp_file)
+    end
+  end
+  
   local ok, response
   if vim.json and vim.json.decode then
     ok, response = pcall(vim.json.decode, output)
@@ -1235,6 +1243,14 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
         end
       end,
       on_exit = function(_, code)
+        -- Delete the temporary file after API call completes
+        if vim.fn.filereadable(temp_file) == 1 then
+          vim.fn.delete(temp_file)
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Deleted temporary file: " .. temp_file)
+          end
+        end
+        
         if code ~= 0 then
           vim.schedule(function()
             callback(translate_message(translations.en.api_error))
