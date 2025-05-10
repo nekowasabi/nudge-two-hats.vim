@@ -580,9 +580,8 @@ end
 local function get_buf_diff(buf)
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] get_buf_diff開始: バッファ %d, 時刻: %s", buf, os.date("%Y-%m-%d %H:%M:%S")))
+    print("[Nudge Two Hats Debug] 保存されたバッファ内容と現在の内容を比較します")
   end
-
-  vim.cmd("checktime " .. buf)
   
   local line_count = vim.api.nvim_buf_line_count(buf)
   local content
