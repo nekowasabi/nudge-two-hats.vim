@@ -1500,8 +1500,17 @@ function M.start_notification_timer(buf, event_name)
       state.temp_files = {}
     end
     
-    -- Create a unique temporary file path for this buffer
-    local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d_%d.txt", buf, os.time())
+    -- Create a consistent temporary file path for this buffer (without timestamp)
+    local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
+    
+    -- Delete existing file if it exists (to ensure only one file per buffer)
+    if vim.fn.filereadable(temp_file_path) == 1 then
+      os.remove(temp_file_path)
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] 既存のテンポラリファイルを削除しました: %s", temp_file_path))
+      end
+    end
     
     local temp_file = io.open(temp_file_path, "w")
     if temp_file then
@@ -2973,6 +2982,22 @@ function M.setup(opts)
       -- Restore original updatetime
       if state.original_updatetime then
         vim.o.updatetime = state.original_updatetime
+      end
+    end
+  })
+  
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    pattern = "*",
+    callback = function()
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] エディタ終了時にすべてのバッファファイルをクリーンアップします")
+      end
+      
+      -- Delete all nudge_two_hats_buffer_*.txt files
+      local result = vim.fn.system("find /tmp -name 'nudge_two_hats_buffer_*.txt' -type f -delete")
+      
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] バッファファイルのクリーンアップが完了しました")
       end
     end
   })
