@@ -1376,11 +1376,42 @@ local function create_autocmd(buf)
         print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text and restarted timer", buf))
       end
       
-      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-      if log_file then
-        log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text\n", 
-          buf, os.date("%Y-%m-%d %H:%M:%S")))
-        log_file:close()
+      if config.debug_mode then
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text\n", 
+            buf, os.date("%Y-%m-%d %H:%M:%S")))
+          log_file:close()
+        end
+      end
+    end
+  })
+  
+  -- Set up cursor movement events in Insert mode to clear virtual text
+  vim.api.nvim_create_autocmd("CursorMovedI", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      if not state.enabled then
+        return
+      end
+      
+      state.virtual_text.last_cursor_move[buf] = os.time()
+      
+      M.clear_virtual_text(buf)
+      
+      -- Restart virtual text timer
+      M.start_virtual_text_timer(buf, "CursorMovedI")
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text and restarted timer", buf))
+        
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text\n", 
+            buf, os.date("%Y-%m-%d %H:%M:%S")))
+          log_file:close()
+        end
       end
     end
   })
@@ -1397,11 +1428,13 @@ function M.stop_notification_timer(buf)
         buf, timer_id))
     end
     
-    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-    if log_file then
-      log_file:write(string.format("Stopped notification timer for buffer %d with ID %d at %s\n", 
-        buf, timer_id, os.date("%Y-%m-%d %H:%M:%S")))
-      log_file:close()
+    if config.debug_mode then
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("Stopped notification timer for buffer %d with ID %d at %s\n", 
+          buf, timer_id, os.date("%Y-%m-%d %H:%M:%S")))
+        log_file:close()
+      end
     end
     
     local old_timer_id = timer_id
@@ -1430,11 +1463,13 @@ function M.stop_virtual_text_timer(buf)
         buf, timer_id))
     end
     
-    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-    if log_file then
-      log_file:write(string.format("Stopped virtual text timer for buffer %d with ID %d at %s\n", 
-        buf, timer_id, os.date("%Y-%m-%d %H:%M:%S")))
-      log_file:close()
+    if config.debug_mode then
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("Stopped virtual text timer for buffer %d with ID %d at %s\n", 
+          buf, timer_id, os.date("%Y-%m-%d %H:%M:%S")))
+        log_file:close()
+      end
     end
     
     local old_timer_id = timer_id
@@ -1584,11 +1619,13 @@ function M.start_notification_timer(buf, event_name)
   -- Stop any existing notification timer that might be invalid
   M.stop_notification_timer(buf)
   
-  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-  if log_file then
-    log_file:write("=== " .. event_name .. " triggered notification timer start at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-    log_file:write("Buffer: " .. buf .. "\n")
-    log_file:close()
+  if config.debug_mode then
+    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if log_file then
+      log_file:write("=== " .. event_name .. " triggered notification timer start at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      log_file:write("Buffer: " .. buf .. "\n")
+      log_file:close()
+    end
   end
   
   if config.debug_mode then
@@ -1738,12 +1775,14 @@ function M.start_virtual_text_timer(buf, event_name)
   -- Stop any existing timer first
   M.stop_virtual_text_timer(buf)
   
-  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-  if log_file then
-    local event_info = event_name and (" triggered by " .. event_name) or ""
-    log_file:write("=== Virtual text timer start" .. event_info .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-    log_file:write("Buffer: " .. buf .. "\n")
-    log_file:close()
+  if config.debug_mode then
+    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if log_file then
+      local event_info = event_name and (" triggered by " .. event_name) or ""
+      log_file:write("=== Virtual text timer start" .. event_info .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      log_file:write("Buffer: " .. buf .. "\n")
+      log_file:close()
+    end
   end
   
   if config.debug_mode then
@@ -1799,12 +1838,14 @@ function M.start_virtual_text_timer(buf, event_name)
       buf, state.timers.virtual_text[buf], event_info))
   end
   
-  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-  if log_file then
-    local event_info = event_name and (" triggered by " .. event_name) or ""
-    log_file:write(string.format("Started virtual text timer for buffer %d with ID %d%s at %s\n", 
-      buf, state.timers.virtual_text[buf], event_info, os.date("%Y-%m-%d %H:%M:%S")))
-    log_file:close()
+  if config.debug_mode then
+    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if log_file then
+      local event_info = event_name and (" triggered by " .. event_name) or ""
+      log_file:write(string.format("Started virtual text timer for buffer %d with ID %d%s at %s\n", 
+        buf, state.timers.virtual_text[buf], event_info, os.date("%Y-%m-%d %H:%M:%S")))
+      log_file:close()
+    end
   end
   
   return state.timers.virtual_text[buf]
@@ -1837,17 +1878,20 @@ local function setup_virtual_text(buf)
       
       state.virtual_text.last_cursor_pos[buf] = { row = cursor_row, col = cursor_col }
       
-      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-      if log_file then
-        log_file:write("=== CursorMoved triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-        log_file:write("Buffer: " .. buf .. "\n")
-        log_file:write("Current position: row=" .. cursor_row .. ", col=" .. cursor_col .. "\n")
-        if last_pos then
-          log_file:write("Previous position: row=" .. last_pos.row .. ", col=" .. last_pos.col .. "\n")
-        else
-          log_file:write("Previous position: nil (first move)\n")
+      if config.debug_mode then
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write("=== CursorMoved triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+          log_file:write("Buffer: " .. buf .. "\n")
+          log_file:write("Current position: row=" .. cursor_row .. ", col=" .. cursor_col .. "\n")
+          if last_pos then
+            log_file:write("Previous position: row=" .. last_pos.row .. ", col=" .. last_pos.col .. "\n")
+          else
+            log_file:write("Previous position: nil (first move)\n")
+          end
+          log_file:write("Cursor actually moved: " .. tostring(cursor_actually_moved) .. "\n")
+          log_file:close()
         end
-        log_file:write("Cursor actually moved: " .. tostring(cursor_actually_moved) .. "\n")
       end
       
       if cursor_actually_moved then
@@ -1899,7 +1943,23 @@ local function setup_virtual_text(buf)
     group = augroup,
     buffer = buf,
     callback = function()
+      if not state.enabled then
+        return
+      end
+      
+      M.clear_virtual_text(buf)
       start_notification_timer(buf, "InsertLeave")
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Insert mode exited in buffer %d, cleared virtual text", buf))
+      end
+      
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("Insert mode exited in buffer %d at %s, cleared virtual text\n", 
+          buf, os.date("%Y-%m-%d %H:%M:%S")))
+        log_file:close()
+      end
     end,
   })
   
@@ -1915,20 +1975,23 @@ local function setup_virtual_text(buf)
     group = augroup,
     buffer = buf,
     callback = function()
-      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-      if log_file then
-        log_file:write("=== CursorHold triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-        log_file:write("Buffer: " .. buf .. "\n")
-        log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
-        log_file:write("updatetime: " .. vim.o.updatetime .. "ms\n")
-        log_file:write("idle_time setting: " .. config.virtual_text.idle_time .. " minutes (" .. (config.virtual_text.idle_time * 60) .. " seconds)\n")
+      if config.debug_mode then
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write("=== CursorHold triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+          log_file:write("Buffer: " .. buf .. "\n")
+          log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+          log_file:write("updatetime: " .. vim.o.updatetime .. "ms\n")
+          log_file:write("idle_time setting: " .. config.virtual_text.idle_time .. " minutes (" .. (config.virtual_text.idle_time * 60) .. " seconds)\n")
+        
+          if not state.enabled then
+            log_file:write("Plugin not enabled, exiting CursorHold handler\n\n")
+            log_file:close()
+          end
+        end
       end
       
       if not state.enabled then
-        if log_file then
-          log_file:write("Plugin not enabled, exiting CursorHold handler\n\n")
-          log_file:close()
-        end
         return
       end
       
@@ -2029,20 +2092,23 @@ function M.stop_timer(buf)
 end
 
 function M.display_virtual_text(buf, advice)
-  local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-  if log_file then
-    log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-    log_file:write("Buffer: " .. buf .. "\n")
-    log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
-    log_file:write("Advice length: " .. #advice .. " characters\n")
-    log_file:write("Advice: " .. advice .. "\n")
+  if config.debug_mode then
+    local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+    if log_file then
+      log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      log_file:write("Buffer: " .. buf .. "\n")
+      log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+      log_file:write("Advice length: " .. #advice .. " characters\n")
+      log_file:write("Advice: " .. advice .. "\n")
+    
+      if not state.enabled then
+        log_file:write("Plugin not enabled, exiting display_virtual_text\n\n")
+        log_file:close()
+      end
+    end
   end
   
   if not state.enabled then
-    if log_file then
-      log_file:write("Plugin not enabled, exiting display_virtual_text\n\n")
-      log_file:close()
-    end
     return
   end
   
@@ -2933,12 +2999,14 @@ function M.setup(opts)
           print(string.format("[Nudge Two Hats Debug] BufEnter: Switched to buffer %d", buf))
         end
         
-        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-        if log_file then
-          log_file:write("=== BufEnter triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-          log_file:write("Current buffer: " .. buf .. "\n")
-          log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
-          log_file:close()
+        if config.debug_mode then
+          local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+          if log_file then
+            log_file:write("=== BufEnter triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+            log_file:write("Current buffer: " .. buf .. "\n")
+            log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+            log_file:close()
+          end
         end
         
         if state.buf_filetypes[buf] then
@@ -2965,17 +3033,19 @@ function M.setup(opts)
       local virtual_text_timer_id = M.stop_virtual_text_timer(buf)
       
       if notification_timer_id or virtual_text_timer_id then
-        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-        if log_file then
-          log_file:write("=== BufLeave triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-          log_file:write("Leaving buffer: " .. buf .. "\n")
-          if notification_timer_id then
-            log_file:write("Stopped notification timer: " .. notification_timer_id .. "\n")
+        if config.debug_mode then
+          local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+          if log_file then
+            log_file:write("=== BufLeave triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+            log_file:write("Leaving buffer: " .. buf .. "\n")
+            if notification_timer_id then
+              log_file:write("Stopped notification timer: " .. notification_timer_id .. "\n")
+            end
+            if virtual_text_timer_id then
+              log_file:write("Stopped virtual text timer: " .. virtual_text_timer_id .. "\n")
+            end
+            log_file:close()
           end
-          if virtual_text_timer_id then
-            log_file:write("Stopped virtual text timer: " .. virtual_text_timer_id .. "\n")
-          end
-          log_file:close()
         end
       end
       
