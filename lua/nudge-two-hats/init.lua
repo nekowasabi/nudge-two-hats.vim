@@ -1384,6 +1384,35 @@ local function create_autocmd(buf)
       end
     end
   })
+  
+  -- Set up cursor movement events in Insert mode to clear virtual text
+  vim.api.nvim_create_autocmd("CursorMovedI", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      if not state.enabled then
+        return
+      end
+      
+      state.virtual_text.last_cursor_move[buf] = os.time()
+      
+      M.clear_virtual_text(buf)
+      
+      -- Restart virtual text timer
+      M.start_virtual_text_timer(buf, "CursorMovedI")
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text and restarted timer", buf))
+      end
+      
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text\n", 
+          buf, os.date("%Y-%m-%d %H:%M:%S")))
+        log_file:close()
+      end
+    end
+  })
 end
 
 -- Stop notification timer for a buffer
@@ -1899,7 +1928,23 @@ local function setup_virtual_text(buf)
     group = augroup,
     buffer = buf,
     callback = function()
+      if not state.enabled then
+        return
+      end
+      
+      M.clear_virtual_text(buf)
       start_notification_timer(buf, "InsertLeave")
+      
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Insert mode exited in buffer %d, cleared virtual text", buf))
+      end
+      
+      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      if log_file then
+        log_file:write(string.format("Insert mode exited in buffer %d at %s, cleared virtual text\n", 
+          buf, os.date("%Y-%m-%d %H:%M:%S")))
+        log_file:close()
+      end
     end,
   })
   
