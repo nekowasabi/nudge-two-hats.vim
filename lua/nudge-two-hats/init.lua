@@ -1958,7 +1958,7 @@ local function setup_virtual_text(buf)
       end
       
       -- Only set up timer if cursor has been idle for the required time
-      if idle_condition_met and not state.virtual_text.timers[buf] then
+      if idle_condition_met and not state.timers.virtual_text[buf] then
         if log_file then
           log_file:close()
         end
