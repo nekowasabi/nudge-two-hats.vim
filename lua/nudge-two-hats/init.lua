@@ -29,149 +29,15 @@ local api = require("nudge-two-hats.api")
 -- Import the buffer module
 local buffer = require("nudge-two-hats.buffer")
 
+-- Import the autocmd module
+local autocmd = require("nudge-two-hats.autocmd")
+
 -- -- Use imported safe_truncate function
 -- local safe_truncate = api.safe_truncate
-
--- buffer.luaに移動したため、ここでは削除
 
 -- local advice_cache = {}
 -- local advice_cache_keys = {}
 -- local MAX_ADVICE_CACHE_SIZE = 10
-
-
-local function create_autocmd(buf)
-  local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
-  local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-  local filetypes = {}
-  if state.buf_filetypes[buf] then
-    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
-      table.insert(filetypes, filetype)
-    end
-  else
-    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    if current_filetype and current_filetype ~= "" then
-      table.insert(filetypes, current_filetype)
-      state.buf_filetypes[buf] = current_filetype
-    end
-  end
-  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-  for _, filetype in ipairs(filetypes) do
-    state.buf_content_by_filetype[buf][filetype] = content
-  end
-  state.buf_content[buf] = content
-  local current_time = os.time()
-  state.virtual_text.last_cursor_move[buf] = current_time
-  if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s", 
-      buf, table.concat(filetypes, ", ")))
-  end
-
-  -- Set up text change events to trigger notification timer
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
-    group = augroup,
-    buffer = buf,
-    callback = function(ctx)
-      if not state.enabled then
-        return
-      end
-
-      vim.defer_fn(function()
-        if not vim.api.nvim_buf_is_valid(buf) then
-          state.buf_content[buf] = nil
-          state.buf_content_by_filetype[buf] = nil
-          vim.api.nvim_del_augroup_by_id(augroup)
-          return
-        end
-
-        -- Check if current filetype is in the list of registered filetypes
-        local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-        local filetype_match = false
-        if not state.buf_filetypes[buf] and current_filetype and current_filetype ~= "" then
-          state.buf_filetypes[buf] = current_filetype
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 自動登録：バッファ %d のfiletype (%s) を登録しました", 
-              buf, current_filetype))
-          end
-          filetype_match = true
-        elseif state.buf_filetypes[buf] then
-          -- Check if current filetype matches any registered filetype
-          for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
-            if filetype == current_filetype then
-              filetype_match = true
-              break
-            end
-          end
-        end
-        if not filetype_match then
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が登録されたfiletypes (%s) に含まれていません", 
-              current_filetype or "nil", state.buf_filetypes[buf] or "nil"))
-          end
-          return
-        end
-
-        local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-        for _, filetype in ipairs(filetypes) do
-          if not state.buf_content_by_filetype[buf] then
-            state.buf_content_by_filetype[buf] = {}
-          end
-          state.buf_content_by_filetype[buf][filetype] = content
-        end
-        state.buf_content[buf] = content
-        -- Start notification timer for API request
-        M.start_notification_timer(buf, ctx.event)
-      end, 100)
-    end,
-  })
-  -- Set up cursor movement events to track cursor position and clear virtual text
-  vim.api.nvim_create_autocmd("CursorMoved", {
-    group = augroup,
-    buffer = buf,
-    callback = function()
-      if not state.enabled then
-        return
-      end
-      state.virtual_text.last_cursor_move[buf] = os.time()
-      M.clear_virtual_text(buf)
-      -- Restart virtual text timer
-      M.start_virtual_text_timer(buf, "CursorMoved")
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text and restarted timer", buf))
-      end
-      if config.debug_mode then
-        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-        if log_file then
-          log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text\n", 
-            buf, os.date("%Y-%m-%d %H:%M:%S")))
-          log_file:close()
-        end
-      end
-    end
-  })
-  -- Set up cursor movement events in Insert mode to clear virtual text
-  vim.api.nvim_create_autocmd("CursorMovedI", {
-    group = augroup,
-    buffer = buf,
-    callback = function()
-      if not state.enabled then
-        return
-      end
-      state.virtual_text.last_cursor_move[buf] = os.time()
-      M.clear_virtual_text(buf)
-      -- Restart virtual text timer
-      M.start_virtual_text_timer(buf, "CursorMovedI")
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text and restarted timer", buf))
-        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-        if log_file then
-          log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text\n", 
-            buf, os.date("%Y-%m-%d %H:%M:%S")))
-          log_file:close()
-        end
-      end
-    end
-  })
-end
 
 -- Stop notification timer for a buffer
 function M.stop_notification_timer(buf)
@@ -547,179 +413,6 @@ function M.start_virtual_text_timer(buf, event_name)
   return state.timers.virtual_text[buf]
 end
 
-local function start_notification_timer(buf, event_name)
-  M.start_notification_timer(buf, event_name)
-end
-
--- local function setup_virtual_text(buf)
---   -- Store the last cursor position to detect actual movement
---   state.virtual_text.last_cursor_pos = state.virtual_text.last_cursor_pos or {}
---   state.virtual_text.last_cursor_pos[buf] = nil -- Initialize to nil to force update on first move
---   vim.api.nvim_create_autocmd("CursorMoved", {
---     group = augroup,
---     buffer = buf,
---     callback = function()
---       local current_pos = vim.api.nvim_win_get_cursor(0)
---       local cursor_row = current_pos[1]
---       local cursor_col = current_pos[2]
---       -- Check if cursor has actually moved from its previous position
---       local last_pos = state.virtual_text.last_cursor_pos[buf]
---       local cursor_actually_moved = true
---       if last_pos then
---         cursor_actually_moved = (last_pos.row ~= cursor_row or last_pos.col ~= cursor_col)
---       end
---       state.virtual_text.last_cursor_pos[buf] = { row = cursor_row, col = cursor_col }
---       if config.debug_mode then
---         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
---         if log_file then
---           log_file:write("=== CursorMoved triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
---           log_file:write("Buffer: " .. buf .. "\n")
---           log_file:write("Current position: row=" .. cursor_row .. ", col=" .. cursor_col .. "\n")
---           if last_pos then
---             log_file:write("Previous position: row=" .. last_pos.row .. ", col=" .. last_pos.col .. "\n")
---           else
---             log_file:write("Previous position: nil (first move)\n")
---           end
---           log_file:write("Cursor actually moved: " .. tostring(cursor_actually_moved) .. "\n")
---           log_file:close()
---         end
---       end
---       if cursor_actually_moved then
---         local old_time = state.virtual_text.last_cursor_move[buf] or 0
---         local new_time = os.time()
---         state.virtual_text.last_cursor_move[buf] = new_time
---         if log_file then
---           log_file:write("Updated last_cursor_move from " .. old_time .. " to " .. new_time .. "\n")
---         end
---         if state.virtual_text.extmarks[buf] then
---           M.clear_virtual_text(buf)
---         end
---         if log_file then
---           log_file:write("Cursor moved but not stopping virtual text timer\n")
---         end
---       else
---         if log_file then
---           log_file:write("Cursor didn't actually move, not updating last_cursor_move time\n")
---         end
---       end
---       if log_file then
---         log_file:close()
---       end
---     end,
---   })
---   vim.api.nvim_create_autocmd("BufWritePost", {
---     group = augroup,
---     buffer = buf,
---     callback = function()
---       if config.debug_mode then
---         print(string.format("[Nudge Two Hats Debug] BufWritePost イベント発生: バッファ %d", buf))
---         print(string.format("[Nudge Two Hats Debug] ファイル保存時刻: %s", os.date("%Y-%m-%d %H:%M:%S")))
---         local line_count = vim.api.nvim_buf_line_count(buf)
---         local first_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
---         print(string.format("[Nudge Two Hats Debug] バッファ行数: %d, 先頭行: %s", line_count, first_line:sub(1, 30)))
---       end
---       start_notification_timer(buf, "BufWritePost")
---     end,
---   })
---   vim.api.nvim_create_autocmd("InsertLeave", {
---     group = augroup,
---     buffer = buf,
---     callback = function()
---       if not state.enabled then
---         return
---       end
---       M.clear_virtual_text(buf)
---       start_notification_timer(buf, "InsertLeave")
---       if config.debug_mode then
---         print(string.format("[Nudge Two Hats Debug] Insert mode exited in buffer %d, cleared virtual text", buf))
---       end
---       local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
---       if log_file then
---         log_file:write(string.format("Insert mode exited in buffer %d at %s, cleared virtual text\n", 
---           buf, os.date("%Y-%m-%d %H:%M:%S")))
---         log_file:close()
---       end
---     end
---   })
---   vim.api.nvim_create_autocmd("BufReadPost", {
---     group = augroup,
---     buffer = buf,
---     callback = function()
---       start_notification_timer(buf, "BufReadPost")
---     end,
---   })
---   vim.api.nvim_create_autocmd("CursorHold", {
---     group = augroup,
---     buffer = buf,
---     callback = function()
---       if config.debug_mode then
---         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
---         if log_file then
---           log_file:write("=== CursorHold triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
---           log_file:write("Buffer: " .. buf .. "\n")
---           log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
---           log_file:write("updatetime: " .. vim.o.updatetime .. "ms\n")
---           log_file:write("idle_time setting: " .. config.virtual_text.idle_time .. " minutes (" .. (config.virtual_text.idle_time * 60) .. " seconds)\n")
---           if not state.enabled then
---             log_file:write("Plugin not enabled, exiting CursorHold handler\n\n")
---             log_file:close()
---           end
---         end
---       end
---       if not state.enabled then
---         return
---       end
---       -- Check if this is the current buffer
---       local current_buf = vim.api.nvim_get_current_buf()
---       if buf ~= current_buf then
---         if log_file then
---           log_file:write("Buffer " .. buf .. " is not the current buffer (" .. current_buf .. "), skipping timer setup\n\n")
---           log_file:close()
---         end
---         return
---       end
---       -- Check if cursor has been idle for the required time
---       local current_time = os.time()
---       local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
---       local idle_time = current_time - last_cursor_move_time
---       local required_idle_time = (config.virtual_text.cursor_idle_delay or 5) * 60 -- Convert minutes to seconds
---       local idle_condition_met = idle_time >= required_idle_time
---       if log_file then
---         log_file:write("Current time: " .. os.date("%Y-%m-%d %H:%M:%S", current_time) .. "\n")
---         log_file:write("Last cursor move time: " .. os.date("%Y-%m-%d %H:%M:%S", last_cursor_move_time) .. "\n")
---         log_file:write("Idle time: " .. idle_time .. " seconds\n")
---         log_file:write("Required idle time: " .. required_idle_time .. " seconds\n")
---         log_file:write("Idle condition met: " .. tostring(idle_condition_met) .. "\n")
---       end
---       -- Only set up timer if cursor has been idle for the required time
---       if idle_condition_met and not state.timers.virtual_text[buf] then
---         if log_file then
---           log_file:close()
---         end
---         start_notification_timer(buf, "CursorHold")
---       else
---         if log_file then
---           log_file:close()
---         end
---       end
---     end,
---   })
---
---   vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
---     group = augroup,
---     buffer = buf,
---     callback = function()
---       state.buf_content[buf] = nil
---       state.buf_filetypes[buf] = nil
---       state.virtual_text.last_advice[buf] = nil
---       state.virtual_text.last_cursor_move[buf] = nil
---       M.clear_virtual_text(buf)
---       vim.api.nvim_del_augroup_by_id(augroup)
---       return true
---     end,
---   })
--- end
-
 function M.clear_virtual_text(buf)
   if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
     return
@@ -848,7 +541,12 @@ function M.setup(opts)
       state.buf_filetypes[buf] = table.concat(filetypes, ",")
       local augroup_name = "nudge-two-hats-" .. buf
       pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
-      create_autocmd(buf)
+      -- create_autocmd関数をautocmdモジュールから呼び出します
+      autocmd.create_autocmd(buf, state, config, {
+        start_notification_timer = M.start_notification_timer,
+        clear_virtual_text = M.clear_virtual_text,
+        start_virtual_text_timer = M.start_virtual_text_timer
+      })
       state.virtual_text.last_cursor_move[buf] = os.time()
       -- print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
       -- print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
@@ -951,7 +649,12 @@ function M.setup(opts)
     state.enabled = true
     local augroup_name = "nudge-two-hats-" .. buf
     pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
-    create_autocmd(buf)
+    -- create_autocmd関数をautocmdモジュールから呼び出します
+    autocmd.create_autocmd(buf, state, config, {
+      start_notification_timer = M.start_notification_timer,
+      clear_virtual_text = M.clear_virtual_text,
+      start_virtual_text_timer = M.start_virtual_text_timer
+    })
     state.virtual_text.last_cursor_move[buf] = os.time()
     local filetype_str = table.concat(filetypes, ", ")
     local source_str = using_current_filetype and "current buffer" or "specified files"

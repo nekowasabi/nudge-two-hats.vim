@@ -1,5 +1,144 @@
 local M = {}
 
+-- バッファ監視用の自動コマンドを作成する関数
+-- @param buf number バッファID
+-- @param state table プラグインの状態を保持するテーブル
+-- @param config table 設定情報
+-- @param plugin_functions table プラグイン関数（start_notification_timer, clear_virtual_text, start_virtual_text_timer）
+function M.create_autocmd(buf, state, config, plugin_functions)
+  local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
+  local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  local filetypes = {}
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
+  else
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
+      state.buf_filetypes[buf] = current_filetype
+    end
+  end
+  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+  for _, filetype in ipairs(filetypes) do
+    state.buf_content_by_filetype[buf][filetype] = content
+  end
+  state.buf_content[buf] = content
+  local current_time = os.time()
+  state.virtual_text.last_cursor_move[buf] = current_time
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s", 
+      buf, table.concat(filetypes, ", ")))
+  end
+
+  -- Set up text change events to trigger notification timer
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
+    group = augroup,
+    buffer = buf,
+    callback = function(ctx)
+      if not state.enabled then
+        return
+      end
+
+      vim.defer_fn(function()
+        if not vim.api.nvim_buf_is_valid(buf) then
+          state.buf_content[buf] = nil
+          state.buf_content_by_filetype[buf] = nil
+          vim.api.nvim_del_augroup_by_id(augroup)
+          return
+        end
+
+        -- Check if current filetype is in the list of registered filetypes
+        local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+        local filetype_match = false
+        if not state.buf_filetypes[buf] and current_filetype and current_filetype ~= "" then
+          state.buf_filetypes[buf] = current_filetype
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] 自動登録：バッファ %d のfiletype (%s) を登録しました", 
+              buf, current_filetype))
+          end
+          filetype_match = true
+        elseif state.buf_filetypes[buf] then
+          -- Check if current filetype matches any registered filetype
+          for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+            if filetype == current_filetype then
+              filetype_match = true
+              break
+            end
+          end
+        end
+        if not filetype_match then
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が登録されたfiletypes (%s) に含まれていません", 
+              current_filetype or "nil", state.buf_filetypes[buf] or "nil"))
+          end
+          return
+        end
+
+        local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+        for _, filetype in ipairs(filetypes) do
+          if not state.buf_content_by_filetype[buf] then
+            state.buf_content_by_filetype[buf] = {}
+          end
+          state.buf_content_by_filetype[buf][filetype] = content
+        end
+        state.buf_content[buf] = content
+        -- Start notification timer for API request
+        plugin_functions.start_notification_timer(buf, ctx.event)
+      end, 100)
+    end,
+  })
+  -- Set up cursor movement events to track cursor position and clear virtual text
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      if not state.enabled then
+        return
+      end
+      state.virtual_text.last_cursor_move[buf] = os.time()
+      plugin_functions.clear_virtual_text(buf)
+      -- Restart virtual text timer
+      plugin_functions.start_virtual_text_timer(buf, "CursorMoved")
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text and restarted timer", buf))
+      end
+      if config.debug_mode then
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text\n", 
+            buf, os.date("%Y-%m-%d %H:%M:%S")))
+          log_file:close()
+        end
+      end
+    end
+  })
+  -- Set up cursor movement events in Insert mode to clear virtual text
+  vim.api.nvim_create_autocmd("CursorMovedI", {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      if not state.enabled then
+        return
+      end
+      state.virtual_text.last_cursor_move[buf] = os.time()
+      plugin_functions.clear_virtual_text(buf)
+      -- Restart virtual text timer
+      plugin_functions.start_virtual_text_timer(buf, "CursorMovedI")
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text and restarted timer", buf))
+        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+        if log_file then
+          log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text\n", 
+            buf, os.date("%Y-%m-%d %H:%M:%S")))
+          log_file:close()
+        end
+      end
+    end
+  })
+end
+
 -- テンポラリファイルをクリーンアップする関数
 function M.clear_tempfiles(debug_mode)
   if debug_mode then
