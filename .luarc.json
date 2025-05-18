@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "workspace.library": ["path/to/library/directory", "vim.env.VIMRUNTIME"],
+  "runtime.version": "Lua 5.3",
+  "hint.enable": false,
+  "diagnostics": {
+    "globals": ["vim"],
+    "hint.enable": false
+  }
+}
