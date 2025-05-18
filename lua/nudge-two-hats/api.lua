@@ -602,8 +602,8 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
             else
               ok, result = pcall(function() return vim.fn.json_decode(response.body) end)
             end
-            if ok and result and result.candidates and result.candidates[1] and 
-               result.candidates[1].content and result.candidates[1].content.parts and 
+            if ok and result and result.candidates and result.candidates[1] and
+               result.candidates[1].content and result.candidates[1].content.parts and
                result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
               local advice = result.candidates[1].content.parts[1].text
               if cache_key then
@@ -678,12 +678,10 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
             else
               ok, response = pcall(function() return vim.fn.json_decode(table.concat(data, "\n")) end)
             end
-            
-            if ok and response and response.candidates and response.candidates[1] and 
-               response.candidates[1].content and response.candidates[1].content.parts and 
+            if ok and response and response.candidates and response.candidates[1] and
+               response.candidates[1].content and response.candidates[1].content.parts and
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
-              
               if config.length_type == "characters" then
                 if #advice > config.message_length then
                   advice = safe_truncate(advice, config.message_length)
@@ -693,7 +691,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                 for word in advice:gmatch("%S+") do
                   table.insert(words, word)
                 end
-                
                 if #words > config.message_length then
                   local truncated_words = {}
                   for i = 1, config.message_length do
@@ -702,13 +699,10 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                   advice = table.concat(truncated_words, " ")
                 end
               end
-              
               if config.translate_messages then
                 advice = translate_message(advice)
               end
-              
               callback(advice)
-              
             else
               callback(translate_message(config.translations.en.api_error))
             end
@@ -723,7 +717,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
               log_file:write("Curl stderr: " .. table.concat(data, "\n") .. "\n")
               log_file:close()
             end
-            
             local error_msg = translate_message(config.translations.en.api_error)
             vim.notify(error_msg .. ": " .. table.concat(data, "\n"), vim.log.levels.ERROR)
           end)
@@ -769,8 +762,7 @@ function M.get_gemini_advice(diff, callback, arg1, arg2, arg3)
   -- 2. api.get_gemini_advice(diff, function(advice), state
   -- 3. api.get_gemini_advice(diff, function(advice), nil, nil, state
   local prompt, purpose, state
-  
-  if type(arg1) == "table" then 
+  if type(arg1) == "table" then
     -- パターン2: arg1がstateオブジェクト
     state = arg1
     prompt = nil
@@ -796,7 +788,6 @@ function M.get_gemini_advice(diff, callback, arg1, arg2, arg3)
     purpose = arg2
     state = arg3 or {}
   end
-  
   -- stateがない場合は空のテーブルを使用
   state = state or {}
   return get_gemini_advice(diff, callback, prompt, purpose, state)
