@@ -341,22 +341,6 @@ function M.setup(opts)
 end
 
 return M
-    
-    if log_file then
-      log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
-      log_file:write("Using curl fallback\n")
-      log_file:write("Clean endpoint: " .. endpoint .. "\n")
-      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
-      log_file:write("Command: curl -s -X POST " .. endpoint .. "?key=" .. string.sub(api_key, 1, 5) .. "... -H 'Content-Type: application/json' -d @" .. temp_file .. "\n")
-      log_file:close()
-    end
-    
-    local curl_command = string.format(
-      "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
-      full_url,
-      temp_file
-    )
-    
     vim.fn.jobstart(curl_command, {
       on_stdout = function(_, data)
         if data and #data > 0 and data[1] ~= "" then
