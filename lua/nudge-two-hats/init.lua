@@ -2606,19 +2606,9 @@ function M.setup(opts)
       end
     end
   })
-  vim.api.nvim_create_autocmd("VimLeavePre", {
-    pattern = "*",
-    callback = function()
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] エディタ終了時にすべてのバッファファイルをクリーンアップします")
-      end
-      -- Delete all nudge_two_hats_buffer_*.txt files
-      local result = vim.fn.system("find /tmp -name 'nudge_two_hats_buffer_*.txt' -type f -delete")
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] バッファファイルのクリーンアップが完了しました")
-      end
-    end
-  })
+  -- autocmd.luaからVimLeavePre自動コマンドを設定
+  local autocmd = require("nudge-two-hats.autocmd")
+  autocmd.setup(config)
 end
 
 return M
