@@ -74,13 +74,13 @@ function M.stop_virtual_text_timer(buf)
   if timer_id then
     vim.fn.timer_stop(timer_id)
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] Stopped virtual text timer for buffer %d with ID %d", 
+      print(string.format("[Nudge Two Hats Debug] Stopped virtual text timer for buffer %d with ID %d",
         buf, timer_id))
     end
     if config.debug_mode then
       local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
       if log_file then
-        log_file:write(string.format("Stopped virtual text timer for buffer %d with ID %d at %s\n", 
+        log_file:write(string.format("Stopped virtual text timer for buffer %d with ID %d at %s\n",
           buf, timer_id, os.date("%Y-%m-%d %H:%M:%S")))
         log_file:close()
       end
