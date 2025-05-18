@@ -32,38 +32,18 @@ local buffer = require("nudge-two-hats.buffer")
 -- Import the autocmd module
 local autocmd = require("nudge-two-hats.autocmd")
 
+-- Import the timer module
+local timer = require("nudge-two-hats.timer")
+
 -- -- Use imported safe_truncate function
 -- local safe_truncate = api.safe_truncate
 
 -- local advice_cache = {}
 -- local advice_cache_keys = {}
 -- local MAX_ADVICE_CACHE_SIZE = 10
-
--- Stop notification timer for a buffer
+-- timer.luaからの関数を呼び出すラッパー関数
 function M.stop_notification_timer(buf)
-  local timer_id = state.timers.notification[buf]
-  if timer_id then
-    vim.fn.timer_stop(timer_id)
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 通知タイマー停止: バッファ %d, タイマーID %d", 
-        buf, timer_id))
-    end
-    if config.debug_mode then
-      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-      if log_file then
-        log_file:write(string.format("Stopped notification timer for buffer %d with ID %d at %s\n", 
-          buf, timer_id, os.date("%Y-%m-%d %H:%M:%S")))
-        log_file:close()
-      end
-    end
-    local old_timer_id = timer_id
-    state.timers.notification[buf] = nil
-    if state.timers.notification_start_time and state.timers.notification_start_time[buf] then
-      state.timers.notification_start_time[buf] = nil
-    end
-    return old_timer_id
-  end
-  return nil
+  return timer.stop_notification_timer(buf, state)
 end
 
 -- Stop virtual text timer for a buffer
@@ -492,6 +472,8 @@ function M.setup(opts)
     -- Update buffer module config
     local buffer = require("nudge-two-hats.buffer")
     buffer.update_config(config)
+    -- Update timer module config
+    timer.update_config(config)
   end
   vim.api.nvim_set_hl(0, "NudgeTwoHatsVirtualText", {
     fg = config.virtual_text.text_color,
