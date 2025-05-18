@@ -346,9 +346,9 @@ local function get_prompt_for_buffer(buf)
   return config.system_prompt
 end
 
-local advice_cache = {}
-local advice_cache_keys = {}
-local MAX_ADVICE_CACHE_SIZE = 10
+-- local advice_cache = {}
+-- local advice_cache_keys = {}
+-- local MAX_ADVICE_CACHE_SIZE = 10
 
 
 local function create_autocmd(buf)
