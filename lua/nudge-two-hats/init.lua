@@ -72,22 +72,18 @@ local function safe_truncate(str, max_length)
   if #str <= max_length then
     return str
   end
-  
   local chunk_size = 1024 * 1024 -- 1MB chunks
   local result = {}
   local char_count = 0
   local total_processed = 0
-  
   while total_processed < #str and char_count < max_length do
     local chunk_end = math.min(total_processed + chunk_size, #str)
     local chunk = string.sub(str, total_processed + 1, chunk_end)
     local bytes = {chunk:byte(1, -1)}
     local i = 1
-    
     while i <= #bytes and char_count < max_length do
       local b = bytes[i]
       local width = 1
-      
       if b >= 240 and b <= 247 then -- 4-byte sequence
         width = 4
       elseif b >= 224 and b <= 239 then -- 3-byte sequence
@@ -95,7 +91,6 @@ local function safe_truncate(str, max_length)
       elseif b >= 192 and b <= 223 then -- 2-byte sequence
         width = 2
       end
-      
       -- Check if we have a complete sequence and it fits within max_length
       if i + width - 1 <= #bytes then
         for j = 0, width - 1 do
@@ -107,15 +102,12 @@ local function safe_truncate(str, max_length)
         break
       end
     end
-    
     total_processed = chunk_end
   end
-  
   local truncated = ""
   for _, b in ipairs(result) do
     truncated = truncated .. string.char(b)
   end
-  
   return truncated
 end
 
@@ -128,14 +120,12 @@ local function sanitize_text(text)
   if not text then
     return ""
   end
-  
   if sanitize_cache[text] then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using cached sanitized text")
     end
     return sanitize_cache[text]
   end
-  
   local text_hash = nil
   if #text > 1024 then
     text_hash = 0
@@ -143,7 +133,6 @@ local function sanitize_text(text)
     for i = 1, #text, step do
       text_hash = (text_hash * 31 + string.byte(text, i)) % 1000000007
     end
-    
     if sanitize_cache[text_hash] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using hash-matched cached text")
@@ -151,10 +140,8 @@ local function sanitize_text(text)
       return sanitize_cache[text_hash]
     end
   end
-  
   local check_limit = math.min(100, #text)
   local is_ascii_only = true
-  
   for i = 1, check_limit do
     local b = string.byte(text, i)
     if b >= 128 or b <= 31 or b == 34 or b == 92 or b == 127 then
@@ -162,7 +149,6 @@ local function sanitize_text(text)
       break
     end
   end
-  
   if is_ascii_only and #text > 100 then
     local positions = {}
     if #text > 1000 then
@@ -175,7 +161,6 @@ local function sanitize_text(text)
         table.insert(positions, i)
       end
     end
-    
     for _, pos in ipairs(positions) do
       local b = string.byte(text, pos)
       if b >= 128 or b <= 31 or b == 34 or b == 92 or b == 127 then
@@ -184,7 +169,6 @@ local function sanitize_text(text)
       end
     end
   end
-  
   if is_ascii_only then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Text is ASCII-only, no sanitization needed")
@@ -198,7 +182,6 @@ local function sanitize_text(text)
     end
     return text
   end
-  
   if #text < 10240 then
     -- Use individual character replacements to avoid pattern issues with multibyte characters
     local sanitized = ""
@@ -219,7 +202,6 @@ local function sanitize_text(text)
         sanitized = sanitized .. c
       end
     end
-    
     local test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
     if test_ok then
       if config.debug_mode then
@@ -234,15 +216,12 @@ local function sanitize_text(text)
       end
       return sanitized
     end
-    
     local result = {}
     local result_size = 0
     local buffer_size = 1024
     local buffer = {}
-    
     for i = 1, #text do
       local b = string.byte(text, i)
-      
       if b <= 31 or b == 127 then
         -- Skip control characters
       elseif b == 34 then -- double quote
@@ -262,18 +241,15 @@ local function sanitize_text(text)
         table.insert(buffer, string.char(b))
         result_size = result_size + 1
       end
-      
       if result_size >= buffer_size then
         table.insert(result, table.concat(buffer))
         buffer = {}
         result_size = 0
       end
     end
-    
     if result_size > 0 then
       table.insert(result, table.concat(buffer))
     end
-    
     sanitized = table.concat(result)
     test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
     if test_ok then
@@ -290,25 +266,19 @@ local function sanitize_text(text)
       return sanitized
     end
   end
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Using optimized chunk processing for text sanitization")
   end
-  
   local chunk_size = 65536 -- 64KB chunks
   local result = {}
   local total_processed = 0
-  
   while total_processed < #text do
     local chunk_end = math.min(total_processed + chunk_size, #text)
     local chunk = string.sub(text, total_processed + 1, chunk_end)
-    
     local chunk_result = {}
     local i = 1
-    
     while i <= #chunk do
       local b = string.byte(chunk, i)
-      
       if b <= 31 or b == 127 then
         -- Skip control characters
         i = i + 1
@@ -332,7 +302,7 @@ local function sanitize_text(text)
           i = i + 1
         end
       elseif b >= 224 and b <= 239 then -- 3-byte sequence
-        if i + 2 <= #chunk and 
+        if i + 2 <= #chunk and
            string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 and
            string.byte(chunk, i+2) >= 128 and string.byte(chunk, i+2) <= 191 then
           -- Valid 3-byte sequence
@@ -343,7 +313,7 @@ local function sanitize_text(text)
           i = i + 1
         end
       elseif b >= 192 and b <= 223 then -- 2-byte sequence
-        if i + 1 <= #chunk and 
+        if i + 1 <= #chunk and
            string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 then
           -- Valid 2-byte sequence
           table.insert(chunk_result, chunk:sub(i, i+1))
@@ -366,24 +336,19 @@ local function sanitize_text(text)
         i = i + 1
       end
     end
-    
     table.insert(result, table.concat(chunk_result))
     total_processed = chunk_end
   end
-  
   local sanitized = table.concat(result)
-  
   local final_ok, err = pcall(vim.fn.json_encode, { text = sanitized })
   if not final_ok then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] JSON encoding still failed, using ASCII-only fallback")
     end
-    
     local ascii_result = {}
     local buffer = {}
     local buffer_size = 0
     local max_buffer = 1024
-    
     for i = 1, #text do
       local b = string.byte(text, i)
       if b >= 32 and b <= 126 and b ~= 34 and b ~= 92 then
@@ -402,21 +367,17 @@ local function sanitize_text(text)
         table.insert(buffer, "?")
         buffer_size = buffer_size + 1
       end
-      
       if buffer_size >= max_buffer then
         table.insert(ascii_result, table.concat(buffer))
         buffer = {}
         buffer_size = 0
       end
     end
-    
     if buffer_size > 0 then
       table.insert(ascii_result, table.concat(buffer))
     end
-    
     sanitized = table.concat(ascii_result)
   end
-  
   if #sanitize_cache_keys > MAX_CACHE_SIZE then
     local to_remove = #sanitize_cache_keys - MAX_CACHE_SIZE
     for i = 1, to_remove do
@@ -424,7 +385,6 @@ local function sanitize_text(text)
       sanitize_cache[key] = nil
     end
   end
-  
   if text_hash then
     sanitize_cache[text_hash] = sanitized
     table.insert(sanitize_cache_keys, text_hash)
@@ -432,11 +392,9 @@ local function sanitize_text(text)
     sanitize_cache[text] = sanitized
     table.insert(sanitize_cache_keys, text)
   end
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Text sanitization complete")
   end
-  
   return sanitized
 end
 
@@ -444,20 +402,17 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Translating: " .. text)
   end
-  
   local sanitized_text = sanitize_text(text)
-  
   local prompt
   if target_lang == "ja" then
-    prompt = "以下の" .. 
-             (source_lang == "ja" and "日本語" or "英語") .. 
-             "テキストを日本語に翻訳してください。簡潔に、元の意味を維持してください。必ず日本語で回答してください: " .. sanitized_text
+    prompt = "以下の" ..
+    (source_lang == "ja" and "日本語" or "英語") ..
+    "テキストを日本語に翻訳してください。簡潔に、元の意味を維持してください。必ず日本語で回答してください: " .. sanitized_text
   else
-    prompt = "Translate the following " .. 
-             (source_lang == "ja" and "Japanese" or "English") .. 
-             " text to English. Keep it concise and maintain the original meaning. Always respond in English: " .. sanitized_text
+    prompt = "Translate the following " ..
+    (source_lang == "ja" and "Japanese" or "English") ..
+    " text to English. Keep it concise and maintain the original meaning. Always respond in English: " .. sanitized_text
   end
-  
   local request_data
   local ok, encoded = pcall(vim.fn.json_encode, {
     contents = {
@@ -476,34 +431,27 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
       maxOutputTokens = 1024
     }
   })
-  
   if not ok then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] JSON encoding failed: " .. tostring(encoded))
     end
     return nil
   end
-  
   request_data = encoded
-  
   local endpoint = config.api_endpoint:gsub("[<>]", "")
   local full_url = endpoint .. "?key=" .. api_key
   local temp_file = "/tmp/nudge_two_hats_translation.json"
-  
   local req_file = io.open(temp_file, "w")
   if req_file then
     req_file:write(request_data)
     req_file:close()
   end
-  
   local curl_command = string.format(
     "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
     full_url,
     temp_file
   )
-  
   local output = vim.fn.system(curl_command)
-  
   -- Delete the temporary file after API call
   if vim.fn.filereadable(temp_file) == 1 then
     vim.fn.delete(temp_file)
@@ -511,26 +459,21 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
       print("[Nudge Two Hats Debug] Deleted temporary file: " .. temp_file)
     end
   end
-  
   local ok, response
   if vim.json and vim.json.decode then
     ok, response = pcall(vim.json.decode, output)
   else
     ok, response = pcall(function() return vim.fn.json_decode(output) end)
   end
-  
-  if ok and response and response.candidates and response.candidates[1] and 
-     response.candidates[1].content and response.candidates[1].content.parts and 
+  if ok and response and response.candidates and response.candidates[1] and
+     response.candidates[1].content and response.candidates[1].content.parts and
      response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
     local translated = response.candidates[1].content.parts[1].text
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Translation result: " .. translated)
     end
-    
     return translated
   end
-  
   return nil
 end
 
@@ -538,27 +481,22 @@ local function translate_message(message)
   if not config.translate_messages then
     return message
   end
-  
   local target_lang = get_language()
-  
   for key, value in pairs(translations[target_lang]) do
     if message == value then
       return message -- Already in target language
     end
   end
-  
   for key, value in pairs(translations.en) do
     if message == value and translations[target_lang][key] then
       return translations[target_lang][key]
     end
   end
-  
   for key, value in pairs(translations.ja) do
     if message == value and translations[target_lang][key] then
       return translations[target_lang][key]
     end
   end
-  
   if config.translate_messages and target_lang ~= "en" and not is_japanese(message) then
     if target_lang == "ja" and message:len() < 100 then
       local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
@@ -580,7 +518,6 @@ local function translate_message(message)
       end
     end
   end
-  
   return message
 end
 
@@ -590,26 +527,21 @@ local function get_buf_diff(buf)
     print(string.format("[Nudge Two Hats Debug] get_buf_diff開始: バッファ %d, 時刻: %s", buf, os.date("%Y-%m-%d %H:%M:%S")))
     print("[Nudge Two Hats Debug] 保存されたバッファ内容と現在の内容を比較します")
   end
-  
   local line_count = vim.api.nvim_buf_line_count(buf)
   local content
-  
   if line_count < 1000 then
     content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
   else
     local chunks = {}
     local chunk_size = 500
     local total_chunks = math.ceil(line_count / chunk_size)
-    
     for i = 0, total_chunks - 1 do
       local start_line = i * chunk_size
       local end_line = math.min((i + 1) * chunk_size, line_count)
       table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
     end
-    
     content = table.concat(chunks, "\n")
   end
-  
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] 現在のバッファ内容: %d文字", #content))
     local content_preview = content:sub(1, 50):gsub("\n", "\\n")
@@ -621,14 +553,12 @@ local function get_buf_diff(buf)
     end
     print(string.format("[Nudge Two Hats Debug] バッファ内容ハッシュ: %d", content_hash))
   end
-  
   -- Get the filetypes for this buffer
   local filetypes = {}
   if state.buf_filetypes[buf] then
     for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
       table.insert(filetypes, filetype)
     end
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] バッファ %d の登録済みfiletypes: %s", 
         buf, state.buf_filetypes[buf]))
@@ -637,7 +567,6 @@ local function get_buf_diff(buf)
     local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
     if current_filetype and current_filetype ~= "" then
       table.insert(filetypes, current_filetype)
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] バッファ %d の現在のfiletype: %s", 
           buf, current_filetype))
@@ -648,114 +577,90 @@ local function get_buf_diff(buf)
       end
     end
   end
-  
   if #filetypes == 0 then
     table.insert(filetypes, "_default")
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] filetypeが見つからないため、_defaultを使用します")
     end
   end
-  
   -- Initialize buffer content storage if needed
   state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-  
   -- Check if this is the first notification
   local first_notification = true
   for _, filetype in ipairs(filetypes) do
     if state.buf_content_by_filetype[buf][filetype] then
       first_notification = false
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] 既存のバッファ内容が見つかりました: filetype=%s, サイズ=%d文字", 
           filetype, #state.buf_content_by_filetype[buf][filetype]))
       end
-      
       break
     end
   end
-  
   local force_diff = false
   local event_name = vim.v.event and vim.v.event.event
   if event_name == "BufWritePost" then
     force_diff = true
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] BufWritePostイベントのため、強制的にdiffを生成します")
     end
   end
-  
   if first_notification and content and content ~= "" then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 初回通知のためダミーdiffを作成します（カーソル位置周辺のみ）")
     end
-    
     local first_filetype = filetypes[1]
     state.buf_content_by_filetype[buf][first_filetype] = ""
-    
     -- Get cursor position
     local cursor_pos
     local cursor_line
-    
     -- Safely get cursor position
     local status, err = pcall(function()
       cursor_pos = vim.api.nvim_win_get_cursor(0)
       cursor_line = cursor_pos[1]
     end)
-    
     if not status then
       cursor_line = 1
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] カーソル位置の取得に失敗しました: %s", err))
       end
     end
-    
     -- Calculate range (cursor position ±10 lines)
     local context_lines = 10
     local start_line = math.max(1, cursor_line - context_lines)
     local end_line = math.min(line_count, cursor_line + context_lines)
     local context_line_count = end_line - start_line + 1
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] カーソル位置: %d行目, 範囲: %d-%d行 (合計%d行)", 
         cursor_line, start_line, end_line, context_line_count))
     end
-    
     -- Create a diff showing only lines around cursor position
     local diff = string.format("--- a/dummy\n+++ b/current\n@@ -0,0 +1,%d @@\n", context_line_count)
     for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)) do
       diff = diff .. "+" .. line .. "\n"
     end
-    
     local context_content = table.concat(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false), "\n")
     state.buf_content_by_filetype[buf][first_filetype] = context_content
     state.buf_content[buf] = context_content
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 初回通知用のコンテキスト: %d文字", #context_content))
       print(string.format("[Nudge Two Hats Debug] 初回通知用のdiff: %d文字", #diff))
     end
-    
     return context_content, diff, first_filetype
   end
-  
   local old = nil
   local detected_filetype = nil
-  
   -- First try to use the temporary file if available
   if state.temp_files and state.temp_files[buf] then
     local temp_file_path = state.temp_files[buf]
     local temp_file = io.open(temp_file_path, "r")
-    
     if temp_file then
       old = temp_file:read("*all")
       temp_file:close()
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
           temp_file_path, #old))
       end
-      
       -- Use the first filetype as the detected filetype
       if #filetypes > 0 then
         detected_filetype = filetypes[1]
@@ -770,43 +675,34 @@ local function get_buf_diff(buf)
       if state.buf_content_by_filetype[buf] and state.buf_content_by_filetype[buf][filetype] then
         old = state.buf_content_by_filetype[buf][filetype]
         detected_filetype = filetype
-        
         if config.debug_mode then
           print(string.format("[Nudge Two Hats Debug] filetype=%sの内容を使用します", filetype))
         end
-        
         break
       end
     end
-    
     -- If still no content, try using the buffer content
     if not old and state.buf_content[buf] then
       old = state.buf_content[buf]
-      
       if not detected_filetype and #filetypes > 0 then
         detected_filetype = filetypes[1]
       end
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] バッファ全体の内容を使用します"))
       end
     end
   end
-  
   if old then
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字", 
         #old, #content))
-      
       local old_sample = string.sub(old, 1, 100)
       local new_sample = string.sub(content, 1, 100)
       print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
       print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
     end
-    
     if force_diff or old ~= content then
       local diff = vim.diff(old, content, { result_type = "unified" })
-      
       if config.debug_mode then
         if diff then
           print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
@@ -815,60 +711,46 @@ local function get_buf_diff(buf)
         else
           print("[Nudge Two Hats Debug] vim.diffの結果: nil")
         end
-        
         print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
           tostring(old ~= content)))
       end
-      
       if type(diff) == "string" and diff ~= "" then
         if config.debug_mode then
           print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", detected_filetype))
           print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
         end
-        
         if detected_filetype then
           state.buf_content_by_filetype[buf][detected_filetype] = content
         end
         state.buf_content[buf] = content
-        
         -- Delete the temporary file after notification
         if state.temp_files and state.temp_files[buf] then
           local temp_file_path = state.temp_files[buf]
-          
           os.execute("chmod 644 " .. temp_file_path)
           os.remove(temp_file_path)
-          
           if config.debug_mode then
             print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
           end
-          
           state.temp_files[buf] = nil
         end
-        
         return content, diff, detected_filetype
       elseif force_diff then
         -- For BufWritePost, create a minimal diff if none was found
         local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
           "No changes detected, but file was saved", "File saved at " .. os.date("%c"))
-        
         if config.debug_mode then
           print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
         end
-        
         -- Delete the temporary file after notification
         if state.temp_files and state.temp_files[buf] then
           local temp_file_path = state.temp_files[buf]
-          
           os.execute("chmod 644 " .. temp_file_path)
           os.remove(temp_file_path)
-          
           if config.debug_mode then
             print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
           end
-          
           state.temp_files[buf] = nil
         end
-        
         return content, minimal_diff, detected_filetype
       end
     else
@@ -881,22 +763,18 @@ local function get_buf_diff(buf)
       print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", detected_filetype or "unknown"))
     end
   end
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] 差分が見つかりませんでした。バッファ内容を更新します。")
   end
-  
   -- Update buffer content even if no diff was found
   for _, filetype in ipairs(filetypes) do
     state.buf_content_by_filetype[buf][filetype] = content
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] バッファ内容を更新しました: filetype=%s, サイズ=%d文字", 
         filetype, #content))
     end
   end
   state.buf_content[buf] = content
-  
   return content, nil, nil
 end
 
@@ -904,14 +782,12 @@ local selected_hat = nil
 
 local function get_prompt_for_buffer(buf)
   local filetypes = {}
-  
   -- Check if we have stored filetypes for this buffer
   if state.buf_filetypes[buf] then
     for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
       table.insert(filetypes, filetype)
     end
   end
-  
   -- If no stored filetypes, use the current buffer's filetype
   if #filetypes == 0 then
     local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
@@ -919,20 +795,16 @@ local function get_prompt_for_buffer(buf)
       table.insert(filetypes, current_filetype)
     end
   end
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Buffer filetypes: " .. table.concat(filetypes, ", "))
   end
-  
   -- Check if we have a specific prompt for any of the filetypes
   for _, filetype in ipairs(filetypes) do
     if filetype and config.filetype_prompts[filetype] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
       end
-      
       local filetype_prompt = config.filetype_prompts[filetype]
-      
       if type(filetype_prompt) == "string" then
         selected_hat = nil
         return filetype_prompt
@@ -942,9 +814,7 @@ local function get_prompt_for_buffer(buf)
         local emotion = filetype_prompt.emotion or config.default_cbt.emotion
         local tone = filetype_prompt.tone or config.default_cbt.tone
         local prompt_text = filetype_prompt.prompt
-        
         local hats = filetype_prompt.hats or config.default_cbt.hats or {}
-        
         if #hats > 0 then
           math.randomseed(os.time())
           selected_hat = hats[math.random(1, #hats)]
@@ -953,7 +823,6 @@ local function get_prompt_for_buffer(buf)
             print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
           end
         end
-        
         return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
                              role, selected_hat, direction, emotion, tone, prompt_text)
       else
@@ -963,7 +832,6 @@ local function get_prompt_for_buffer(buf)
       end
     end
   end
-  
   selected_hat = nil
   return config.system_prompt
 end
@@ -974,11 +842,9 @@ local MAX_ADVICE_CACHE_SIZE = 10
 
 local function get_gemini_advice(diff, callback, prompt, purpose)
   local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
-  
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] API Key: %s", api_key and "設定済み" or "未設定"))
   end
-  
   if not api_key then
     local error_msg = translate_message(translations.en.api_key_not_set)
     if config.debug_mode then
@@ -991,7 +857,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
   local cache_key = nil
   if #diff < 10000 then  -- Only cache for reasonably sized diffs
     cache_key = diff .. (prompt or "") .. (purpose or "")
-    
     -- Check if we have a cached response
     if advice_cache[cache_key] then
       if config.debug_mode then
@@ -1017,19 +882,16 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
   end
 
   local system_prompt = prompt or config.system_prompt
-  
   local purpose_text = purpose or config.purpose
   if purpose_text and purpose_text ~= "" then
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end
-  
   local output_lang = get_language()
   if output_lang == "ja" then
     system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。%d文字程度の簡潔なアドバイスをお願いします。", config.message_length)
   else
     system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
   end
-  
   local max_diff_size = 10000  -- 10KB is usually enough for context
   local truncated_diff = diff
   if #diff > max_diff_size then
@@ -1038,12 +900,10 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
       print("[Nudge Two Hats Debug] Diff truncated from " .. #diff .. " to " .. #truncated_diff .. " bytes")
     end
   end
-  
   local sanitized_diff = sanitize_text(truncated_diff)
   if config.debug_mode and sanitized_diff ~= truncated_diff then
     print("[Nudge Two Hats Debug] Diff content sanitized for UTF-8 compliance")
   end
-  
   local ok, request_data = pcall(vim.fn.json_encode, {
     contents = {
       {
@@ -1064,7 +924,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
       maxOutputTokens = 1024
     }
   })
-  
   if not ok then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] JSON encoding failed: " .. tostring(request_data))
@@ -1076,11 +935,9 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
   end
 
   local has_plenary, curl = pcall(require, "plenary.curl")
-  
   if has_plenary then
     local endpoint = config.api_endpoint:gsub("[<>]", "")
     local full_url = endpoint .. "?key=" .. api_key
-    
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
       log_file:write("Using plenary.curl\n")
@@ -1088,7 +945,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
       log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
       log_file:close()
     end
-    
     curl.post(full_url, {
       headers = {
         ["Content-Type"] = "application/json",
@@ -1103,22 +959,18 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
             else
               ok, result = pcall(function() return vim.fn.json_decode(response.body) end)
             end
-            
             if ok and result and result.candidates and result.candidates[1] and 
                result.candidates[1].content and result.candidates[1].content.parts and 
                result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
               local advice = result.candidates[1].content.parts[1].text
-              
               if cache_key then
                 advice_cache[cache_key] = advice
                 table.insert(advice_cache_keys, cache_key)
-                
                 if #advice_cache_keys > MAX_ADVICE_CACHE_SIZE then
                   local to_remove = table.remove(advice_cache_keys, 1)
                   advice_cache[to_remove] = nil
                 end
               end
-              
               if config.length_type == "characters" then
                 if #advice > config.message_length then
                   advice = safe_truncate(advice, config.message_length)
@@ -1128,7 +980,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
                 for word in advice:gmatch("%S+") do
                   table.insert(words, word)
                 end
-                
                 if #words > config.message_length then
                   local truncated_words = {}
                   for i = 1, config.message_length do
@@ -1137,13 +988,10 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
                   advice = table.concat(truncated_words, " ")
                 end
               end
-              
               if config.translate_messages then
                 advice = translate_message(advice)
               end
-              
               callback(advice)
-              
             else
               callback(translate_message(translations.en.api_error))
             end
@@ -1159,13 +1007,11 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
     local endpoint = config.api_endpoint:gsub("[<>]", "")
     local full_url = endpoint .. "?key=" .. api_key
     local temp_file = "/tmp/nudge_two_hats_request.json"
-    
     local req_file = io.open(temp_file, "w")
     if req_file then
       req_file:write(request_data)
       req_file:close()
     end
-    
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
       log_file:write("Using curl fallback\n")
@@ -1174,13 +1020,11 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
       log_file:write("Command: curl -s -X POST " .. endpoint .. "?key=" .. string.sub(api_key, 1, 5) .. "... -H 'Content-Type: application/json' -d @" .. temp_file .. "\n")
       log_file:close()
     end
-    
     local curl_command = string.format(
       "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
       full_url,
       temp_file
     )
-    
     vim.fn.jobstart(curl_command, {
       on_stdout = function(_, data)
         if data and #data > 0 and data[1] ~= "" then
@@ -1250,7 +1094,6 @@ local function get_gemini_advice(diff, callback, prompt, purpose)
             print("[Nudge Two Hats Debug] Deleted temporary file: " .. temp_file)
           end
         end
-        
         if code ~= 0 then
           vim.schedule(function()
             callback(translate_message(translations.en.api_error))
@@ -1264,7 +1107,6 @@ end
 local function create_autocmd(buf)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-  
   local filetypes = {}
   if state.buf_filetypes[buf] then
     for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
@@ -1277,17 +1119,13 @@ local function create_autocmd(buf)
       state.buf_filetypes[buf] = current_filetype
     end
   end
-  
   state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
   for _, filetype in ipairs(filetypes) do
     state.buf_content_by_filetype[buf][filetype] = content
   end
-  
   state.buf_content[buf] = content
-  
   local current_time = os.time()
   state.virtual_text.last_cursor_move[buf] = current_time
-  
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s", 
       buf, table.concat(filetypes, ", ")))
@@ -1313,7 +1151,6 @@ local function create_autocmd(buf)
         -- Check if current filetype is in the list of registered filetypes
         local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
         local filetype_match = false
-        
         if not state.buf_filetypes[buf] and current_filetype and current_filetype ~= "" then
           state.buf_filetypes[buf] = current_filetype
           if config.debug_mode then
@@ -1330,7 +1167,6 @@ local function create_autocmd(buf)
             end
           end
         end
-        
         if not filetype_match then
           if config.debug_mode then
             print(string.format("[Nudge Two Hats Debug] スキップ：現在のfiletype (%s) が登録されたfiletypes (%s) に含まれていません", 
@@ -1340,22 +1176,18 @@ local function create_autocmd(buf)
         end
 
         local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-        
         for _, filetype in ipairs(filetypes) do
           if not state.buf_content_by_filetype[buf] then
             state.buf_content_by_filetype[buf] = {}
           end
           state.buf_content_by_filetype[buf][filetype] = content
         end
-        
         state.buf_content[buf] = content
-        
         -- Start notification timer for API request
         M.start_notification_timer(buf, ctx.event)
       end, 100)
     end,
   })
-  
   -- Set up cursor movement events to track cursor position and clear virtual text
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = augroup,
@@ -1364,18 +1196,13 @@ local function create_autocmd(buf)
       if not state.enabled then
         return
       end
-      
       state.virtual_text.last_cursor_move[buf] = os.time()
-      
       M.clear_virtual_text(buf)
-      
       -- Restart virtual text timer
       M.start_virtual_text_timer(buf, "CursorMoved")
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text and restarted timer", buf))
       end
-      
       if config.debug_mode then
         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
         if log_file then
@@ -1386,7 +1213,6 @@ local function create_autocmd(buf)
       end
     end
   })
-  
   -- Set up cursor movement events in Insert mode to clear virtual text
   vim.api.nvim_create_autocmd("CursorMovedI", {
     group = augroup,
@@ -1395,17 +1221,12 @@ local function create_autocmd(buf)
       if not state.enabled then
         return
       end
-      
       state.virtual_text.last_cursor_move[buf] = os.time()
-      
       M.clear_virtual_text(buf)
-      
       -- Restart virtual text timer
       M.start_virtual_text_timer(buf, "CursorMovedI")
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text and restarted timer", buf))
-        
         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
         if log_file then
           log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text\n", 
@@ -1422,12 +1243,10 @@ function M.stop_notification_timer(buf)
   local timer_id = state.timers.notification[buf]
   if timer_id then
     vim.fn.timer_stop(timer_id)
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 通知タイマー停止: バッファ %d, タイマーID %d", 
         buf, timer_id))
     end
-    
     if config.debug_mode then
       local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
       if log_file then
@@ -1436,14 +1255,11 @@ function M.stop_notification_timer(buf)
         log_file:close()
       end
     end
-    
     local old_timer_id = timer_id
     state.timers.notification[buf] = nil
-    
     if state.timers.notification_start_time and state.timers.notification_start_time[buf] then
       state.timers.notification_start_time[buf] = nil
     end
-    
     return old_timer_id
   end
   return nil
@@ -1453,16 +1269,13 @@ end
 function M.stop_virtual_text_timer(buf)
   state.timers = state.timers or {}
   state.timers.virtual_text = state.timers.virtual_text or {}
-  
   local timer_id = state.timers.virtual_text[buf]
   if timer_id then
     vim.fn.timer_stop(timer_id)
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] Stopped virtual text timer for buffer %d with ID %d", 
         buf, timer_id))
     end
-    
     if config.debug_mode then
       local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
       if log_file then
@@ -1471,7 +1284,6 @@ function M.stop_virtual_text_timer(buf)
         log_file:close()
       end
     end
-    
     local old_timer_id = timer_id
     state.timers.virtual_text[buf] = nil
     return old_timer_id
@@ -1484,18 +1296,15 @@ function M.start_notification_timer(buf, event_name)
   if not state.enabled then
     return
   end
-  
   -- Check if this is the current buffer
   local current_buf = vim.api.nvim_get_current_buf()
   if buf ~= current_buf then
     return
   end
-  
   -- Check if buffer is valid
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
-  
   -- Check if a notification timer is already running for this buffer
   if state.timers.notification[buf] then
     local timer_info = vim.fn.timer_info(state.timers.notification[buf])
@@ -1504,17 +1313,14 @@ function M.start_notification_timer(buf, event_name)
       if not state.timers.notification_start_time then
         state.timers.notification_start_time = {}
       end
-      
       if not state.timers.notification_start_time[buf] then
         state.timers.notification_start_time[buf] = os.time()
       end
-      
       -- Calculate elapsed and remaining time
       local current_time = os.time()
       local elapsed_time = current_time - state.timers.notification_start_time[buf]
       local total_time = config.min_interval  -- Use min_interval directly in seconds
       local remaining_time = math.max(0, total_time - elapsed_time)
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒", 
                            buf, elapsed_time, remaining_time))
@@ -1522,45 +1328,34 @@ function M.start_notification_timer(buf, event_name)
       return
     end
   end
-  
   local current_content = ""
   if vim.api.nvim_buf_is_valid(buf) then
     vim.cmd("checktime " .. buf)
-    
     -- Get the entire buffer content
     current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-    
     -- Initialize temp file storage if needed
     if not state.temp_files then
       state.temp_files = {}
     end
-    
     -- Create a consistent temporary file path for this buffer (without timestamp)
     local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
-    
     -- Delete existing file if it exists (to ensure only one file per buffer)
     if vim.fn.filereadable(temp_file_path) == 1 then
       os.remove(temp_file_path)
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] 既存のテンポラリファイルを削除しました: %s", temp_file_path))
       end
     end
-    
     local temp_file = io.open(temp_file_path, "w")
     if temp_file then
       temp_file:write(current_content)
       temp_file:close()
-      
       os.execute("chmod 444 " .. temp_file_path)
-      
       -- Store the temp file path for this buffer
       state.temp_files[buf] = temp_file_path
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] タイマー開始時に元のバッファ内容をテンポラリファイルに保存: バッファ %d, ファイル %s, サイズ=%d文字", 
           buf, temp_file_path, #current_content))
-        
         -- Calculate content hash for comparison
         local content_hash = 0
         for i = 1, #current_content do
@@ -1573,12 +1368,10 @@ function M.start_notification_timer(buf, event_name)
         print(string.format("[Nudge Two Hats Debug] テンポラリファイルの作成に失敗しました: %s", temp_file_path))
       end
     end
-    
     -- Initialize buffer content storage if needed (for backward compatibility)
     if not state.buf_content_by_filetype[buf] then
       state.buf_content_by_filetype[buf] = {}
     end
-    
     -- Get filetypes for this buffer
     local filetypes = {}
     if state.buf_filetypes[buf] then
@@ -1586,7 +1379,6 @@ function M.start_notification_timer(buf, event_name)
         table.insert(filetypes, filetype)
       end
     end
-    
     -- If no stored filetypes, use the current buffer's filetype
     if #filetypes == 0 then
       local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
@@ -1596,29 +1388,23 @@ function M.start_notification_timer(buf, event_name)
         table.insert(filetypes, "text")  -- Default to text if no filetype
       end
     end
-    
     -- Store the content for each filetype (for backward compatibility)
     for _, filetype in ipairs(filetypes) do
       state.buf_content_by_filetype[buf][filetype] = current_content
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字", 
           filetype, #current_content))
       end
     end
-    
     state.buf_content[buf] = current_content
   end
-  
   -- Reset the start time for this buffer
   if not state.timers.notification_start_time then
     state.timers.notification_start_time = {}
   end
   state.timers.notification_start_time[buf] = os.time()
-  
   -- Stop any existing notification timer that might be invalid
   M.stop_notification_timer(buf)
-  
   if config.debug_mode then
     local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
     if log_file then
@@ -1627,96 +1413,74 @@ function M.start_notification_timer(buf, event_name)
       log_file:close()
     end
   end
-  
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] 通知タイマー開始: バッファ %d, イベント %s", buf, event_name))
   end
-  
   -- Create a new notification timer with min_interval (in seconds)
   state.timers.notification[buf] = vim.fn.timer_start(config.min_interval * 1000, function()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
-    
     vim.cmd("checktime " .. buf)
-    
     local content, diff, diff_filetype = get_buf_diff(buf)
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] get_buf_diff結果: バッファ %d, diff %s, filetype %s", 
                          buf, diff and "あり" or "なし", diff_filetype or "なし"))
     end
-    
     if not diff then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] diffが検出されなかったため、通知をスキップします")
       end
       return
     end
-    
     local current_time = os.time()
-    
     -- Initialize last_api_call if not set
     if not state.last_api_call then
       state.last_api_call = 0
     end
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 通知タイマー発火 - 前回のAPI呼び出し: %s, 現在時刻: %s, 経過: %d秒",
         os.date("%c", state.last_api_call),
         os.date("%c", current_time),
         (current_time - state.last_api_call)))
     end
-    
     state.last_api_call = current_time
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知を実行します")
     end
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
       print(diff)
     end
-    
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
     end
-    
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
-      
       local title = "Nudge Two Hats"
       if selected_hat then
         title = selected_hat
       end
-      
       if config.debug_mode then
         print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
       end
-      
       vim.notify(advice, vim.log.levels.INFO, {
         title = title,
         icon = "🎩",
       })
-      
       if config.debug_mode then
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)
         print("==========================")
       end
-      
       state.virtual_text.last_advice[buf] = advice
-      
       if content then
         -- Update content for all filetypes
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-        
         -- Get the filetypes for this buffer within the callback
         local callback_filetypes = {}
         if state.buf_filetypes[buf] then
@@ -1729,7 +1493,6 @@ function M.start_notification_timer(buf, event_name)
             table.insert(callback_filetypes, current_filetype)
           end
         end
-        
         if #callback_filetypes > 0 then
           for _, filetype in ipairs(callback_filetypes) do
             state.buf_content_by_filetype[buf][filetype] = content
@@ -1737,14 +1500,11 @@ function M.start_notification_timer(buf, event_name)
         else
           state.buf_content_by_filetype[buf]["_default"] = content
         end
-        
         state.buf_content[buf] = content
-        
         if config.debug_mode then
           print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
-      
     end, prompt, config.purpose)
   end)
 end
@@ -1754,13 +1514,11 @@ function M.start_virtual_text_timer(buf, event_name)
   if not state.enabled then
     return
   end
-  
   -- Check if this is the current buffer
   local current_buf = vim.api.nvim_get_current_buf()
   if buf ~= current_buf then
     return
   end
-  
   -- Check if buffer is valid
   if not vim.api.nvim_buf_is_valid(buf) then
     if config.debug_mode then
@@ -1768,13 +1526,10 @@ function M.start_virtual_text_timer(buf, event_name)
     end
     return
   end
-  
   state.timers = state.timers or {}
   state.timers.virtual_text = state.timers.virtual_text or {}
-  
   -- Stop any existing timer first
   M.stop_virtual_text_timer(buf)
-  
   if config.debug_mode then
     local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
     if log_file then
@@ -1784,15 +1539,12 @@ function M.start_virtual_text_timer(buf, event_name)
       log_file:close()
     end
   end
-  
   if config.debug_mode then
     local event_str = event_name or "unknown"
     print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_str))
   end
-  
   -- Calculate timer duration in milliseconds
   local timer_ms = config.virtual_text.idle_time * 60 * 1000
-  
   -- Create a new timer
   state.timers.virtual_text[buf] = vim.fn.timer_start(timer_ms, function()
     -- Check if buffer is still valid
@@ -1800,7 +1552,6 @@ function M.start_virtual_text_timer(buf, event_name)
       M.stop_virtual_text_timer(buf)
       return
     end
-    
     -- Check if we have advice to display
     if not state.virtual_text.last_advice[buf] then
       if config.debug_mode then
@@ -1808,16 +1559,13 @@ function M.start_virtual_text_timer(buf, event_name)
       end
       return
     end
-    
     -- Check if cursor has been idle long enough
     local current_time = os.time()
     local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
     local idle_time = current_time - last_cursor_move_time
     local required_idle_time = (config.virtual_text.cursor_idle_delay or 5) * 60
-    
     if idle_time >= required_idle_time then
       M.display_virtual_text(buf, state.virtual_text.last_advice[buf])
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] Displaying virtual text for buffer %d after %d seconds of cursor inactivity", 
           buf, idle_time))
@@ -1827,17 +1575,14 @@ function M.start_virtual_text_timer(buf, event_name)
         print(string.format("[Nudge Two Hats Debug] Cursor not idle long enough: %d seconds (required: %d seconds)", 
           idle_time, required_idle_time))
       end
-      
       M.start_virtual_text_timer(buf)
     end
   end)
-  
   if config.debug_mode then
     local event_info = event_name and (" triggered by " .. event_name) or ""
     print(string.format("[Nudge Two Hats Debug] Started virtual text timer for buffer %d with ID %d%s", 
       buf, state.timers.virtual_text[buf], event_info))
   end
-  
   if config.debug_mode then
     local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
     if log_file then
@@ -1847,7 +1592,6 @@ function M.start_virtual_text_timer(buf, event_name)
       log_file:close()
     end
   end
-  
   return state.timers.virtual_text[buf]
 end
 
@@ -1859,7 +1603,6 @@ local function setup_virtual_text(buf)
   -- Store the last cursor position to detect actual movement
   state.virtual_text.last_cursor_pos = state.virtual_text.last_cursor_pos or {}
   state.virtual_text.last_cursor_pos[buf] = nil -- Initialize to nil to force update on first move
-  
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = augroup,
     buffer = buf,
@@ -1867,17 +1610,13 @@ local function setup_virtual_text(buf)
       local current_pos = vim.api.nvim_win_get_cursor(0)
       local cursor_row = current_pos[1]
       local cursor_col = current_pos[2]
-      
       -- Check if cursor has actually moved from its previous position
       local last_pos = state.virtual_text.last_cursor_pos[buf]
       local cursor_actually_moved = true
-      
       if last_pos then
         cursor_actually_moved = (last_pos.row ~= cursor_row or last_pos.col ~= cursor_col)
       end
-      
       state.virtual_text.last_cursor_pos[buf] = { row = cursor_row, col = cursor_col }
-      
       if config.debug_mode then
         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
         if log_file then
@@ -1893,20 +1632,16 @@ local function setup_virtual_text(buf)
           log_file:close()
         end
       end
-      
       if cursor_actually_moved then
         local old_time = state.virtual_text.last_cursor_move[buf] or 0
         local new_time = os.time()
         state.virtual_text.last_cursor_move[buf] = new_time
-        
         if log_file then
           log_file:write("Updated last_cursor_move from " .. old_time .. " to " .. new_time .. "\n")
         end
-        
         if state.virtual_text.extmarks[buf] then
           M.clear_virtual_text(buf)
         end
-        
         if log_file then
           log_file:write("Cursor moved but not stopping virtual text timer\n")
         end
@@ -1915,13 +1650,11 @@ local function setup_virtual_text(buf)
           log_file:write("Cursor didn't actually move, not updating last_cursor_move time\n")
         end
       end
-      
       if log_file then
         log_file:close()
       end
     end,
   })
-  
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = augroup,
     buffer = buf,
@@ -1929,16 +1662,13 @@ local function setup_virtual_text(buf)
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] BufWritePost イベント発生: バッファ %d", buf))
         print(string.format("[Nudge Two Hats Debug] ファイル保存時刻: %s", os.date("%Y-%m-%d %H:%M:%S")))
-        
         local line_count = vim.api.nvim_buf_line_count(buf)
         local first_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
         print(string.format("[Nudge Two Hats Debug] バッファ行数: %d, 先頭行: %s", line_count, first_line:sub(1, 30)))
       end
-      
       start_notification_timer(buf, "BufWritePost")
     end,
   })
-  
   vim.api.nvim_create_autocmd("InsertLeave", {
     group = augroup,
     buffer = buf,
@@ -1946,14 +1676,11 @@ local function setup_virtual_text(buf)
       if not state.enabled then
         return
       end
-      
       M.clear_virtual_text(buf)
       start_notification_timer(buf, "InsertLeave")
-      
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] Insert mode exited in buffer %d, cleared virtual text", buf))
       end
-      
       local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
       if log_file then
         log_file:write(string.format("Insert mode exited in buffer %d at %s, cleared virtual text\n", 
@@ -1962,7 +1689,6 @@ local function setup_virtual_text(buf)
       end
     end,
   })
-  
   vim.api.nvim_create_autocmd("BufReadPost", {
     group = augroup,
     buffer = buf,
@@ -1970,7 +1696,6 @@ local function setup_virtual_text(buf)
       start_notification_timer(buf, "BufReadPost")
     end,
   })
-  
   vim.api.nvim_create_autocmd("CursorHold", {
     group = augroup,
     buffer = buf,
@@ -1983,18 +1708,15 @@ local function setup_virtual_text(buf)
           log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
           log_file:write("updatetime: " .. vim.o.updatetime .. "ms\n")
           log_file:write("idle_time setting: " .. config.virtual_text.idle_time .. " minutes (" .. (config.virtual_text.idle_time * 60) .. " seconds)\n")
-        
           if not state.enabled then
             log_file:write("Plugin not enabled, exiting CursorHold handler\n\n")
             log_file:close()
           end
         end
       end
-      
       if not state.enabled then
         return
       end
-      
       -- Check if this is the current buffer
       local current_buf = vim.api.nvim_get_current_buf()
       if buf ~= current_buf then
@@ -2004,14 +1726,12 @@ local function setup_virtual_text(buf)
         end
         return
       end
-      
       -- Check if cursor has been idle for the required time
       local current_time = os.time()
       local last_cursor_move_time = state.virtual_text.last_cursor_move[buf] or 0
       local idle_time = current_time - last_cursor_move_time
       local required_idle_time = (config.virtual_text.cursor_idle_delay or 5) * 60 -- Convert minutes to seconds
       local idle_condition_met = idle_time >= required_idle_time
-      
       if log_file then
         log_file:write("Current time: " .. os.date("%Y-%m-%d %H:%M:%S", current_time) .. "\n")
         log_file:write("Last cursor move time: " .. os.date("%Y-%m-%d %H:%M:%S", last_cursor_move_time) .. "\n")
@@ -2019,13 +1739,11 @@ local function setup_virtual_text(buf)
         log_file:write("Required idle time: " .. required_idle_time .. " seconds\n")
         log_file:write("Idle condition met: " .. tostring(idle_condition_met) .. "\n")
       end
-      
       -- Only set up timer if cursor has been idle for the required time
       if idle_condition_met and not state.timers.virtual_text[buf] then
         if log_file then
           log_file:close()
         end
-        
         start_notification_timer(buf, "CursorHold")
       else
         if log_file then
@@ -2044,7 +1762,6 @@ local function setup_virtual_text(buf)
       state.virtual_text.last_advice[buf] = nil
       state.virtual_text.last_cursor_move[buf] = nil
       M.clear_virtual_text(buf)
-      
       vim.api.nvim_del_augroup_by_id(augroup)
       return true
     end,
@@ -2055,10 +1772,8 @@ function M.clear_virtual_text(buf)
   if not state.virtual_text.namespace or not state.virtual_text.extmarks[buf] then
     return
   end
-  
   vim.api.nvim_buf_del_extmark(buf, state.virtual_text.namespace, state.virtual_text.extmarks[buf])
   state.virtual_text.extmarks[buf] = nil
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text cleared")
   end
@@ -2068,26 +1783,21 @@ end
 function M.stop_virtual_text_timer(buf)
   state.timers = state.timers or {}
   state.timers.virtual_text = state.timers.virtual_text or {}
-  
   if state.timers.virtual_text[buf] then
     local timer_id = state.timers.virtual_text[buf]
     vim.fn.timer_stop(timer_id)
     state.timers.virtual_text[buf] = nil
-    
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] virtual textタイマー停止: バッファ %d, タイマーID %d", buf, timer_id))
     end
-    
     return timer_id
   end
-  
   return nil
 end
 
 function M.stop_timer(buf)
   local notification_timer_id = M.stop_notification_timer(buf)
   local virtual_text_timer_id = M.stop_virtual_text_timer(buf)
-  
   return notification_timer_id or virtual_text_timer_id
 end
 
@@ -2100,37 +1810,29 @@ function M.display_virtual_text(buf, advice)
       log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
       log_file:write("Advice length: " .. #advice .. " characters\n")
       log_file:write("Advice: " .. advice .. "\n")
-    
       if not state.enabled then
         log_file:write("Plugin not enabled, exiting display_virtual_text\n\n")
         log_file:close()
       end
     end
   end
-  
   if not state.enabled then
     return
   end
-  
   if not state.virtual_text.namespace then
     state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
     if log_file then
       log_file:write("Created new namespace: nudge-two-hats-virtual-text\n")
     end
   end
-  
   M.clear_virtual_text(buf)
-  
   M.stop_timer(buf)
-  
   if log_file then
     log_file:write("Reset timer for buffer " .. buf .. " when displaying virtual text\n")
   end
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Reset timer for buffer " .. buf .. " when displaying virtual text")
   end
-  
   local ok, cursor_pos = pcall(vim.api.nvim_win_get_cursor, 0)
   if not ok then
     if log_file then
@@ -2140,21 +1842,16 @@ function M.display_virtual_text(buf, advice)
     end
     return
   end
-  
   local row = cursor_pos[1] - 1 -- Convert to 0-indexed
-  
   if log_file then
     log_file:write("Cursor position: line " .. (row + 1) .. ", col " .. cursor_pos[2] .. "\n")
   end
-  
   state.virtual_text.last_advice[buf] = advice
-  
   local ok, extmark_id = pcall(vim.api.nvim_buf_set_extmark, buf, state.virtual_text.namespace, row, 0, {
     virt_text = {{advice, "NudgeTwoHatsVirtualText"}},
     virt_text_pos = "eol",
     hl_mode = "combine",
   })
-  
   if not ok then
     if log_file then
       log_file:write("Error setting extmark: " .. tostring(extmark_id) .. "\n")
@@ -2163,15 +1860,12 @@ function M.display_virtual_text(buf, advice)
     end
     return
   end
-  
   state.virtual_text.extmarks[buf] = extmark_id
-  
   if log_file then
     log_file:write("Successfully set extmark with ID: " .. extmark_id .. "\n")
     log_file:write("Virtual text should now be visible at line " .. (row + 1) .. "\n\n")
     log_file:close()
   end
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text displayed at line " .. (row + 1))
   end
@@ -2181,28 +1875,22 @@ function M.setup(opts)
   if opts then
     config = vim.tbl_deep_extend("force", config, opts)
   end
-  
   vim.api.nvim_set_hl(0, "NudgeTwoHatsVirtualText", {
     fg = config.virtual_text.text_color,
     bg = config.virtual_text.background_color,
   })
-  
   state.virtual_text.namespace = vim.api.nvim_create_namespace("nudge-two-hats-virtual-text")
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsToggle", function(args)
     state.enabled = not state.enabled
     local status = state.enabled and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
     vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
-    
     if state.enabled then
       if not state.original_updatetime then
         state.original_updatetime = vim.o.updatetime
       end
       vim.o.updatetime = 1000
-      
       local buf = vim.api.nvim_get_current_buf()
       local filetypes = {}
-      
       if args.args and args.args ~= "" then
         for filetype in string.gmatch(args.args, "%S+") do
           table.insert(filetypes, filetype)
@@ -2215,39 +1903,30 @@ function M.setup(opts)
           -- print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
         end
       end
-      
       -- Store the filetypes in state
       state.buf_filetypes[buf] = table.concat(filetypes, ",")
-      
       local augroup_name = "nudge-two-hats-" .. buf
       pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
-      
       create_autocmd(buf)
-      
       state.virtual_text.last_cursor_move[buf] = os.time()
-      
       -- print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
       -- print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
       -- print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
-      
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
       end
     else
       if state.original_updatetime then
         vim.o.updatetime = state.original_updatetime
-        
         if config.debug_mode then
           print("[Nudge Two Hats Debug] Restored updatetime to " .. state.original_updatetime .. "ms")
         end
       end
-      
       for buf, _ in pairs(state.virtual_text.extmarks) do
         if vim.api.nvim_buf_is_valid(buf) then
           M.clear_virtual_text(buf)
         end
       end
-      
       for buf, timer_id in pairs(state.timers.notification) do
         if timer_id then
           vim.fn.timer_stop(timer_id)
@@ -2262,7 +1941,6 @@ function M.setup(opts)
           end
         end
       end
-      
       for buf, timer_id in pairs(state.timers.virtual_text) do
         if timer_id then
           vim.fn.timer_stop(timer_id)
@@ -2277,7 +1955,6 @@ function M.setup(opts)
           end
         end
       end
-      
       for buf, timer_id in pairs(state.virtual_text.timers) do
         if timer_id then
           vim.fn.timer_stop(timer_id)
@@ -2306,16 +1983,13 @@ function M.setup(opts)
     local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
     local using_current_filetype = false
     local file_paths = {}
-    
     if args.args and args.args ~= "" then
       for file_path in string.gmatch(args.args, "%S+") do
         table.insert(file_paths, file_path)
       end
-      
       for _, file_path in ipairs(file_paths) do
         -- Check if file exists
         local file_exists = vim.fn.filereadable(file_path) == 1
-        
         if file_exists then
           local file_buf = vim.fn.bufadd(file_path)
           vim.fn.bufload(file_buf)
@@ -2340,7 +2014,6 @@ function M.setup(opts)
           -- print("[Nudge Two Hats] Warning: File does not exist: " .. file_path)
         end
       end
-      
       -- print("[Nudge Two Hats] Using specified file paths: " .. args.args)
     else
       -- No arguments, use current buffer
@@ -2350,34 +2023,26 @@ function M.setup(opts)
         -- print("[Nudge Two Hats] Using current buffer's filetype: " .. current_filetype)
       end
     end
-    
     -- Store the filetypes in state for current buffer
     if #filetypes > 0 then
       state.buf_filetypes[buf] = table.concat(filetypes, ",")
     end
-    
     -- Set up virtual text and updatetime
     if not state.original_updatetime then
       state.original_updatetime = vim.o.updatetime
     end
     vim.o.updatetime = 1000
-    
     -- Initialize virtual text state for current buffer if no file paths were specified
     if #file_paths == 0 then
       state.virtual_text.last_cursor_move = state.virtual_text.last_cursor_move or {}
       state.virtual_text.last_cursor_move[buf] = os.time()
-      
       create_autocmd(buf)
       setup_virtual_text(buf)
     end
-    
     state.enabled = true
-    
     create_autocmd(buf)
     setup_virtual_text(buf)
-    
     -- vim.notify(translate_message(translations.en.started_buffer), vim.log.levels.INFO)
-    
     local should_show_notification = true
     if current_filetype and current_filetype ~= "" then
       for _, filetype in ipairs(filetypes) do
@@ -2387,7 +2052,6 @@ function M.setup(opts)
         end
       end
     end
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
       print("[Nudge Two Hats Debug] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
@@ -2397,7 +2061,6 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] Processed file paths: " .. table.concat(file_paths, ", "))
     end
   end, { nargs = "?" })
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugToggle", function()
     config.debug_mode = not config.debug_mode
     local status = config.debug_mode and translate_message(translations.en.enabled) or translate_message(translations.en.disabled)
@@ -2406,50 +2069,38 @@ function M.setup(opts)
       print(translate_message(translations.en.debug_enabled))
     end
   end, {})
-  
   -- Store debug autocmd group ID by buffer
   state.debug_augroup_ids = state.debug_augroup_ids or {}
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualText", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
-    
     M.clear_virtual_text(buf)
-    
     if state.debug_augroup_ids[buf] then
       pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
       state.debug_augroup_ids[buf] = nil
     end
-    
     local augroup_name = "nudge-two-hats-debug-" .. buf
     local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
     state.debug_augroup_ids[buf] = augroup_id
-    
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
-    
     local fake_diff = "This is a test diff for debugging purposes.\n"
-    
     local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
     if filetype and filetype ~= "" then
       fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
       fake_diff = fake_diff .. "Sample code or content changes for " .. filetype .. " files.\n"
     end
-    
     fake_diff = fake_diff .. "Added some new functionality.\n"
     fake_diff = fake_diff .. "Refactored some existing code.\n"
     fake_diff = fake_diff .. "Fixed a few bugs.\n"
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
       print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
     end
-    
     local current_pos = vim.api.nvim_win_get_cursor(0)
     state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
-    
     vim.api.nvim_create_autocmd("CursorMoved", {
       group = augroup_id,
       buffer = buf,
@@ -2466,7 +2117,6 @@ function M.setup(opts)
         end
       end
     })
-    
     vim.api.nvim_create_autocmd({"BufDelete", "BufWipeout"}, {
       group = augroup_id,
       buffer = buf,
@@ -2476,17 +2126,13 @@ function M.setup(opts)
         return true
       end
     })
-    
     local loading_message = "Loading advice from AI..."
     state.virtual_text.last_advice[buf] = loading_message
     M.display_virtual_text(buf, loading_message)
-    
     vim.notify("Loading virtual text advice...", vim.log.levels.INFO)
-    
     get_gemini_advice(fake_diff, function(advice)
       if vim.api.nvim_buf_is_valid(buf) then
         state.virtual_text.last_advice[buf] = advice
-        
         if state.virtual_text.extmarks[buf] then
           M.display_virtual_text(buf, advice)
           
@@ -2502,35 +2148,27 @@ function M.setup(opts)
       end
     end, prompt, config.purpose)
   end, {})
-  
   -- Store timer IDs by buffer
   state.debug_timers = state.debug_timers or {}
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugVirtualTextTimer", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
-    
     M.clear_virtual_text(buf)
-    
     if state.debug_timers[buf] then
       vim.fn.timer_stop(state.debug_timers[buf])
       state.debug_timers[buf] = nil
     end
-    
     if state.debug_augroup_ids[buf] then
       pcall(vim.api.nvim_del_augroup_by_id, state.debug_augroup_ids[buf])
       state.debug_augroup_ids[buf] = nil
     end
-    
     local augroup_name = "nudge-two-hats-debug-timer-" .. buf
     local augroup_id = vim.api.nvim_create_augroup(augroup_name, { clear = true })
     state.debug_augroup_ids[buf] = augroup_id
-    
     local current_pos = vim.api.nvim_win_get_cursor(0)
     state.debug_cursor_pos = { row = current_pos[1], col = current_pos[2] }
-    
     vim.api.nvim_create_autocmd("CursorMoved", {
       group = augroup_id,
       buffer = buf,
@@ -2554,7 +2192,6 @@ function M.setup(opts)
         end
       end
     })
-    
     vim.api.nvim_create_autocmd({"BufDelete", "BufWipeout"}, {
       group = augroup_id,
       buffer = buf,
@@ -2563,46 +2200,36 @@ function M.setup(opts)
           vim.fn.timer_stop(state.debug_timers[buf])
           state.debug_timers[buf] = nil
         end
-        
         pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
         state.debug_augroup_ids[buf] = nil
         return true
       end
     })
-    
     local initial_message = "Loading advice from AI..."
     state.virtual_text.last_advice[buf] = initial_message
     M.display_virtual_text(buf, initial_message)
-    
     vim.notify("Debug timer started - will display nudge messages every 10 seconds", vim.log.levels.INFO)
-    
     get_gemini_advice(fake_diff, function(advice)
       if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
         state.virtual_text.last_advice[buf] = advice
         M.display_virtual_text(buf, advice)
       end
     end, prompt, config.purpose)
-    
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
-    
     local fake_diff = "This is a test diff for debugging purposes.\n"
-    
     local filetype = vim.api.nvim_buf_get_option(buf, "filetype")
     if filetype and filetype ~= "" then
       fake_diff = fake_diff .. "Filetype: " .. filetype .. "\n"
       fake_diff = fake_diff .. "Sample code or content changes for " .. filetype .. " files.\n"
     end
-    
     fake_diff = fake_diff .. "Added some new functionality.\n"
     fake_diff = fake_diff .. "Refactored some existing code.\n"
     fake_diff = fake_diff .. "Fixed a few bugs.\n"
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using prompt: " .. prompt)
       print("[Nudge Two Hats Debug] Using fake diff for debug: " .. fake_diff)
     end
-    
     local function update_virtual_text()
       if not vim.api.nvim_buf_is_valid(buf) then
         if state.debug_timers[buf] then
@@ -2611,7 +2238,6 @@ function M.setup(opts)
         end
         return
       end
-      
       if state.debug_cursor_pos then
         get_gemini_advice(fake_diff, function(advice)
           if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
@@ -2626,38 +2252,30 @@ function M.setup(opts)
         end, prompt, config.purpose)
       end
     end
-    
     state.debug_timers[buf] = vim.fn.timer_start(10000, function()
       if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
         update_virtual_text()
       end
-      
       return 10000
     end, {["repeat"] = -1})
   end, {})
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugTimerStatus", function()
     print("========== Nudge Two Hats Timer Status ==========")
     print("Plugin enabled: " .. tostring(state.enabled))
-    
     local active_notification_timers = 0
     local active_virtual_text_timers = 0
     local inactive_buffers = 0
-    
     state.timers = state.timers or {
       notification = {},
       virtual_text = {}
     }
-    
     for buf, _ in pairs(state.buf_filetypes) do
       if vim.api.nvim_buf_is_valid(buf) then
         local filetypes = state.buf_filetypes[buf] or ""
         local notification_timer_id = state.timers.notification[buf]
         local virtual_text_timer_id = state.timers.virtual_text[buf]
         local legacy_timer_id = (state.virtual_text.timers and state.virtual_text.timers[buf])
-        
         print(string.format("\nバッファ: %d, Filetype: %s", buf, filetypes))
-        
         -- Check notification timer
         if notification_timer_id then
           active_notification_timers = active_notification_timers + 1
@@ -2676,7 +2294,6 @@ function M.setup(opts)
           print(string.format("  通知タイマー: ID = %d, 残り時間: %s", 
                              notification_timer_id, remaining))
         end
-        
         -- Check virtual text timer
         if virtual_text_timer_id then
           active_virtual_text_timers = active_virtual_text_timers + 1
@@ -2695,7 +2312,6 @@ function M.setup(opts)
           print(string.format("  Virtual Textタイマー: ID = %d, 残り時間: %s", 
                              virtual_text_timer_id, remaining))
         end
-        
         -- Check legacy timer (for backward compatibility)
         if legacy_timer_id then
           local timer_info = vim.fn.timer_info(legacy_timer_id)
@@ -2713,29 +2329,24 @@ function M.setup(opts)
           print(string.format("  レガシータイマー: ID = %d, 残り時間: %s", 
                              legacy_timer_id, remaining))
         end
-        
         if not notification_timer_id and not virtual_text_timer_id and not legacy_timer_id then
           inactive_buffers = inactive_buffers + 1
           print("  アクティブなタイマーなし")
         end
       end
     end
-    
     print(string.format("\n合計: 通知タイマー = %d, Virtual Textタイマー = %d, 非アクティブなバッファ = %d", 
                        active_notification_timers, active_virtual_text_timers, inactive_buffers))
     print("==========================================")
   end, {})
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsNow", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
-    
     state.timers = state.timers or {}
     state.timers.virtual_text = state.timers.virtual_text or {}
     state.timers.notification = state.timers.notification or {}
-    
     -- Get the filetypes for this buffer
     local filetypes = {}
     if state.buf_filetypes[buf] then
@@ -2754,114 +2365,88 @@ function M.setup(opts)
         end
       end
     end
-    
     if #filetypes == 0 then
       vim.notify("No filetypes specified or detected", vim.log.levels.INFO)
       return
     end
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using filetypes: " .. table.concat(filetypes, ", "))
     end
-    
     -- Get cursor context (±20 lines) instead of entire buffer
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     local cursor_row = cursor_pos[1] -- 1-based
     local line_count = vim.api.nvim_buf_line_count(buf)
-    
     -- Calculate context range (20 lines above and below cursor)
     local context_start = math.max(1, cursor_row - 20)
     local context_end = math.min(line_count, cursor_row + 20)
-    
     local context_lines = vim.api.nvim_buf_get_lines(buf, context_start - 1, context_end, false)
     local context_content = table.concat(context_lines, "\n")
-    
     local stored_content = {}
     local stored_content_by_filetype = {}
-    
     if state.buf_content[buf] then
       stored_content = state.buf_content[buf]
       state.buf_content[buf] = nil
     end
-    
     if state.buf_content_by_filetype[buf] then
       stored_content_by_filetype = state.buf_content_by_filetype[buf]
       state.buf_content_by_filetype[buf] = {}
     end
-    
     local content, diff, diff_filetype = get_buf_diff(buf)
-    
     if not diff then
       -- Create a diff with just the context
       diff = string.format("@@ -%d,%d +%d,%d @@\n+ %s", 
                           context_start, #context_lines, context_start, #context_lines, 
                           context_content)
       diff_filetype = filetypes[1]
-      
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Created forced diff for NudgeTwoHatsNow command")
         print("[Nudge Two Hats Debug] コンテキスト範囲: " .. context_start .. "-" .. context_end .. " 行")
       end
     end
-    
     -- Restore original stored content after diff generation
     state.buf_content[buf] = stored_content
     state.buf_content_by_filetype[buf] = stored_content_by_filetype
-    
     for _, filetype in ipairs(filetypes) do
       if not state.buf_content_by_filetype[buf] then
         state.buf_content_by_filetype[buf] = {}
       end
       state.buf_content_by_filetype[buf][filetype] = context_content
     end
-    
     state.buf_content[buf] = context_content
-    
     state.last_api_call = 0
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
       print(diff)
     end
-    
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
     end
-    
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
-      
       local title = "Nudge Two Hats"
       if selected_hat then
         title = selected_hat
       end
-      
       if config.debug_mode then
         print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
       end
-      
       vim.notify(advice, vim.log.levels.INFO, {
         title = title,
         icon = "🎩",
       })
-      
       if config.debug_mode then
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)
         print("==========================")
       end
-      
       state.virtual_text.last_advice[buf] = advice
-      
       if content then
         -- Update content for all filetypes
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-        
         -- Get the filetypes for this buffer within the callback
         local callback_filetypes = {}
         if state.buf_filetypes[buf] then
@@ -2874,7 +2459,6 @@ function M.setup(opts)
             table.insert(callback_filetypes, current_filetype)
           end
         end
-        
         if #callback_filetypes > 0 then
           for _, filetype in ipairs(callback_filetypes) do
             state.buf_content_by_filetype[buf][filetype] = content
@@ -2882,31 +2466,24 @@ function M.setup(opts)
         else
           state.buf_content_by_filetype[buf]["_default"] = content
         end
-        
         state.buf_content[buf] = content
-        
         if config.debug_mode then
           print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
-      
     end, prompt, config.purpose)
   end, {})
-  
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugNotify", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
-    
     state.timers = state.timers or {}
     state.timers.virtual_text = state.timers.virtual_text or {}
     state.timers.notification = state.timers.notification or {}
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理を強制的に発火させます")
     end
-    
     -- Get current buffer filetypes
     local filetypes = {}
     if state.buf_filetypes[buf] then
@@ -2921,84 +2498,65 @@ function M.setup(opts)
         state.buf_filetypes[buf] = current_filetype
       end
     end
-    
     if #filetypes == 0 then
       vim.notify("No filetypes specified or detected", vim.log.levels.INFO)
       return
     end
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Buffer filetypes: " .. table.concat(filetypes, ", "))
     end
-    
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     local cursor_row = cursor_pos[1] -- 1-based
     local line_count = vim.api.nvim_buf_line_count(buf)
-    
     -- Calculate context range (20 lines above and below cursor)
     local context_start = math.max(1, cursor_row - 20)
     local context_end = math.min(line_count, cursor_row + 20)
-    
     local context_lines = vim.api.nvim_buf_get_lines(buf, context_start - 1, context_end, false)
     local context_content = table.concat(context_lines, "\n")
-    
     -- Create a diff with just the context
     local diff = string.format("@@ -%d,%d +%d,%d @@\n+ %s", 
                               context_start, #context_lines, context_start, #context_lines, 
                               context_content)
-    
     local current_filetype = filetypes[1]
-    
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = get_prompt_for_buffer(buf)
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 強制的に通知処理を実行します")
       print("[Nudge Two Hats Debug] Filetype: " .. (current_filetype or "unknown"))
       print("[Nudge Two Hats Debug] コンテキスト範囲: " .. context_start .. "-" .. context_end .. " 行")
     end
-    
     state.last_api_call = 0
-    
     get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
       end
-      
       local title = "Nudge Two Hats (Debug)"
       if selected_hat then
         title = selected_hat .. " (Debug)"
       end
-      
       vim.notify(advice, vim.log.levels.INFO, {
         title = title,
         icon = "🐛",
       })
-      
       state.virtual_text.last_advice[buf] = advice
     end, prompt, config.purpose)
-    
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
     end
   end, {})
-  
   vim.api.nvim_create_autocmd("BufEnter", {
     pattern = "*",
     callback = function()
       local buf = vim.api.nvim_get_current_buf()
-      
       -- Only set updatetime if plugin is enabled
       if state.enabled then
         if not state.original_updatetime then
           state.original_updatetime = vim.o.updatetime
         end
         vim.o.updatetime = 1000
-        
         if config.debug_mode then
           print(string.format("[Nudge Two Hats Debug] BufEnter: Switched to buffer %d", buf))
         end
-        
         if config.debug_mode then
           local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
           if log_file then
@@ -3008,11 +2566,9 @@ function M.setup(opts)
             log_file:close()
           end
         end
-        
         if state.buf_filetypes[buf] then
           -- Start virtual text timer for displaying advice
           M.start_virtual_text_timer(buf)
-          
           if config.debug_mode then
             print(string.format("[Nudge Two Hats Debug] BufEnter: Restarted virtual text timer for buffer %d", buf))
           end
@@ -3020,18 +2576,14 @@ function M.setup(opts)
       end
     end
   })
-  
   vim.api.nvim_create_autocmd("BufLeave", {
     pattern = "*",
     callback = function()
       local buf = vim.api.nvim_get_current_buf()
-      
       -- Stop notification timer
       local notification_timer_id = M.stop_notification_timer(buf)
-      
       -- Stop virtual text timer
       local virtual_text_timer_id = M.stop_virtual_text_timer(buf)
-      
       if notification_timer_id or virtual_text_timer_id then
         if config.debug_mode then
           local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
@@ -3048,24 +2600,20 @@ function M.setup(opts)
           end
         end
       end
-      
       -- Restore original updatetime
       if state.original_updatetime then
         vim.o.updatetime = state.original_updatetime
       end
     end
   })
-  
   vim.api.nvim_create_autocmd("VimLeavePre", {
     pattern = "*",
     callback = function()
       if config.debug_mode then
         print("[Nudge Two Hats Debug] エディタ終了時にすべてのバッファファイルをクリーンアップします")
       end
-      
       -- Delete all nudge_two_hats_buffer_*.txt files
       local result = vim.fn.system("find /tmp -name 'nudge_two_hats_buffer_*.txt' -type f -delete")
-      
       if config.debug_mode then
         print("[Nudge Two Hats Debug] バッファファイルのクリーンアップが完了しました")
       end
