@@ -341,21 +341,6 @@ function M.setup(opts)
 end
 
 return M
-            
-            if ok and result and result.candidates and result.candidates[1] and 
-               result.candidates[1].content and result.candidates[1].content.parts and 
-               result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
-              local advice = result.candidates[1].content.parts[1].text
-              
-              if cache_key then
-                advice_cache[cache_key] = advice
-                table.insert(advice_cache_keys, cache_key)
-                
-                if #advice_cache_keys > MAX_ADVICE_CACHE_SIZE then
-                  local to_remove = table.remove(advice_cache_keys, 1)
-                  advice_cache[to_remove] = nil
-                end
-              end
               
               if config.length_type == "characters" then
                 if #advice > config.message_length then
