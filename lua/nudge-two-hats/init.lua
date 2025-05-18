@@ -872,7 +872,6 @@ function M.setup(opts)
         if timer_id then
           vim.fn.timer_stop(timer_id)
           state.timers.notification[buf] = nil
-          
           if log_file then
             log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
             if log_file then
@@ -886,7 +885,6 @@ function M.setup(opts)
         if timer_id then
           vim.fn.timer_stop(timer_id)
           state.timers.virtual_text[buf] = nil
-          
           if log_file then
             log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
             if log_file then
@@ -900,7 +898,6 @@ function M.setup(opts)
         if timer_id then
           vim.fn.timer_stop(timer_id)
           state.virtual_text.timers[buf] = nil
-          
           if log_file then
             log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
             if log_file then
