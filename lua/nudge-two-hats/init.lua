@@ -341,27 +341,6 @@ function M.setup(opts)
 end
 
 return M
-            else
-              callback(translate_message(translations.en.api_error))
-            end
-          else
-            local error_msg = translate_message(translations.en.api_error)
-            vim.notify(error_msg .. ": " .. (response.body or translate_message(translations.en.unknown_error)), vim.log.levels.ERROR)
-            callback(translate_message(translations.en.api_error))
-          end
-        end)
-      end
-    })
-  else
-    local endpoint = config.api_endpoint:gsub("[<>]", "")
-    local full_url = endpoint .. "?key=" .. api_key
-    local temp_file = "/tmp/nudge_two_hats_request.json"
-    
-    local req_file = io.open(temp_file, "w")
-    if req_file then
-      req_file:write(request_data)
-      req_file:close()
-    end
     
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
