@@ -57,6 +57,11 @@ function M.start_notification_timer(buf, event_name)
 end
 
 -- timer.luaからの関数を呼び出すラッパー関数
+function M.stop_timer(buf)
+  return timer.stop_timer(buf, state, M.stop_notification_timer, M.stop_virtual_text_timer)
+end
+
+-- timer.luaからの関数を呼び出すラッパー関数
 function M.start_virtual_text_timer(buf, event_name)
   -- M.display_virtual_text関数へのコールバックを登録
   state.start_virtual_text_timer_callback = function(buffer_id)
@@ -74,12 +79,6 @@ function M.clear_virtual_text(buf)
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text cleared")
   end
-end
-
-
--- timer.luaからの関数を呼び出すラッパー関数
-function M.stop_timer(buf)
-  return timer.stop_timer(buf, state, M.stop_notification_timer, M.stop_virtual_text_timer)
 end
 
 function M.display_virtual_text(buf, advice)
