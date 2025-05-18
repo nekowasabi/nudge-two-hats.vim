@@ -348,12 +348,12 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
     if idle_time >= required_idle_time then
       display_virtual_text_func(buf, state.virtual_text.last_advice[buf])
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Displaying virtual text for buffer %d after %d seconds of cursor inactivity", 
+        print(string.format("[Nudge Two Hats Debug] Displaying virtual text for buffer %d after %d seconds of cursor inactivity",
           buf, idle_time))
       end
     else
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor not idle long enough: %d seconds (required: %d seconds)", 
+        print(string.format("[Nudge Two Hats Debug] Cursor not idle long enough: %d seconds (required: %d seconds)",
           idle_time, required_idle_time))
       end
       -- We need to call the init.lua function here
@@ -362,14 +362,14 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
   end)
   if config.debug_mode then
     local event_info = event_name and (" triggered by " .. event_name) or ""
-    print(string.format("[Nudge Two Hats Debug] Started virtual text timer for buffer %d with ID %d%s", 
+    print(string.format("[Nudge Two Hats Debug] Started virtual text timer for buffer %d with ID %d%s",
       buf, state.timers.virtual_text[buf], event_info))
   end
   if config.debug_mode then
     local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
     if log_file then
       local event_info = event_name and (" triggered by " .. event_name) or ""
-      log_file:write(string.format("Started virtual text timer for buffer %d with ID %d%s at %s\n", 
+      log_file:write(string.format("Started virtual text timer for buffer %d with ID %d%s at %s\n",
         buf, state.timers.virtual_text[buf], event_info, os.date("%Y-%m-%d %H:%M:%S")))
       log_file:close()
     end
