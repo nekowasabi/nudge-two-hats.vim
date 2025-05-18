@@ -23,6 +23,11 @@ math.randomseed(os.time())
 
 local config = require("nudge-two-hats.config")
 
+-- Import the API module for all functions
+local api = require("nudge-two-hats.api")
+
+-- Use imported safe_truncate function
+local safe_truncate = api.safe_truncate
 
 local translations = {
   en = {
@@ -62,12 +67,6 @@ local function get_language()
     return config.output_language
   end
 end
-
--- Import the API module for all functions
-local api = require("nudge-two-hats.api")
-
--- Use imported safe_truncate function
-local safe_truncate = api.safe_truncate
 
 local function translate_message(message)
   if not config.translate_messages then
@@ -1727,9 +1726,7 @@ function M.setup(opts)
         state.virtual_text.last_advice[buf] = advice
         if state.virtual_text.extmarks[buf] then
           M.display_virtual_text(buf, advice)
-          
           vim.notify("Debug virtual text updated with AI advice", vim.log.levels.INFO)
-          
           if config.debug_mode then
             print("[Nudge Two Hats Debug] Virtual text message displayed")
             print("[Nudge Two Hats Debug] Current updatetime: " .. vim.o.updatetime)
@@ -1772,11 +1769,8 @@ function M.setup(opts)
               vim.fn.timer_stop(state.debug_timers[buf])
               state.debug_timers[buf] = nil
             end
-            
             M.clear_virtual_text(buf)
-            
             vim.notify("Timer stopped and virtual text cleared on cursor movement", vim.log.levels.INFO)
-            
             pcall(vim.api.nvim_del_augroup_by_id, augroup_id)
             state.debug_augroup_ids[buf] = nil
             state.debug_cursor_pos = nil
@@ -1835,7 +1829,6 @@ function M.setup(opts)
           if vim.api.nvim_buf_is_valid(buf) and state.debug_cursor_pos then
             state.virtual_text.last_advice[buf] = advice
             M.display_virtual_text(buf, advice)
-            
             if config.debug_mode then
               print("[Nudge Two Hats Debug] Generated new advice at " .. os.date("%H:%M:%S"))
               print("[Nudge Two Hats Debug] Advice: " .. advice)
@@ -1873,7 +1866,6 @@ function M.setup(opts)
           active_notification_timers = active_notification_timers + 1
           local timer_info = vim.fn.timer_info(notification_timer_id)
           local remaining = "不明"
-          
           if timer_info and #timer_info > 0 then
             local time_ms = timer_info[1].time
             if time_ms > 60000 then
@@ -1882,7 +1874,6 @@ function M.setup(opts)
               remaining = string.format("%.1f秒", time_ms / 1000)
             end
           end
-          
           print(string.format("  通知タイマー: ID = %d, 残り時間: %s", 
                              notification_timer_id, remaining))
         end
@@ -1891,7 +1882,6 @@ function M.setup(opts)
           active_virtual_text_timers = active_virtual_text_timers + 1
           local timer_info = vim.fn.timer_info(virtual_text_timer_id)
           local remaining = "不明"
-          
           if timer_info and #timer_info > 0 then
             local time_ms = timer_info[1].time
             if time_ms > 60000 then
@@ -1900,7 +1890,6 @@ function M.setup(opts)
               remaining = string.format("%.1f秒", time_ms / 1000)
             end
           end
-          
           print(string.format("  Virtual Textタイマー: ID = %d, 残り時間: %s", 
                              virtual_text_timer_id, remaining))
         end
@@ -1908,7 +1897,6 @@ function M.setup(opts)
         if legacy_timer_id then
           local timer_info = vim.fn.timer_info(legacy_timer_id)
           local remaining = "不明"
-          
           if timer_info and #timer_info > 0 then
             local time_ms = timer_info[1].time
             if time_ms > 60000 then
@@ -1917,7 +1905,6 @@ function M.setup(opts)
               remaining = string.format("%.1f秒", time_ms / 1000)
             end
           end
-          
           print(string.format("  レガシータイマー: ID = %d, 残り時間: %s", 
                              legacy_timer_id, remaining))
         end
