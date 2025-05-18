@@ -341,31 +341,6 @@ function M.setup(opts)
 end
 
 return M
-    vim.fn.jobstart(curl_command, {
-      on_stdout = function(_, data)
-        if data and #data > 0 and data[1] ~= "" then
-          vim.schedule(function()
-            local ok, response
-            if vim.json and vim.json.decode then
-              ok, response = pcall(vim.json.decode, table.concat(data, "\n"))
-            else
-              ok, response = pcall(function() return vim.fn.json_decode(table.concat(data, "\n")) end)
-            end
-            
-            if ok and response and response.candidates and response.candidates[1] and 
-               response.candidates[1].content and response.candidates[1].content.parts and 
-               response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
-              local advice = response.candidates[1].content.parts[1].text
-              
-              if config.length_type == "characters" then
-                if #advice > config.message_length then
-                  advice = safe_truncate(advice, config.message_length)
-                end
-              else
-                local words = {}
-                for word in advice:gmatch("%S+") do
-                  table.insert(words, word)
-                end
                 
                 if #words > config.message_length then
                   local truncated_words = {}
