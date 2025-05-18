@@ -2,6 +2,9 @@ local M = {}
 
 local config = require("nudge-two-hats.config")
 
+-- 関数で使用される変数
+local selected_hat = nil
+
 function M.update_config(new_config)
   config = new_config
 end
@@ -245,6 +248,67 @@ function M.get_buf_diff(buf, state)
   end
   state.buf_content[buf] = content
   return content, nil, nil
+end
+
+-- バッファに応じたプロンプトを取得する関数
+function M.get_prompt_for_buffer(buf, state)
+  local filetypes = {}
+  -- Check if we have stored filetypes for this buffer
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
+  end
+  -- If no stored filetypes, use the current buffer's filetype
+  if #filetypes == 0 then
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
+    end
+  end
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Buffer filetypes: " .. table.concat(filetypes, ", "))
+  end
+  -- Check if we have a specific prompt for any of the filetypes
+  for _, filetype in ipairs(filetypes) do
+    if filetype and config.filetype_prompts[filetype] then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
+      end
+      local filetype_prompt = config.filetype_prompts[filetype]
+      if type(filetype_prompt) == "string" then
+        selected_hat = nil
+        return filetype_prompt
+      elseif type(filetype_prompt) == "table" then
+        local role = filetype_prompt.role or config.default_cbt.role
+        local direction = filetype_prompt.direction or config.default_cbt.direction
+        local emotion = filetype_prompt.emotion or config.default_cbt.emotion
+        local tone = filetype_prompt.tone or config.default_cbt.tone
+        local prompt_text = filetype_prompt.prompt
+        local hats = filetype_prompt.hats or config.default_cbt.hats or {}
+        if #hats > 0 then
+          math.randomseed(os.time())
+          selected_hat = hats[math.random(1, #hats)]
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
+          end
+        end
+        return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
+                             role, selected_hat, direction, emotion, tone, prompt_text)
+      else
+        selected_hat = nil
+        return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
+                             role, direction, emotion, tone, prompt_text)
+      end
+    end
+  end
+  selected_hat = nil
+  return config.system_prompt
+end
+
+-- 選択されたハットを取得する関数
+function M.get_selected_hat()
+  return selected_hat
 end
 
 return M
