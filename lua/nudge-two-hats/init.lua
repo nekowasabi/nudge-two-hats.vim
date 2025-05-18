@@ -341,16 +341,6 @@ function M.setup(opts)
 end
 
 return M
-              
-              if config.length_type == "characters" then
-                if #advice > config.message_length then
-                  advice = safe_truncate(advice, config.message_length)
-                end
-              else
-                local words = {}
-                for word in advice:gmatch("%S+") do
-                  table.insert(words, word)
-                end
                 
                 if #words > config.message_length then
                   local truncated_words = {}
