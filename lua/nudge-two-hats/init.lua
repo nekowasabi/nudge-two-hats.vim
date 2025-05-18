@@ -2544,43 +2544,13 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
     end
   end, {})
-  vim.api.nvim_create_autocmd("BufEnter", {
-    pattern = "*",
-    callback = function()
-      local buf = vim.api.nvim_get_current_buf()
-      -- Only set updatetime if plugin is enabled
-      if state.enabled then
-        if not state.original_updatetime then
-          state.original_updatetime = vim.o.updatetime
-        end
-        vim.o.updatetime = 1000
-        if config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug] BufEnter: Switched to buffer %d", buf))
-        end
-        if config.debug_mode then
-          local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-          if log_file then
-            log_file:write("=== BufEnter triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
-            log_file:write("Current buffer: " .. buf .. "\n")
-            log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
-            log_file:close()
-          end
-        end
-        if state.buf_filetypes[buf] then
-          -- Start virtual text timer for displaying advice
-          M.start_virtual_text_timer(buf)
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] BufEnter: Restarted virtual text timer for buffer %d", buf))
-          end
-        end
-      end
-    end
-  })
+  -- BufEnter autocmdはautocmd.luaに移動しました
   -- autocmd.luaからVimLeavePre/BufLeave自動コマンドを設定
   local autocmd = require("nudge-two-hats.autocmd")
   local plugin_functions = {
     stop_notification_timer = M.stop_notification_timer,
-    stop_virtual_text_timer = M.stop_virtual_text_timer
+    stop_virtual_text_timer = M.stop_virtual_text_timer,
+    start_virtual_text_timer = M.start_virtual_text_timer
   }
   autocmd.setup(config, state, plugin_functions)
 end
