@@ -534,7 +534,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   else
     system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
   end
-  print(system_prompt)
+  -- print(system_prompt)
   local max_diff_size = 10000  -- 10KB is usually enough for context
   local truncated_diff = diff
   if #diff > max_diff_size then
