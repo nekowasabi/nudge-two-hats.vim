@@ -1121,6 +1121,7 @@ end
 function M.setup(opts)
   if opts then
     config = vim.tbl_deep_extend("force", config, opts)
+    api.update_config(config)
   end
   vim.api.nvim_set_hl(0, "NudgeTwoHatsVirtualText", {
     fg = config.virtual_text.text_color,

@@ -757,6 +757,10 @@ local M = {
   translate_message = translate_message
 }
 
+function M.update_config(new_config)
+  config = new_config
+end
+
 -- Wrap get_gemini_advice to handle different call patterns from init.lua
 function M.get_gemini_advice(diff, callback, arg1, arg2, arg3)
   -- 引数の型に基づいて振り分ける
