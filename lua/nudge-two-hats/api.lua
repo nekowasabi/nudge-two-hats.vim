@@ -1,5 +1,24 @@
 local config = require("nudge-two-hats.config")
 
+-- Get advice_cache and translations from the caller
+local advice_cache = {}
+local MAX_ADVICE_CACHE_SIZE = 20
+local advice_cache_keys = {}
+
+-- Get the appropriate language for translations
+local function get_language()
+  if config.output_language == "auto" then
+    local lang = vim.fn.getenv("LANG") or ""
+    if lang:match("^ja") then
+      return "ja"
+    else
+      return "en"
+    end
+  else
+    return config.output_language
+  end
+end
+
 -- Safe UTF-8 string truncation that doesn't cut in the middle of a multibyte character
 local function safe_truncate(str, max_length)
   if #str <= max_length then
@@ -417,10 +436,366 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
   return nil
 end
 
--- Export the functions
-return {
+-- Translate messages based on config settings
+local function translate_message(message)
+  if not config.translate_messages then
+    return message
+  end
+  local target_lang = get_language()
+  for key, value in pairs(config.translations[target_lang]) do
+    if message == value then
+      return message -- Already in target language
+    end
+  end
+  for key, value in pairs(config.translations.en) do
+    if message == value and config.translations[target_lang][key] then
+      return config.translations[target_lang][key]
+    end
+  end
+  for key, value in pairs(config.translations.ja) do
+    if message == value and config.translations[target_lang][key] then
+      return config.translations[target_lang][key]
+    end
+  end
+  if config.translate_messages and target_lang ~= "en" and not is_japanese(message) then
+    if target_lang == "ja" and message:len() < 100 then
+      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
+      if api_key then
+        local translated = translate_with_gemini(message, "en", "ja", api_key)
+        if translated then
+          return translated
+        end
+      end
+    end
+  elseif config.translate_messages and target_lang ~= "ja" and is_japanese(message) then
+    if target_lang == "en" and message:len() < 100 then
+      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
+      if api_key then
+        local translated = translate_with_gemini(message, "ja", "en", api_key)
+        if translated then
+          return translated
+        end
+      end
+    end
+  end
+  return message
+end
+
+-- Get advice from Gemini API
+local function get_gemini_advice(diff, callback, prompt, purpose, state)
+  local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] API Key: %s", api_key and "設定済み" or "未設定"))
+  end
+  if not api_key then
+    local error_msg = translate_message(config.translations.en.api_key_not_set)
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] APIキーが設定されていません")
+    end
+    vim.notify(error_msg, vim.log.levels.ERROR)
+    return
+  end
+
+  local cache_key = nil
+  if #diff < 10000 then  -- Only cache for reasonably sized diffs
+    cache_key = diff .. (prompt or "") .. (purpose or "")
+    -- Check if we have a cached response
+    if advice_cache[cache_key] then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Using cached API response")
+      end
+      vim.schedule(function()
+        callback(advice_cache[cache_key])
+      end)
+      return
+    end
+  end
+
+  local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+  if log_file then
+    log_file:write("--- New API Request ---\n")
+    log_file:write("Timestamp: " .. os.date() .. "\n")
+    log_file:write("API Key: " .. string.sub(api_key, 1, 5) .. "...\n")
+    log_file:write("Endpoint: " .. config.api_endpoint .. "\n")
+    if prompt then
+      log_file:write("Using prompt: " .. prompt .. "\n")
+    end
+    log_file:close()
+  end
+
+  local system_prompt = prompt or config.system_prompt
+  local purpose_text = purpose or config.purpose
+  if purpose_text and purpose_text ~= "" then
+    system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
+  end
+  local output_lang = get_language()
+  if output_lang == "ja" then
+    system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。%d文字程度の簡潔なアドバイスをお願いします。", config.message_length)
+  else
+    system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
+  end
+  print(system_prompt)
+  local max_diff_size = 10000  -- 10KB is usually enough for context
+  local truncated_diff = diff
+  if #diff > max_diff_size then
+    truncated_diff = string.sub(diff, 1, max_diff_size) .. "\n... (truncated for performance)"
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Diff truncated from " .. #diff .. " to " .. #truncated_diff .. " bytes")
+    end
+  end
+  local sanitized_diff = sanitize_text(truncated_diff)
+  if config.debug_mode and sanitized_diff ~= truncated_diff then
+    print("[Nudge Two Hats Debug] Diff content sanitized for UTF-8 compliance")
+  end
+  local ok, request_data = pcall(vim.fn.json_encode, {
+    contents = {
+      {
+        parts = {
+          {
+            text = system_prompt .. "\n\n" .. sanitized_diff
+          }
+        }
+      }
+    },
+    generationConfig = {
+      thinkingConfig = {
+        thinkingBudget = 0
+      },
+      temperature = 0.2,
+      topK = 40,
+      topP = 0.95,
+      maxOutputTokens = 1024
+    }
+  })
+  if not ok then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] JSON encoding failed: " .. tostring(request_data))
+    end
+    local error_msg = translate_message(config.translations.en.api_error)
+    vim.notify(error_msg .. ": JSON encoding failed", vim.log.levels.ERROR)
+    callback(translate_message(config.translations.en.api_error))
+    return
+  end
+
+  local has_plenary, curl = pcall(require, "plenary.curl")
+  if has_plenary then
+    local endpoint = config.api_endpoint:gsub("[<>]", "")
+    local full_url = endpoint .. "?key=" .. api_key
+    if log_file then
+      log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+      log_file:write("Using plenary.curl\n")
+      log_file:write("Clean endpoint: " .. endpoint .. "\n")
+      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
+      log_file:close()
+    end
+    curl.post(full_url, {
+      headers = {
+        ["Content-Type"] = "application/json",
+      },
+      body = request_data,
+      callback = function(response)
+        vim.schedule(function()
+          if response.status == 200 and response.body then
+            local ok, result
+            if vim.json and vim.json.decode then
+              ok, result = pcall(vim.json.decode, response.body)
+            else
+              ok, result = pcall(function() return vim.fn.json_decode(response.body) end)
+            end
+            if ok and result and result.candidates and result.candidates[1] and 
+               result.candidates[1].content and result.candidates[1].content.parts and 
+               result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
+              local advice = result.candidates[1].content.parts[1].text
+              if cache_key then
+                advice_cache[cache_key] = advice
+                table.insert(advice_cache_keys, cache_key)
+                if #advice_cache_keys > MAX_ADVICE_CACHE_SIZE then
+                  local to_remove = table.remove(advice_cache_keys, 1)
+                  advice_cache[to_remove] = nil
+                end
+              end
+              if config.length_type == "characters" then
+                if #advice > config.message_length then
+                  advice = safe_truncate(advice, config.message_length)
+                end
+              else
+                local words = {}
+                for word in advice:gmatch("%S+") do
+                  table.insert(words, word)
+                end
+                if #words > config.message_length then
+                  local truncated_words = {}
+                  for i = 1, config.message_length do
+                    table.insert(truncated_words, words[i])
+                  end
+                  advice = table.concat(truncated_words, " ")
+                end
+              end
+              if config.translate_messages then
+                advice = translate_message(advice)
+              end
+              callback(advice)
+            else
+              callback(translate_message(config.translations.en.api_error))
+            end
+          else
+            local error_msg = translate_message(config.translations.en.api_error)
+            vim.notify(error_msg .. ": " .. (response.body or translate_message(config.translations.en.unknown_error)), vim.log.levels.ERROR)
+            callback(translate_message(config.translations.en.api_error))
+          end
+        end)
+      end
+    })
+  else
+    local endpoint = config.api_endpoint:gsub("[<>]", "")
+    local full_url = endpoint .. "?key=" .. api_key
+    local temp_file = "/tmp/nudge_two_hats_request.json"
+    local req_file = io.open(temp_file, "w")
+    if req_file then
+      req_file:write(request_data)
+      req_file:close()
+    end
+    if log_file then
+      log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+      log_file:write("Using curl fallback\n")
+      log_file:write("Clean endpoint: " .. endpoint .. "\n")
+      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
+      log_file:write("Command: curl -s -X POST " .. endpoint .. "?key=" .. string.sub(api_key, 1, 5) .. "... -H 'Content-Type: application/json' -d @" .. temp_file .. "\n")
+      log_file:close()
+    end
+    local curl_command = string.format(
+      "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
+      full_url,
+      temp_file
+    )
+    vim.fn.jobstart(curl_command, {
+      on_stdout = function(_, data)
+        if data and #data > 0 and data[1] ~= "" then
+          vim.schedule(function()
+            local ok, response
+            if vim.json and vim.json.decode then
+              ok, response = pcall(vim.json.decode, table.concat(data, "\n"))
+            else
+              ok, response = pcall(function() return vim.fn.json_decode(table.concat(data, "\n")) end)
+            end
+            
+            if ok and response and response.candidates and response.candidates[1] and 
+               response.candidates[1].content and response.candidates[1].content.parts and 
+               response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
+              local advice = response.candidates[1].content.parts[1].text
+              
+              if config.length_type == "characters" then
+                if #advice > config.message_length then
+                  advice = safe_truncate(advice, config.message_length)
+                end
+              else
+                local words = {}
+                for word in advice:gmatch("%S+") do
+                  table.insert(words, word)
+                end
+                
+                if #words > config.message_length then
+                  local truncated_words = {}
+                  for i = 1, config.message_length do
+                    table.insert(truncated_words, words[i])
+                  end
+                  advice = table.concat(truncated_words, " ")
+                end
+              end
+              
+              if config.translate_messages then
+                advice = translate_message(advice)
+              end
+              
+              callback(advice)
+              
+            else
+              callback(translate_message(config.translations.en.api_error))
+            end
+          end)
+        end
+      end,
+      on_stderr = function(_, data)
+        if data and #data > 0 and data[1] ~= "" then
+          vim.schedule(function()
+            local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
+            if log_file then
+              log_file:write("Curl stderr: " .. table.concat(data, "\n") .. "\n")
+              log_file:close()
+            end
+            
+            local error_msg = translate_message(config.translations.en.api_error)
+            vim.notify(error_msg .. ": " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+          end)
+        end
+      end,
+      on_exit = function(_, code)
+        -- Delete the temporary file after API call completes
+        if vim.fn.filereadable(temp_file) == 1 then
+          vim.fn.delete(temp_file)
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Deleted temporary file: " .. temp_file)
+          end
+        end
+        if code ~= 0 then
+          vim.schedule(function()
+            callback(translate_message(config.translations.en.api_error))
+          end)
+        end
+      end
+    })
+  end
+end
+
+-- Export the functions with state management
+local M = {
   is_japanese = is_japanese,
   translate_with_gemini = translate_with_gemini,
   sanitize_text = sanitize_text,
-  safe_truncate = safe_truncate
+  safe_truncate = safe_truncate,
+  get_language = get_language,
+  translate_message = translate_message
 }
+
+-- Wrap get_gemini_advice to handle different call patterns from init.lua
+function M.get_gemini_advice(diff, callback, arg1, arg2, arg3)
+  -- 引数の型に基づいて振り分ける
+  -- init.luaからの呼び出しパターン
+  -- 1. api.get_gemini_advice(diff, function(advice)
+  -- 2. api.get_gemini_advice(diff, function(advice), state
+  -- 3. api.get_gemini_advice(diff, function(advice), nil, nil, state
+  local prompt, purpose, state
+  
+  if type(arg1) == "table" then 
+    -- パターン2: arg1がstateオブジェクト
+    state = arg1
+    prompt = nil
+    purpose = nil
+  elseif type(arg1) == "string" then
+    -- arg1がプロンプト文字列
+    prompt = arg1
+    if type(arg2) == "string" then
+      purpose = arg2
+      state = arg3
+    else
+      purpose = nil
+      state = arg2
+    end
+  elseif arg1 == nil and arg2 == nil and type(arg3) == "table" then
+    -- パターン3: nil, nil, state
+    prompt = nil
+    purpose = nil
+    state = arg3
+  else
+    -- デフォルト
+    prompt = arg1
+    purpose = arg2
+    state = arg3 or {}
+  end
+  
+  -- stateがない場合は空のテーブルを使用
+  state = state or {}
+  return get_gemini_advice(diff, callback, prompt, purpose, state)
+end
+
+return M
