@@ -94,7 +94,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       local total_time = config.min_interval  -- Use min_interval directly in seconds
       local remaining_time = math.max(0, total_time - elapsed_time)
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒", 
+        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒",
                            buf, elapsed_time, remaining_time))
       end
       return
