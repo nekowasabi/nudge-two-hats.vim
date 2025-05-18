@@ -1,0 +1,250 @@
+local M = {}
+
+local config = require("nudge-two-hats.config")
+
+function M.update_config(new_config)
+  config = new_config
+end
+
+function M.get_buf_diff(buf, state)
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] get_buf_diff開始: バッファ %d, 時刻: %s", buf, os.date("%Y-%m-%d %H:%M:%S")))
+    print("[Nudge Two Hats Debug] 保存されたバッファ内容と現在の内容を比較します")
+  end
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  local content
+  if line_count < 1000 then
+    content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  else
+    local chunks = {}
+    local chunk_size = 500
+    local total_chunks = math.ceil(line_count / chunk_size)
+    for i = 0, total_chunks - 1 do
+      local start_line = i * chunk_size
+      local end_line = math.min((i + 1) * chunk_size, line_count)
+      table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
+    end
+    content = table.concat(chunks, "\n")
+  end
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] 現在のバッファ内容: %d文字", #content))
+    local content_preview = content:sub(1, 50):gsub("\n", "\\n")
+    print(string.format("[Nudge Two Hats Debug] バッファ内容プレビュー: %s...", content_preview))
+    local content_hash = 0
+    for i = 1, #content do
+      content_hash = (content_hash * 31 + string.byte(content, i)) % 1000000007
+    end
+    print(string.format("[Nudge Two Hats Debug] バッファ内容ハッシュ: %d", content_hash))
+  end
+  local filetypes = {}
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] バッファ %d の登録済みfiletypes: %s", 
+        buf, state.buf_filetypes[buf]))
+    end
+  else
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] バッファ %d の現在のfiletype: %s", 
+          buf, current_filetype))
+      end
+    else
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] バッファ %d のfiletypeが見つかりません", buf))
+      end
+    end
+  end
+  if #filetypes == 0 then
+    table.insert(filetypes, "_default")
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] filetypeが見つからないため、_defaultを使用します")
+    end
+  end
+  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+  local first_notification = true
+  for _, filetype in ipairs(filetypes) do
+    if state.buf_content_by_filetype[buf][filetype] then
+      first_notification = false
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] 既存のバッファ内容が見つかりました: filetype=%s, サイズ=%d文字", 
+          filetype, #state.buf_content_by_filetype[buf][filetype]))
+      end
+      break
+    end
+  end
+  local force_diff = false
+  local event_name = vim.v.event and vim.v.event.event
+  if event_name == "BufWritePost" then
+    force_diff = true
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] BufWritePostイベントのため、強制的にdiffを生成します")
+    end
+  end
+  if first_notification and content and content ~= "" then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] 初回通知のためダミーdiffを作成します（カーソル位置周辺のみ）")
+    end
+    local first_filetype = filetypes[1]
+    state.buf_content_by_filetype[buf][first_filetype] = ""
+    local cursor_pos
+    local cursor_line
+    local status, err = pcall(function()
+      cursor_pos = vim.api.nvim_win_get_cursor(0)
+      cursor_line = cursor_pos[1]
+    end)
+    if not status then
+      cursor_line = 1
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] カーソル位置の取得に失敗しました: %s", err))
+      end
+    end
+    local context_lines = 10
+    local start_line = math.max(1, cursor_line - context_lines)
+    local end_line = math.min(line_count, cursor_line + context_lines)
+    local context_line_count = end_line - start_line + 1
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] カーソル位置: %d行目, 範囲: %d-%d行 (合計%d行)", 
+        cursor_line, start_line, end_line, context_line_count))
+    end
+    local diff = string.format("--- a/dummy\n+++ b/current\n@@ -0,0 +1,%d @@\n", context_line_count)
+    for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)) do
+      diff = diff .. "+" .. line .. "\n"
+    end
+    local context_content = table.concat(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false), "\n")
+    state.buf_content_by_filetype[buf][first_filetype] = context_content
+    state.buf_content[buf] = context_content
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 初回通知用のコンテキスト: %d文字", #context_content))
+      print(string.format("[Nudge Two Hats Debug] 初回通知用のdiff: %d文字", #diff))
+    end
+    return context_content, diff, first_filetype
+  end
+  local old = nil
+  local detected_filetype = nil
+  if state.temp_files and state.temp_files[buf] then
+    local temp_file_path = state.temp_files[buf]
+    local temp_file = io.open(temp_file_path, "r")
+    if temp_file then
+      old = temp_file:read("*all")
+      temp_file:close()
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
+          temp_file_path, #old))
+      end
+      if #filetypes > 0 then
+        detected_filetype = filetypes[1]
+      end
+    else
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] テンポラリファイルの読み込みに失敗しました: %s", temp_file_path))
+      end
+    end
+  else
+    for _, filetype in ipairs(filetypes) do
+      if state.buf_content_by_filetype[buf] and state.buf_content_by_filetype[buf][filetype] then
+        old = state.buf_content_by_filetype[buf][filetype]
+        detected_filetype = filetype
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] filetype=%sの内容を使用します", filetype))
+        end
+        break
+      end
+    end
+    if not old and state.buf_content[buf] then
+      old = state.buf_content[buf]
+      if not detected_filetype and #filetypes > 0 then
+        detected_filetype = filetypes[1]
+      end
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] バッファ全体の内容を使用します"))
+      end
+    end
+  end
+  if old then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字", 
+        #old, #content))
+      local old_sample = string.sub(old, 1, 100)
+      local new_sample = string.sub(content, 1, 100)
+      print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
+      print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
+    end
+    if force_diff or old ~= content then
+      local diff = vim.diff(old, content, { result_type = "unified" })
+      if config.debug_mode then
+        if diff then
+          print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
+          local diff_preview = diff:sub(1, 100):gsub("\n", "\\n")
+          print(string.format("[Nudge Two Hats Debug] diff内容プレビュー: %s...", diff_preview))
+        else
+          print("[Nudge Two Hats Debug] vim.diffの結果: nil")
+        end
+        print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
+          tostring(old ~= content)))
+      end
+      if type(diff) == "string" and diff ~= "" then
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", detected_filetype))
+          print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
+        end
+        if detected_filetype then
+          state.buf_content_by_filetype[buf][detected_filetype] = content
+        end
+        state.buf_content[buf] = content
+        if state.temp_files and state.temp_files[buf] then
+          local temp_file_path = state.temp_files[buf]
+          os.execute("chmod 644 " .. temp_file_path)
+          os.remove(temp_file_path)
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
+          end
+          state.temp_files[buf] = nil
+        end
+        return content, diff, detected_filetype
+      elseif force_diff then
+        local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
+          "No changes detected, but file was saved", "File saved at " .. os.date("%c"))
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
+        end
+        if state.temp_files and state.temp_files[buf] then
+          local temp_file_path = state.temp_files[buf]
+          os.execute("chmod 644 " .. temp_file_path)
+          os.remove(temp_file_path)
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
+          end
+          state.temp_files[buf] = nil
+        end
+        return content, minimal_diff, detected_filetype
+      end
+    else
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] 内容が同一のため、差分なし: filetype=%s", detected_filetype or "unknown"))
+      end
+    end
+  else
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", detected_filetype or "unknown"))
+    end
+  end
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] 差分が見つかりませんでした。バッファ内容を更新します。")
+  end
+  for _, filetype in ipairs(filetypes) do
+    state.buf_content_by_filetype[buf][filetype] = content
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] バッファ内容を更新しました: filetype=%s, サイズ=%d文字", 
+        filetype, #content))
+    end
+  end
+  state.buf_content[buf] = content
+  return content, nil, nil
+end
+
+return M
