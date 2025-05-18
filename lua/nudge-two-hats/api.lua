@@ -1,5 +1,49 @@
 local config = require("nudge-two-hats.config")
 
+-- Safe UTF-8 string truncation that doesn't cut in the middle of a multibyte character
+local function safe_truncate(str, max_length)
+  if #str <= max_length then
+    return str
+  end
+  local chunk_size = 1024 * 1024 -- 1MB chunks
+  local result = {}
+  local char_count = 0
+  local total_processed = 0
+  while total_processed < #str and char_count < max_length do
+    local chunk_end = math.min(total_processed + chunk_size, #str)
+    local chunk = string.sub(str, total_processed + 1, chunk_end)
+    local bytes = {chunk:byte(1, -1)}
+    local i = 1
+    while i <= #bytes and char_count < max_length do
+      local b = bytes[i]
+      local width = 1
+      if b >= 240 and b <= 247 then -- 4-byte sequence
+        width = 4
+      elseif b >= 224 and b <= 239 then -- 3-byte sequence
+        width = 3
+      elseif b >= 192 and b <= 223 then -- 2-byte sequence
+        width = 2
+      end
+      -- Check if we have a complete sequence and it fits within max_length
+      if i + width - 1 <= #bytes then
+        for j = 0, width - 1 do
+          table.insert(result, bytes[i + j])
+        end
+        i = i + width
+        char_count = char_count + 1
+      else
+        break
+      end
+    end
+    total_processed = chunk_end
+  end
+  local truncated = ""
+  for _, b in ipairs(result) do
+    truncated = truncated .. string.char(b)
+  end
+  return truncated
+end
+
 -- Cache for sanitized text
 local sanitize_cache = {}
 local sanitize_cache_keys = {}
@@ -377,5 +421,6 @@ end
 return {
   is_japanese = is_japanese,
   translate_with_gemini = translate_with_gemini,
-  sanitize_text = sanitize_text
+  sanitize_text = sanitize_text,
+  safe_truncate = safe_truncate
 }
