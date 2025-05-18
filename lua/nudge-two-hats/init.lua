@@ -49,10 +49,6 @@ local translations = {
   }
 }
 
-local function is_japanese(text)
-  return text:match("[\227-\233]") ~= nil
-end
-
 -- Get the appropriate language for translations
 local function get_language()
   if config.output_language == "auto" then
@@ -398,6 +394,10 @@ local function sanitize_text(text)
   return sanitized
 end
 
+local function is_japanese(text)
+  return text:match("[\227-\233]") ~= nil
+end
+
 local function translate_with_gemini(text, source_lang, target_lang, api_key)
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Translating: " .. text)
@@ -476,6 +476,8 @@ local function translate_with_gemini(text, source_lang, target_lang, api_key)
   end
   return nil
 end
+
+
 
 local function translate_message(message)
   if not config.translate_messages then
