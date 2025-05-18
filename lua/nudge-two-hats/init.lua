@@ -66,22 +66,6 @@ function M.stop_notification_timer(buf)
   return nil
 end
 
--- function M.stop_virtual_text_timer(buf)
---   state.timers = state.timers or {}
---   state.timers.virtual_text = state.timers.virtual_text or {}
---   if state.timers.virtual_text[buf] then
---     local timer_id = state.timers.virtual_text[buf]
---     vim.fn.timer_stop(timer_id)
---     state.timers.virtual_text[buf] = nil
---     if config.debug_mode then
---       print(string.format("[Nudge Two Hats Debug] virtual textタイマー停止: バッファ %d, タイマーID %d", buf, timer_id))
---     end
---     return timer_id
---   end
---   return nil
--- end
-
-
 -- Stop virtual text timer for a buffer
 function M.stop_virtual_text_timer(buf)
   state.timers = state.timers or {}
