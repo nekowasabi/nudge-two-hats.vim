@@ -341,22 +341,6 @@ function M.setup(opts)
 end
 
 return M
-                
-                if #words > config.message_length then
-                  local truncated_words = {}
-                  for i = 1, config.message_length do
-                    table.insert(truncated_words, words[i])
-                  end
-                  advice = table.concat(truncated_words, " ")
-                end
-              end
-              
-              if config.translate_messages then
-                advice = translate_message(advice)
-              end
-              
-              callback(advice)
-              
             else
               callback(translate_message(translations.en.api_error))
             end
