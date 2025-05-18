@@ -26,324 +26,28 @@ local config = require("nudge-two-hats.config")
 -- Import the API module for all functions
 local api = require("nudge-two-hats.api")
 
+-- Import the buffer module
+local buffer = require("nudge-two-hats.buffer")
+
 -- Use imported safe_truncate function
 local safe_truncate = api.safe_truncate
 
--- こちらの関数はapi.luaに移動しました
+-- buffer.luaに機能を移動しました
 
-
+-- buffer.luaからの関数を使用
 local function get_buf_diff(buf)
-  if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] get_buf_diff開始: バッファ %d, 時刻: %s", buf, os.date("%Y-%m-%d %H:%M:%S")))
-    print("[Nudge Two Hats Debug] 保存されたバッファ内容と現在の内容を比較します")
-  end
-  local line_count = vim.api.nvim_buf_line_count(buf)
-  local content
-  if line_count < 1000 then
-    content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-  else
-    local chunks = {}
-    local chunk_size = 500
-    local total_chunks = math.ceil(line_count / chunk_size)
-    for i = 0, total_chunks - 1 do
-      local start_line = i * chunk_size
-      local end_line = math.min((i + 1) * chunk_size, line_count)
-      table.insert(chunks, table.concat(vim.api.nvim_buf_get_lines(buf, start_line, end_line, false), "\n"))
-    end
-    content = table.concat(chunks, "\n")
-  end
-  if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] 現在のバッファ内容: %d文字", #content))
-    local content_preview = content:sub(1, 50):gsub("\n", "\\n")
-    print(string.format("[Nudge Two Hats Debug] バッファ内容プレビュー: %s...", content_preview))
-    -- Calculate content hash for comparison
-    local content_hash = 0
-    for i = 1, #content do
-      content_hash = (content_hash * 31 + string.byte(content, i)) % 1000000007
-    end
-    print(string.format("[Nudge Two Hats Debug] バッファ内容ハッシュ: %d", content_hash))
-  end
-  -- Get the filetypes for this buffer
-  local filetypes = {}
-  if state.buf_filetypes[buf] then
-    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
-      table.insert(filetypes, filetype)
-    end
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] バッファ %d の登録済みfiletypes: %s", 
-        buf, state.buf_filetypes[buf]))
-    end
-  else
-    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    if current_filetype and current_filetype ~= "" then
-      table.insert(filetypes, current_filetype)
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] バッファ %d の現在のfiletype: %s", 
-          buf, current_filetype))
-      end
-    else
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] バッファ %d のfiletypeが見つかりません", buf))
-      end
-    end
-  end
-  if #filetypes == 0 then
-    table.insert(filetypes, "_default")
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] filetypeが見つからないため、_defaultを使用します")
-    end
-  end
-  -- Initialize buffer content storage if needed
-  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-  -- Check if this is the first notification
-  local first_notification = true
-  for _, filetype in ipairs(filetypes) do
-    if state.buf_content_by_filetype[buf][filetype] then
-      first_notification = false
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 既存のバッファ内容が見つかりました: filetype=%s, サイズ=%d文字", 
-          filetype, #state.buf_content_by_filetype[buf][filetype]))
-      end
-      break
-    end
-  end
-  local force_diff = false
-  local event_name = vim.v.event and vim.v.event.event
-  if event_name == "BufWritePost" then
-    force_diff = true
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] BufWritePostイベントのため、強制的にdiffを生成します")
-    end
-  end
-  if first_notification and content and content ~= "" then
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] 初回通知のためダミーdiffを作成します（カーソル位置周辺のみ）")
-    end
-    local first_filetype = filetypes[1]
-    state.buf_content_by_filetype[buf][first_filetype] = ""
-    -- Get cursor position
-    local cursor_pos
-    local cursor_line
-    -- Safely get cursor position
-    local status, err = pcall(function()
-      cursor_pos = vim.api.nvim_win_get_cursor(0)
-      cursor_line = cursor_pos[1]
-    end)
-    if not status then
-      cursor_line = 1
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] カーソル位置の取得に失敗しました: %s", err))
-      end
-    end
-    -- Calculate range (cursor position ±10 lines)
-    local context_lines = 10
-    local start_line = math.max(1, cursor_line - context_lines)
-    local end_line = math.min(line_count, cursor_line + context_lines)
-    local context_line_count = end_line - start_line + 1
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] カーソル位置: %d行目, 範囲: %d-%d行 (合計%d行)", 
-        cursor_line, start_line, end_line, context_line_count))
-    end
-    -- Create a diff showing only lines around cursor position
-    local diff = string.format("--- a/dummy\n+++ b/current\n@@ -0,0 +1,%d @@\n", context_line_count)
-    for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)) do
-      diff = diff .. "+" .. line .. "\n"
-    end
-    local context_content = table.concat(vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false), "\n")
-    state.buf_content_by_filetype[buf][first_filetype] = context_content
-    state.buf_content[buf] = context_content
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 初回通知用のコンテキスト: %d文字", #context_content))
-      print(string.format("[Nudge Two Hats Debug] 初回通知用のdiff: %d文字", #diff))
-    end
-    return context_content, diff, first_filetype
-  end
-  local old = nil
-  local detected_filetype = nil
-  -- First try to use the temporary file if available
-  if state.temp_files and state.temp_files[buf] then
-    local temp_file_path = state.temp_files[buf]
-    local temp_file = io.open(temp_file_path, "r")
-    if temp_file then
-      old = temp_file:read("*all")
-      temp_file:close()
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
-          temp_file_path, #old))
-      end
-      -- Use the first filetype as the detected filetype
-      if #filetypes > 0 then
-        detected_filetype = filetypes[1]
-      end
-    else
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] テンポラリファイルの読み込みに失敗しました: %s", temp_file_path))
-      end
-    end
-  else
-    for _, filetype in ipairs(filetypes) do
-      if state.buf_content_by_filetype[buf] and state.buf_content_by_filetype[buf][filetype] then
-        old = state.buf_content_by_filetype[buf][filetype]
-        detected_filetype = filetype
-        if config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug] filetype=%sの内容を使用します", filetype))
-        end
-        break
-      end
-    end
-    -- If still no content, try using the buffer content
-    if not old and state.buf_content[buf] then
-      old = state.buf_content[buf]
-      if not detected_filetype and #filetypes > 0 then
-        detected_filetype = filetypes[1]
-      end
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] バッファ全体の内容を使用します"))
-      end
-    end
-  end
-  if old then
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字", 
-        #old, #content))
-      local old_sample = string.sub(old, 1, 100)
-      local new_sample = string.sub(content, 1, 100)
-      print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
-      print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
-    end
-    if force_diff or old ~= content then
-      local diff = vim.diff(old, content, { result_type = "unified" })
-      if config.debug_mode then
-        if diff then
-          print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
-          local diff_preview = diff:sub(1, 100):gsub("\n", "\\n")
-          print(string.format("[Nudge Two Hats Debug] diff内容プレビュー: %s...", diff_preview))
-        else
-          print("[Nudge Two Hats Debug] vim.diffの結果: nil")
-        end
-        print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
-          tostring(old ~= content)))
-      end
-      if type(diff) == "string" and diff ~= "" then
-        if config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug] 差分が見つかりました: filetype=%s", detected_filetype))
-          print(string.format("[Nudge Two Hats Debug] バッファ内容を更新します: %d文字", #content))
-        end
-        if detected_filetype then
-          state.buf_content_by_filetype[buf][detected_filetype] = content
-        end
-        state.buf_content[buf] = content
-        -- Delete the temporary file after notification
-        if state.temp_files and state.temp_files[buf] then
-          local temp_file_path = state.temp_files[buf]
-          os.execute("chmod 644 " .. temp_file_path)
-          os.remove(temp_file_path)
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
-          end
-          state.temp_files[buf] = nil
-        end
-        return content, diff, detected_filetype
-      elseif force_diff then
-        -- For BufWritePost, create a minimal diff if none was found
-        local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
-          "No changes detected, but file was saved", "File saved at " .. os.date("%c"))
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
-        end
-        -- Delete the temporary file after notification
-        if state.temp_files and state.temp_files[buf] then
-          local temp_file_path = state.temp_files[buf]
-          os.execute("chmod 644 " .. temp_file_path)
-          os.remove(temp_file_path)
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
-          end
-          state.temp_files[buf] = nil
-        end
-        return content, minimal_diff, detected_filetype
-      end
-    else
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 内容が同一のため、差分なし: filetype=%s", detected_filetype or "unknown"))
-      end
-    end
-  else
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 比較対象の古い内容が見つかりません: filetype=%s", detected_filetype or "unknown"))
-    end
-  end
-  if config.debug_mode then
-    print("[Nudge Two Hats Debug] 差分が見つかりませんでした。バッファ内容を更新します。")
-  end
-  -- Update buffer content even if no diff was found
-  for _, filetype in ipairs(filetypes) do
-    state.buf_content_by_filetype[buf][filetype] = content
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] バッファ内容を更新しました: filetype=%s, サイズ=%d文字", 
-        filetype, #content))
-    end
-  end
-  state.buf_content[buf] = content
-  return content, nil, nil
+  return buffer.get_buf_diff(buf)
+
 end
 
-local selected_hat = nil
-
+-- buffer.luaからget_prompt_for_buffer関数を呼び出す
 local function get_prompt_for_buffer(buf)
-  local filetypes = {}
-  -- Check if we have stored filetypes for this buffer
-  if state.buf_filetypes[buf] then
-    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
-      table.insert(filetypes, filetype)
-    end
-  end
-  -- If no stored filetypes, use the current buffer's filetype
-  if #filetypes == 0 then
-    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-    if current_filetype and current_filetype ~= "" then
-      table.insert(filetypes, current_filetype)
-    end
-  end
-  if config.debug_mode then
-    print("[Nudge Two Hats Debug] Buffer filetypes: " .. table.concat(filetypes, ", "))
-  end
-  -- Check if we have a specific prompt for any of the filetypes
-  for _, filetype in ipairs(filetypes) do
-    if filetype and config.filetype_prompts[filetype] then
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
-      end
-      local filetype_prompt = config.filetype_prompts[filetype]
-      if type(filetype_prompt) == "string" then
-        selected_hat = nil
-        return filetype_prompt
-      elseif type(filetype_prompt) == "table" then
-        local role = filetype_prompt.role or config.default_cbt.role
-        local direction = filetype_prompt.direction or config.default_cbt.direction
-        local emotion = filetype_prompt.emotion or config.default_cbt.emotion
-        local tone = filetype_prompt.tone or config.default_cbt.tone
-        local prompt_text = filetype_prompt.prompt
-        local hats = filetype_prompt.hats or config.default_cbt.hats or {}
-        if #hats > 0 then
-          math.randomseed(os.time())
-          selected_hat = hats[math.random(1, #hats)]
-          
-          if config.debug_mode then
-            print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
-          end
-        end
-        return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
-                             role, selected_hat, direction, emotion, tone, prompt_text)
-      else
-        selected_hat = nil
-        return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
-                             role, direction, emotion, tone, prompt_text)
-      end
-    end
-  end
-  selected_hat = nil
-  return config.system_prompt
+  return buffer.get_prompt_for_buffer(buf)
+end
+
+-- buffer.luaからselected_hatを取得する関数
+local function get_selected_hat()
+  return buffer.get_selected_hat()
 end
 
 -- local advice_cache = {}
@@ -709,8 +413,8 @@ function M.start_notification_timer(buf, event_name)
         print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       local title = "Nudge Two Hats"
-      if selected_hat then
-        title = selected_hat
+      if get_selected_hat() then
+        title = get_selected_hat()
       end
       if config.debug_mode then
         print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
@@ -1123,6 +827,9 @@ function M.setup(opts)
     config = vim.tbl_deep_extend("force", config, opts)
     api.update_config(config)
   end
+  -- stateをbuffer.luaモジュールと共有
+  buffer.set_state(state)
+  
   vim.api.nvim_set_hl(0, "NudgeTwoHatsVirtualText", {
     fg = config.virtual_text.text_color,
     bg = config.virtual_text.background_color,
@@ -1664,8 +1371,8 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       local title = "Nudge Two Hats"
-      if selected_hat then
-        title = selected_hat
+      if get_selected_hat() then
+        title = get_selected_hat()
       end
       if config.debug_mode then
         print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
@@ -1767,8 +1474,8 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
       end
       local title = "Nudge Two Hats (Debug)"
-      if selected_hat then
-        title = selected_hat .. " (Debug)"
+      if get_selected_hat() then
+        title = get_selected_hat() .. " (Debug)"
       end
       vim.notify(advice, vim.log.levels.INFO, {
         title = title,
