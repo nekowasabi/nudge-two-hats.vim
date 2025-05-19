@@ -91,7 +91,7 @@ function M.display_virtual_text(buf, advice)
   state.virtual_text.last_advice[buf] = advice
   local ok, extmark_id = pcall(vim.api.nvim_buf_set_extmark, buf, state.virtual_text.namespace, row, 0, {
     virt_text = {{advice, "NudgeTwoHatsVirtualText"}},
-    virt_text_pos = "eol",
+    virt_text_pos = "right_align",
     hl_mode = "combine",
   })
   if not ok then
