@@ -103,7 +103,6 @@ describe('nudge-two-hats buffer', function()
     end
   end)
 
-  
   after_each(function()
     -- Restore original functions
     vim.api.nvim_buf_get_lines = state.original_nvim_buf_get_lines
@@ -131,6 +130,7 @@ describe('nudge-two-hats buffer', function()
     buffer.update_config(config)
     state.buf_filetypes[state.test_buf] = 'lua'
     local prompt = buffer.get_prompt_for_buffer(state.test_buf, state)
+    print('Actual prompt:', prompt)
     assert.matches('CB', prompt)
   end)
 
