@@ -539,15 +539,15 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   local output_lang = get_language()
   if output_lang == "ja" then
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字程度の簡潔なアドバイスをお願いします。", config.notify_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config.notify_message_length)
     else
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字程度の簡潔なアドバイスをお願いします。", config.virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config.virtual_text_message_length)
     end
   else
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise advice in about %d characters.", config.notify_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config.notify_message_length)
     else
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise advice in about %d characters.", config.virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config.virtual_text_message_length)
     end
   end
   -- print(system_prompt)

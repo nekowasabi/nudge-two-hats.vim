@@ -41,20 +41,12 @@ end
 
 -- 仮想テキストを表示する関数
 function M.display_virtual_text(buf, advice)
-  -- 仮想テキスト表示前に、メッセージをvirtual_text_message_lengthに基づいて切り詰める
+  -- 仮想テキスト表示関数では切り詰めを行わない
+  -- 既にAPIコールで指定した長さのメッセージが生成されている
   local message_length = config.virtual_text_message_length
   
   if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] Original advice length: %d, limit: %d", #advice, message_length))
-  end
-  
-  -- メッセージを長さ制限
-  if #advice > message_length then
-    local api = require("nudge-two-hats.api")
-    advice = api.safe_truncate(advice, message_length)
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] Truncated advice to length: %d", #advice))
-    end
+    print(string.format("[Nudge Two Hats Debug] Virtual text advice length: %d, expected: %d", #advice, message_length))
   end
 
   -- -- virtual_text_message_lengthが小さい場合は差し替えを実行

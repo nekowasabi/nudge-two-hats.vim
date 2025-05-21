@@ -229,12 +229,12 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     -- 通知用のコンテキストを設定
     state.context_for = "notification"
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
+      print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
       print("[Nudge Two Hats Debug] context_for: " .. state.context_for)
     end
     api.get_gemini_advice(diff, function(advice)
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
+        print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       local title = "Nudge Two Hats"
       if state.selected_hat then
@@ -252,7 +252,22 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         print(advice)
         print("==========================")
       end
-      state.virtual_text.last_advice[buf] = advice
+      
+      -- 仮想テキスト用に別途Gemini APIを呼び出し
+      state.context_for = "virtual_text"
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (仮想テキスト用)")
+      end
+      api.get_gemini_advice(diff, function(virtual_text_advice)
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
+          print("\n=== Nudge Two Hats 仮想テキスト ===")
+          print(virtual_text_advice)
+          print("================================")
+        end
+        state.virtual_text.last_advice[buf] = virtual_text_advice
+      end)
+      
       if content then
         -- Update content for all filetypes
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}

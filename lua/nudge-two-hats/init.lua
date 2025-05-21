@@ -417,9 +417,11 @@ function M.setup(opts)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
     end
+    -- 通知用にGemini APIを呼び出し
+    state.context_for = "notification"
     api.get_gemini_advice(diff, function(advice)
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] APIコールバック実行: " .. (advice or "アドバイスなし"))
+        print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       local title = "Nudge Two Hats"
       if selected_hat then
@@ -437,7 +439,20 @@ function M.setup(opts)
         print(advice)
         print("==========================")
       end
-      state.virtual_text.last_advice[buf] = advice
+      
+      -- 仮想テキスト用に別途Gemini APIを呼び出し
+      state.context_for = "virtual_text"
+      api.get_gemini_advice(diff, function(virtual_text_advice)
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
+          print("\n=== Nudge Two Hats 仮想テキスト ===")
+          print(virtual_text_advice)
+          print("================================")
+        end
+        -- 仮想テキスト用のアドバイスを保存
+        state.virtual_text.last_advice[buf] = virtual_text_advice
+      end)
+      
       if content then
         -- Update content for all filetypes
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
@@ -520,6 +535,8 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] コンテキスト範囲: " .. context_start .. "-" .. context_end .. " 行")
     end
     state.last_api_call = 0
+    -- 通知用にGemini APIを呼び出し
+    state.context_for = "notification"
     api.get_gemini_advice(diff, function(advice) 
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
@@ -533,7 +550,15 @@ function M.setup(opts)
         title = title,
         icon = "🐛",
       })
-      state.virtual_text.last_advice[buf] = advice
+      
+      -- 仮想テキスト用に別途Gemini APIを呼び出し
+      state.context_for = "virtual_text"
+      api.get_gemini_advice(diff, function(virtual_text_advice)
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
+        end
+        state.virtual_text.last_advice[buf] = virtual_text_advice
+      end, prompt, config.purpose)
     end, prompt, config.purpose)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
