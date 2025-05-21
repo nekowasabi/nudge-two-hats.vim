@@ -48,6 +48,7 @@ require("nudge-two-hats").setup({
   -- Prompt configuration
   system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests.",
   purpose = "", -- Work purpose or objective (e.g., "code review", "refactoring", "feature development")
+  callback = "", -- Vim function name to append its return value to the prompt
   
   -- Default CBT (Cognitive Behavioral Therapy) settings
   default_cbt = {
@@ -68,6 +69,7 @@ require("nudge-two-hats").setup({
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+      callback = "", -- Optional Vim function for markdown files
     },
     -- Other filetypes configured similarly
     
@@ -174,6 +176,10 @@ The plugin tracks changes by filetype, allowing for more accurate and relevant s
 ### Purpose Parameter
 
 The purpose parameter enhances AI suggestions by providing context about your current work objective. This helps the AI generate more relevant and helpful advice tailored to your specific task.
+
+### Callback
+
+You can specify a Vim function name via the `callback` option. When defined, the plugin calls this function and appends its return value to the prompt. If the function does not exist, an empty string is appended.
 
 ## Requirements
 

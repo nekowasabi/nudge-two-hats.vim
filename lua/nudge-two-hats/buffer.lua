@@ -5,6 +5,21 @@ local config = require("nudge-two-hats.config")
 -- 関数で使用される変数
 local selected_hat = nil
 
+local function run_callback(name)
+  if not name or name == "" then
+    return ""
+  end
+  if vim.fn.exists("*" .. name) == 1 then
+    local ok, result = pcall(function()
+      return vim.fn[name]()
+    end)
+    if ok and result then
+      return tostring(result)
+    end
+  end
+  return ""
+end
+
 function M.update_config(new_config)
   config = new_config
 end
@@ -276,9 +291,10 @@ function M.get_prompt_for_buffer(buf, state)
         print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
       end
       local filetype_prompt = config.filetype_prompts[filetype]
+      local cb_result = run_callback(filetype_prompt.callback or config.callback)
       if type(filetype_prompt) == "string" then
         selected_hat = nil
-        return filetype_prompt
+        return (filetype_prompt .. " " .. cb_result):gsub("%s+$", "")
       elseif type(filetype_prompt) == "table" then
         local role = filetype_prompt.role or config.default_cbt.role
         local direction = filetype_prompt.direction or config.default_cbt.direction
@@ -293,17 +309,20 @@ function M.get_prompt_for_buffer(buf, state)
             print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
           end
         end
-        return string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s", 
+        local base = string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s",
                              role, selected_hat, direction, emotion, tone, prompt_text)
+        return (base .. " " .. cb_result):gsub("%s+$", "")
       else
         selected_hat = nil
-        return string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s", 
+        local base = string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s",
                              role, direction, emotion, tone, prompt_text)
+        return (base .. " " .. cb_result):gsub("%s+$", "")
       end
     end
   end
   selected_hat = nil
-  return config.system_prompt
+  local result = (config.system_prompt .. " " .. run_callback(config.callback)):gsub("%s+$", "")
+  return result
 end
 
 -- 選択されたハットを取得する関数
