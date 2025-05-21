@@ -328,8 +328,9 @@ function M.get_prompt_for_buffer(buf, state)
             print("[Nudge Two Hats Debug] Selected hat: " .. selected_hat)
           end
         end
-        local base = string.format("I am a %s wearing the %s hat. %s. With %s emotions and a %s tone, I will advise: %s",
-                              role, selected_hat, direction, emotion, tone, prompt_text)
+        -- prompt.luaモジュールから生成関数を呼び出す
+        local prompt = require("nudge-two-hats.prompt")
+        local base = prompt.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text)
         return base:gsub("%s+$", "")
       else
         -- テストでは、callback結果のみを期待している場合がある
@@ -338,8 +339,9 @@ function M.get_prompt_for_buffer(buf, state)
         end
         
         selected_hat = nil
-        local base = string.format("I am a %s. %s. With %s emotions and a %s tone, I will advise: %s",
-                              role, direction, emotion, tone, prompt_text)
+        -- prompt.luaモジュールから生成関数を呼び出す
+        local prompt = require("nudge-two-hats.prompt")
+        local base = prompt.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text)
         return base:gsub("%s+$", "")
       end
     end

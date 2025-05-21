@@ -3,7 +3,6 @@ local config = {
   purpose = "", -- Work purpose or objective (e.g., "code review", "refactoring", "feature development")
   -- Vim function name to append custom text to the prompt
   callback = "",
-  
   translations = {
     en = {
       enabled = "enabled",
@@ -28,7 +27,6 @@ local config = {
       unknown_error = "不明なエラー",
     }
   },
-  
   default_cbt = {
     role = "Cognitive behavioral therapy specialist",
     direction = "Guide towards healthier thought patterns and behaviors",
@@ -36,7 +34,6 @@ local config = {
     tone = "Supportive and encouraging but direct",
     hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
   },
-  
   filetype_prompts = {
     markdown = {
       prompt = "Give advice about this writing, focusing on clarity and structure.",
@@ -112,20 +109,14 @@ local config = {
       callback = "",
     },
   },
-  
   message_length = 10, -- Default length of the advice message
   length_type = "characters", -- Can be "characters" or "words"
-  
   output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
   translate_messages = true, -- Whether to translate messages to the specified language
-  
   min_interval = 30, -- Minimum interval between API calls in seconds
-  
-  gemini_model = "gemini-2.5-flash-preview-04-17", -- Updated to latest Gemini model
-  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent",
-  
+  gemini_model = "gemini-2.5-flash-preview-05-20", -- Updated to latest Gemini model
+  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
-  
   virtual_text = {
     idle_time = 10, -- Time in minutes before showing virtual text
     cursor_idle_delay = 5, -- Time in minutes before setting timers after cursor stops
