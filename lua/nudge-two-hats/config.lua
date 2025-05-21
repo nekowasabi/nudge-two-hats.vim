@@ -109,7 +109,8 @@ local config = {
       callback = "",
     },
   },
-  message_length = 10, -- Default length of the advice message
+  virtual_text_message_length = 10, -- 仮想テキストの表示に使用するメッセージの長さ
+  notify_message_length = 10, -- 通知に使用するメッセージの長さ
   length_type = "characters", -- Can be "characters" or "words"
   output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
   translate_messages = true, -- Whether to translate messages to the specified language

@@ -226,8 +226,11 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     end
     -- Get the appropriate prompt for this buffer's filetype
     local prompt = buffer.get_prompt_for_buffer(buf, state)
+    -- 通知用のコンテキストを設定
+    state.context_for = "notification"
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
+      print("[Nudge Two Hats Debug] context_for: " .. state.context_for)
     end
     api.get_gemini_advice(diff, function(advice)
       if config.debug_mode then

@@ -69,9 +69,16 @@ local sanitize_cache_keys = {}
 local MAX_CACHE_SIZE = 20
 
 -- Sanitize text for API requests
-local function sanitize_text(text)
+local function sanitize_text(text, state, diff)
   if not text then
     return ""
+  end
+  local sanitized_diff = sanitize_text(diff)
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Sanitized diff length: " .. #sanitized_diff)
+    print("[Nudge Two Hats Debug] Context for: " .. (state.context_for or "unknown"))
+    print("[Nudge Two Hats Debug] notify_message_length: " .. config.notify_message_length)
+    print("[Nudge Two Hats Debug] virtual_text_message_length: " .. config.virtual_text_message_length)
   end
   if sanitize_cache[text] then
     if config.debug_mode then
@@ -524,15 +531,24 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   end
 
   local system_prompt = prompt or config.system_prompt
+  local context_for = state.context_for or "notification"
   local purpose_text = purpose or config.purpose
   if purpose_text and purpose_text ~= "" then
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end
   local output_lang = get_language()
   if output_lang == "ja" then
-    system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。%d文字程度の簡潔なアドバイスをお願いします。", config.message_length)
+    if context_for == "notification" then
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字程度の簡潔なアドバイスをお願いします。", config.notify_message_length)
+    else
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字程度の簡潔なアドバイスをお願いします。", config.virtual_text_message_length)
+    end
   else
-    system_prompt = system_prompt .. string.format("\nPlease respond in English. Provide concise advice in about %d characters.", config.message_length)
+    if context_for == "notification" then
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise advice in about %d characters.", config.notify_message_length)
+    else
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise advice in about %d characters.", config.virtual_text_message_length)
+    end
   end
   -- print(system_prompt)
   local max_diff_size = 10000  -- 10KB is usually enough for context
@@ -615,17 +631,17 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                 end
               end
               if config.length_type == "characters" then
-                if #advice > config.message_length then
-                  advice = safe_truncate(advice, config.message_length)
+                if #advice > config.notify_message_length then
+                  advice = safe_truncate(advice, config.notify_message_length)
                 end
               else
                 local words = {}
                 for word in advice:gmatch("%S+") do
                   table.insert(words, word)
                 end
-                if #words > config.message_length then
+                if #words > config.notify_message_length then
                   local truncated_words = {}
-                  for i = 1, config.message_length do
+                  for i = 1, config.notify_message_length do
                     table.insert(truncated_words, words[i])
                   end
                   advice = table.concat(truncated_words, " ")
@@ -683,17 +699,17 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
               if config.length_type == "characters" then
-                if #advice > config.message_length then
-                  advice = safe_truncate(advice, config.message_length)
+                if #advice > config.notify_message_length then
+                  advice = safe_truncate(advice, config.notify_message_length)
                 end
               else
                 local words = {}
                 for word in advice:gmatch("%S+") do
                   table.insert(words, word)
                 end
-                if #words > config.message_length then
+                if #words > config.notify_message_length then
                   local truncated_words = {}
-                  for i = 1, config.message_length do
+                  for i = 1, config.notify_message_length do
                     table.insert(truncated_words, words[i])
                   end
                   advice = table.concat(truncated_words, " ")

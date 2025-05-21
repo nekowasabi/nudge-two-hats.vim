@@ -41,13 +41,43 @@ end
 
 -- 仮想テキストを表示する関数
 function M.display_virtual_text(buf, advice)
+  -- 仮想テキスト表示前に、メッセージをvirtual_text_message_lengthに基づいて切り詰める
+  local message_length = config.virtual_text_message_length
+  
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] Original advice length: %d, limit: %d", #advice, message_length))
+  end
+  
+  -- メッセージを長さ制限
+  if #advice > message_length then
+    local api = require("nudge-two-hats.api")
+    advice = api.safe_truncate(advice, message_length)
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] Truncated advice to length: %d", #advice))
+    end
+  end
+
+  -- -- virtual_text_message_lengthが小さい場合は差し替えを実行
+  -- if config.notify_message_length > config.virtual_text_message_length then
+  --   if config.debug_mode then
+  --     print(string.format("[Nudge Two Hats Debug] Temporarily swapping notify_message_length %d with virtual_text_message_length %d",
+  --                       config.notify_message_length, config.virtual_text_message_length))
+  --   end
+  --   -- notify_message_length に virtual_text_message_length を設定 (一時的)
+  --   config.notify_message_length = config.virtual_text_message_length
+  --   temp_swap = true
+  -- end
+  -- 
   local log_file = open_log_file()
   if log_file then
     log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
     log_file:write("Buffer: " .. buf .. "\n")
     log_file:write("Plugin enabled: " .. tostring(state.enabled) .. "\n")
+    log_file:write("Setting context_for to virtual_text\n")
     log_file:write("Advice length: " .. #advice .. " characters\n")
     log_file:write("Advice: " .. advice .. "\n")
+    -- 仮想テキスト用のコンテキストを設定
+    state.context_for = "virtual_text"
     if not state.enabled then
       log_file:write("Plugin not enabled, exiting display_virtual_text\n\n")
       log_file:close()
@@ -62,6 +92,9 @@ function M.display_virtual_text(buf, advice)
       log_file:write("Created new namespace: nudge-two-hats-virtual-text\n")
     end
   end
+  -- 仮想テキスト用のコンテキストを設定
+  state.context_for = "virtual_text"
+  
   M.clear_virtual_text(buf)
   
   -- timerモジュールからstop_timer関数を直接呼び出さず、渡された関数を使用
