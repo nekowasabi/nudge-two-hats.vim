@@ -113,4 +113,20 @@ function M.display_virtual_text(buf, advice)
   end
 end
 
+-- テスト用：仮想テキストを即座に表示するコマンド
+function M.test_virtual_text(test_message)
+  -- 現在のバッファを取得
+  local current_buf = vim.api.nvim_get_current_buf()
+  
+  -- テストメッセージを設定（指定がなければデフォルトのメッセージを使用）
+  local message = test_message or "⚙️ Virtual text test message - "..os.date("%H:%M:%S")
+  
+  -- 仮想テキストを表示
+  M.display_virtual_text(current_buf, message)
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] Test virtual text command executed")
+  end
+end
+
 return M
