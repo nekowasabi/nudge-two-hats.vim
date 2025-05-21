@@ -5,7 +5,6 @@ local config = require("nudge-two-hats.config")
 
 -- APIモジュールの読み込み
 local api = require("nudge-two-hats.api")
-
 -- 状態管理用の変数（init.luaから受け取ります）
 local state = nil
 
@@ -44,7 +43,7 @@ function M.display_virtual_text(buf, advice)
   -- 仮想テキスト表示関数では切り詰めを行わない
   -- 既にAPIコールで指定した長さのメッセージが生成されている
   local message_length = config.virtual_text_message_length
-  
+
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] Virtual text advice length: %d, expected: %d", #advice, message_length))
   end
@@ -59,7 +58,6 @@ function M.display_virtual_text(buf, advice)
   --   config.notify_message_length = config.virtual_text_message_length
   --   temp_swap = true
   -- end
-  -- 
   local log_file = open_log_file()
   if log_file then
     log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
@@ -86,14 +84,11 @@ function M.display_virtual_text(buf, advice)
   end
   -- 仮想テキスト用のコンテキストを設定
   state.context_for = "virtual_text"
-  
   M.clear_virtual_text(buf)
-  
   -- timerモジュールからstop_timer関数を直接呼び出さず、渡された関数を使用
   if state.stop_timer then
     state.stop_timer(buf)
   end
-  
   if log_file then
     log_file:write("Reset timer for buffer " .. buf .. " when displaying virtual text\n")
   end
@@ -142,13 +137,10 @@ end
 function M.test_virtual_text(test_message)
   -- 現在のバッファを取得
   local current_buf = vim.api.nvim_get_current_buf()
-  
   -- テストメッセージを設定（指定がなければデフォルトのメッセージを使用）
   local message = test_message or "⚙️ Virtual text test message - "..os.date("%H:%M:%S")
-  
   -- 仮想テキストを表示
   M.display_virtual_text(current_buf, message)
-  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Test virtual text command executed")
   end
