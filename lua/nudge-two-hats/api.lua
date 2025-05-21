@@ -630,18 +630,22 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                   advice_cache[to_remove] = nil
                 end
               end
+              local message_length = config.notify_message_length
+              if context_for == "virtual_text" then
+                message_length = config.virtual_text_message_length
+              end
               if config.length_type == "characters" then
-                if #advice > config.notify_message_length then
-                  advice = safe_truncate(advice, config.notify_message_length)
+                if #advice > message_length then
+                  advice = safe_truncate(advice, message_length)
                 end
               else
                 local words = {}
                 for word in advice:gmatch("%S+") do
                   table.insert(words, word)
                 end
-                if #words > config.notify_message_length then
+                if #words > message_length then
                   local truncated_words = {}
-                  for i = 1, config.notify_message_length do
+                  for i = 1, message_length do
                     table.insert(truncated_words, words[i])
                   end
                   advice = table.concat(truncated_words, " ")
@@ -698,18 +702,22 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                response.candidates[1].content and response.candidates[1].content.parts and
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
+              local message_length = config.notify_message_length
+              if context_for == "virtual_text" then
+                message_length = config.virtual_text_message_length
+              end
               if config.length_type == "characters" then
-                if #advice > config.notify_message_length then
-                  advice = safe_truncate(advice, config.notify_message_length)
+                if #advice > message_length then
+                  advice = safe_truncate(advice, message_length)
                 end
               else
                 local words = {}
                 for word in advice:gmatch("%S+") do
                   table.insert(words, word)
                 end
-                if #words > config.notify_message_length then
+                if #words > message_length then
                   local truncated_words = {}
-                  for i = 1, config.notify_message_length do
+                  for i = 1, message_length do
                     table.insert(truncated_words, words[i])
                   end
                   advice = table.concat(truncated_words, " ")
