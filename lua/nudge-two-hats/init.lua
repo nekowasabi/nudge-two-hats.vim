@@ -451,7 +451,7 @@ function M.setup(opts)
         end
         -- 仮想テキスト用のアドバイスを保存
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end)
+      end, prompt, config.purpose, state)
       
       if content then
         -- Update content for all filetypes
@@ -480,7 +480,7 @@ function M.setup(opts)
           print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
-    end, prompt, config.purpose)
+    end, prompt, config.purpose, state)
   end, {})
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugNotify", function()
     local buf = vim.api.nvim_get_current_buf()
@@ -558,8 +558,8 @@ function M.setup(opts)
           print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, prompt, config.purpose)
-    end, prompt, config.purpose)
+      end, prompt, config.purpose, state)
+    end, prompt, config.purpose, state)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
     end

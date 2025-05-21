@@ -266,7 +266,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
           print("================================")
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end)
+      end, prompt, config.purpose, state)
       
       if content then
         -- Update content for all filetypes
@@ -295,7 +295,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
           print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
-    end, prompt, config.purpose)
+    end, prompt, config.purpose, state)
   end)
   
   return state.timers.notification[buf]
