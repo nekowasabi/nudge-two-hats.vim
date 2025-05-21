@@ -1,6 +1,8 @@
 local config = {
   system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
   purpose = "", -- Work purpose or objective (e.g., "code review", "refactoring", "feature development")
+  -- Vim function name to append custom text to the prompt
+  callback = "",
   
   translations = {
     en = {
@@ -39,10 +41,11 @@ local config = {
     markdown = {
       prompt = "Give advice about this writing, focusing on clarity and structure.",
       role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more structured writing", 
+      direction = "Guide towards clearer and more structured writing",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+      callback = "",
     },
     text = {
       prompt = "Give advice about this writing, focusing on clarity and structure.",
@@ -51,6 +54,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+      callback = "",
     },
     tex = {
       prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
@@ -59,6 +63,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
+      callback = "",
     },
     rst = {
       prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
@@ -67,6 +72,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
+      callback = "",
     },
     org = {
       prompt = "Give advice about this Org document, focusing on organization and structure.",
@@ -75,6 +81,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
+      callback = "",
     },
     
     lua = {
@@ -84,6 +91,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
+      callback = "",
     },
     python = {
       prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
@@ -92,6 +100,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
+      callback = "",
     },
     javascript = {
       prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
@@ -100,6 +109,7 @@ local config = {
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
       hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
+      callback = "",
     },
   },
   

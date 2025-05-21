@@ -7,6 +7,7 @@ describe('nudge-two-hats buffer', function()
   local config = {
     debug_mode = false,
     min_interval = 30,
+    callback = "",
     filetype_prompts = {
       lua = {
         role = "Luaプログラマー",
@@ -14,7 +15,8 @@ describe('nudge-two-hats buffer', function()
         emotion = "思慮深い",
         tone = "専門的",
         prompt = "Luaコードの改善点を具体的に教えてください",
-        hats = {"Luaエキスパート", "メンター"}
+        hats = {"Luaエキスパート", "メンター"},
+        callback = ""
       },
       javascript = "JavaScriptのコードレビューをお願いします",
       python = {
@@ -23,7 +25,8 @@ describe('nudge-two-hats buffer', function()
         emotion = "分析的",
         tone = "教育的",
         prompt = "このPythonコードをどう改善できますか？",
-        hats = {"Python達人", "コードレビュアー"}
+        hats = {"Python達人", "コードレビュアー"},
+        callback = ""
       }
     },
     default_cbt = {
@@ -99,7 +102,7 @@ describe('nudge-two-hats buffer', function()
       -- Do nothing in tests
     end
   end)
-  
+
   after_each(function()
     -- Restore original functions
     vim.api.nvim_buf_get_lines = state.original_nvim_buf_get_lines
@@ -108,9 +111,56 @@ describe('nudge-two-hats buffer', function()
     vim.api.nvim_win_get_cursor = state.original_nvim_win_get_cursor
     vim.diff = state.original_diff
     vim.cmd = state.original_vim_cmd
-    
+
     -- Clean up test buffer
     pcall(vim.api.nvim_buf_delete, state.test_buf, {force = true})
+  end)
+
+  it('callbackが存在する場合プロンプトに含めること', function()
+    config.callback = 'TestCallback'
+    vim.fn.exists = function(name)
+      if name == '*TestCallback' then
+        return 1
+      end
+      return 0
+    end
+    vim.fn.TestCallback = function()
+      return 'CB'
+    end
+    buffer.update_config(config)
+    state.buf_filetypes[state.test_buf] = 'lua'
+    local prompt = buffer.get_prompt_for_buffer(state.test_buf, state)
+    print('Actual prompt:', prompt)
+    assert.matches('CB', prompt)
+  end)
+
+  it('ファイルタイプ固有のcallbackが優先されること', function()
+    config.callback = ''
+    config.filetype_prompts.lua.callback = 'LuaCb'
+    vim.fn.exists = function(name)
+      if name == '*LuaCb' then
+        return 1
+      end
+      return 0
+    end
+    vim.fn.LuaCb = function()
+      return 'LUA_CB'
+    end
+    buffer.update_config(config)
+    state.buf_filetypes[state.test_buf] = 'lua'
+    local prompt = buffer.get_prompt_for_buffer(state.test_buf, state)
+    assert.matches('LUA_CB', prompt)
+  end)
+
+  it('存在しないcallbackは空文字を追加するだけ', function()
+    config.callback = 'NoFunc'
+    vim.fn.exists = function()
+      return 0
+    end
+    buffer.update_config(config)
+    state.buf_filetypes[state.test_buf] = 'javascript'
+    local prompt = buffer.get_prompt_for_buffer(state.test_buf, state)
+    assert.equals('JavaScriptのコードレビューをお願いします', prompt)
   end)
   
   it('バッファの差分を正しく検出すること', function()
