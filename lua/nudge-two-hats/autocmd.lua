@@ -217,6 +217,17 @@ end
 
 -- BufLeave自動コマンドのコールバック関数
 function M.buf_leave_callback()
+  local current_buf_id_leave = vim.api.nvim_get_current_buf()
+  if m_state and m_state.buf_enter_processed and m_state.buf_enter_processed[current_buf_id_leave] then
+    if m_config and m_config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug BufLeave] M.buf_leave_callback: Clearing processed flag for buf %d.", current_buf_id_leave))
+    end
+    m_state.buf_enter_processed[current_buf_id_leave] = nil
+  elseif m_config and m_config.debug_mode then
+    -- Log if the flag wasn't set, which might be normal if BufEnter didn't complete for some reason
+    print(string.format("[Nudge Two Hats Debug BufLeave] M.buf_leave_callback: No processed flag to clear for buf %d (or m_state/m_state.buf_enter_processed is nil).", current_buf_id_leave))
+  end
+
   if not m_state or not m_plugin_functions then
     if m_config and m_config.debug_mode then
       print("[Nudge Two Hats Debug] ERROR in buf_leave_callback: m_state or m_plugin_functions is nil.")
@@ -286,6 +297,32 @@ function M.buf_enter_callback()
     local event_info = vim.inspect(vim.v.event) -- Inspect vim.v.event
     print(string.format("[Nudge Two Hats Debug BufEnter] M.buf_enter_callback: START. Execution #%d for buf %d. vim.v.event: %s", buf_enter_execution_count, current_buf_id, event_info))
   end
+
+  local current_buf_id_guard = vim.api.nvim_get_current_buf() -- Use a distinct variable name if current_buf_id is used later for other things, or reuse if appropriate.
+  if not m_state then -- Ensure m_state is available
+      if m_config and m_config.debug_mode then
+          print("[Nudge Two Hats Debug BufEnter] ERROR: m_state is nil in M.buf_enter_callback. Cannot implement re-entrancy guard.")
+      end
+      -- Decide if you should return here or let it proceed without the guard
+      -- For now, let's assume m_state should be available from setup.
+  else
+      m_state.buf_enter_processed = m_state.buf_enter_processed or {} -- Initialize if needed
+      if m_state.buf_enter_processed[current_buf_id_guard] then
+          if m_config and m_config.debug_mode then
+              print(string.format("[Nudge Two Hats Debug BufEnter] M.buf_enter_callback: SKIPPING duplicate processing for buf %d. Execution #%d.", current_buf_id_guard, buf_enter_execution_count))
+          end
+          -- Also print the END message here before returning, for consistency in START/END pairing
+          if m_config and m_config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug BufEnter] M.buf_enter_callback: END (skipped duplicate). Execution #%d for buf %d.", buf_enter_execution_count, current_buf_id_guard))
+          end
+          return -- Exit early
+      end
+      m_state.buf_enter_processed[current_buf_id_guard] = true
+      if m_config and m_config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug BufEnter] M.buf_enter_callback: Set processed flag for buf %d. Execution #%d.", current_buf_id_guard, buf_enter_execution_count))
+      end
+  end
+
   if not m_config or not m_state or not m_plugin_functions then
     if (m_config and m_config.debug_mode) or (not m_config and original_config_module.debug_mode) then
       print("[Nudge Two Hats Debug] ERROR in buf_enter_callback: m_config, m_state, or m_plugin_functions is nil.")
