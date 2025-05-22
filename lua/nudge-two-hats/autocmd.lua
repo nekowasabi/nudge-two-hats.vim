@@ -1,11 +1,16 @@
 local M = {}
 
+local config = require("nudge-two-hats.config")
+
+function M.update_config(new_config)
+  config = new_config
+end
+
 -- バッファ監視用の自動コマンドを作成する関数
 -- @param buf number バッファID
 -- @param state table プラグインの状態を保持するテーブル
--- @param config table 設定情報
 -- @param plugin_functions table プラグイン関数（start_notification_timer, clear_virtual_text, start_virtual_text_timer）
-function M.create_autocmd(buf, state, config, plugin_functions)
+function M.create_autocmd(buf, state, plugin_functions)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
   local filetypes = {}
@@ -152,7 +157,7 @@ function M.clear_tempfiles(debug_mode)
 end
 
 -- BufLeave自動コマンドのコールバック関数
-function M.buf_leave_callback(config, state, plugin_functions)
+function M.buf_leave_callback(state, plugin_functions)
   local buf = vim.api.nvim_get_current_buf()
   -- Stop notification timer
   local notification_timer_id = plugin_functions.stop_notification_timer(buf)
@@ -181,7 +186,7 @@ function M.buf_leave_callback(config, state, plugin_functions)
 end
 
 -- BufEnter自動コマンドのコールバック関数
-function M.buf_enter_callback(config, state, plugin_functions)
+function M.buf_enter_callback(state, plugin_functions)
   local buf = vim.api.nvim_get_current_buf()
   -- プラグインが有効な場合のみupdatetimeを設定
   if state.enabled then
@@ -213,25 +218,30 @@ end
 
 -- 自動コマンドを設定する関数
 function M.setup(config, state, plugin_functions)
+  local group = vim.api.nvim_create_augroup("nudge-two-hats-autocmd", { clear = true })
+
   vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = group,
     pattern = "*",
     callback = function()
       M.clear_tempfiles(config.debug_mode)
-    end
+    end,
   })
 
   vim.api.nvim_create_autocmd("BufLeave", {
+    group = group,
     pattern = "*",
     callback = function()
       M.buf_leave_callback(config, state, plugin_functions)
-    end
+    end,
   })
 
   vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
     pattern = "*",
     callback = function()
       M.buf_enter_callback(config, state, plugin_functions)
-    end
+    end,
   })
 end
 

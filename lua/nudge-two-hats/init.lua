@@ -132,7 +132,7 @@ function M.setup(opts)
       local augroup_name = "nudge-two-hats-" .. buf
       pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
       -- create_autocmd関数をautocmdモジュールから呼び出します
-      autocmd.create_autocmd(buf, state, config, {
+      autocmd.create_autocmd(buf, state, {
         start_notification_timer = M.start_notification_timer,
         clear_virtual_text = M.clear_virtual_text,
         start_virtual_text_timer = M.start_virtual_text_timer
@@ -240,7 +240,7 @@ function M.setup(opts)
     local augroup_name = "nudge-two-hats-" .. buf
     pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
     -- create_autocmd関数をautocmdモジュールから呼び出します
-    autocmd.create_autocmd(buf, state, config, {
+    autocmd.create_autocmd(buf, state, {
       start_notification_timer = M.start_notification_timer,
       clear_virtual_text = M.clear_virtual_text,
       start_virtual_text_timer = M.start_virtual_text_timer
@@ -413,7 +413,7 @@ function M.setup(opts)
       print(diff)
     end
     -- Get the appropriate prompt for this buffer's filetype
-    local prompt = buffer.get_prompt_for_buffer(buf, state)
+    local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
     end
@@ -442,6 +442,7 @@ function M.setup(opts)
       
       -- 仮想テキスト用に別途Gemini APIを呼び出し
       state.context_for = "virtual_text"
+      local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
       api.get_gemini_advice(diff, function(virtual_text_advice)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
@@ -450,8 +451,8 @@ function M.setup(opts)
           print("================================")
         end
         -- 仮想テキスト用のアドバイスを保存
-        state.virtual_text.last_advice[buf] = virtual_text_advice
-      end)
+      state.virtual_text.last_advice[buf] = virtual_text_advice
+      end, state)
       
       if content then
         -- Update content for all filetypes
@@ -480,7 +481,7 @@ function M.setup(opts)
           print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
-    end, prompt, config.purpose)
+    end, prompt, config.purpose, state)
   end, {})
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugNotify", function()
     local buf = vim.api.nvim_get_current_buf()
@@ -528,7 +529,7 @@ function M.setup(opts)
                               context_content)
     local current_filetype = filetypes[1]
     -- Get the appropriate prompt for this buffer's filetype
-    local prompt = buffer.get_prompt_for_buffer(buf, state)
+    local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 強制的に通知処理を実行します")
       print("[Nudge Two Hats Debug] Filetype: " .. (current_filetype or "unknown"))
@@ -537,7 +538,7 @@ function M.setup(opts)
     state.last_api_call = 0
     -- 通知用にGemini APIを呼び出し
     state.context_for = "notification"
-    api.get_gemini_advice(diff, function(advice) 
+    api.get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
       end
@@ -553,13 +554,14 @@ function M.setup(opts)
       
       -- 仮想テキスト用に別途Gemini APIを呼び出し
       state.context_for = "virtual_text"
+      local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
       api.get_gemini_advice(diff, function(virtual_text_advice)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, prompt, config.purpose)
-    end, prompt, config.purpose)
+      end, prompt, config.purpose, state)
+    end, prompt, config.purpose, state)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
     end
@@ -571,7 +573,8 @@ function M.setup(opts)
     stop_virtual_text_timer = M.stop_virtual_text_timer,
     start_virtual_text_timer = M.start_virtual_text_timer
   }
-  autocmd.setup(config, state, plugin_functions)
+  autocmd.update_config(config)
+  autocmd.setup(state, plugin_functions)
 end
 
 return M
