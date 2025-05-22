@@ -413,7 +413,7 @@ function M.setup(opts)
       print(diff)
     end
     -- Get the appropriate prompt for this buffer's filetype
-    local prompt = buffer.get_prompt_for_buffer(buf, state)
+    local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します")
     end
@@ -442,6 +442,7 @@ function M.setup(opts)
       
       -- 仮想テキスト用に別途Gemini APIを呼び出し
       state.context_for = "virtual_text"
+      local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
       api.get_gemini_advice(diff, function(virtual_text_advice)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
@@ -451,7 +452,7 @@ function M.setup(opts)
         end
         -- 仮想テキスト用のアドバイスを保存
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, prompt, config.purpose, state)
+      end, vt_prompt, config.purpose, state)
       
       if content then
         -- Update content for all filetypes
@@ -528,7 +529,7 @@ function M.setup(opts)
                               context_content)
     local current_filetype = filetypes[1]
     -- Get the appropriate prompt for this buffer's filetype
-    local prompt = buffer.get_prompt_for_buffer(buf, state)
+    local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 強制的に通知処理を実行します")
       print("[Nudge Two Hats Debug] Filetype: " .. (current_filetype or "unknown"))
@@ -537,7 +538,7 @@ function M.setup(opts)
     state.last_api_call = 0
     -- 通知用にGemini APIを呼び出し
     state.context_for = "notification"
-    api.get_gemini_advice(diff, function(advice) 
+    api.get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
       end
@@ -553,12 +554,13 @@ function M.setup(opts)
       
       -- 仮想テキスト用に別途Gemini APIを呼び出し
       state.context_for = "virtual_text"
+      local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
       api.get_gemini_advice(diff, function(virtual_text_advice)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, prompt, config.purpose, state)
+      end, vt_prompt, config.purpose, state)
     end, prompt, config.purpose, state)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")

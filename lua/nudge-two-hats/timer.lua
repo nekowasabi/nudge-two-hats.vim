@@ -225,7 +225,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       print(diff)
     end
     -- Get the appropriate prompt for this buffer's filetype
-    local prompt = buffer.get_prompt_for_buffer(buf, state)
+    local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     -- 通知用のコンテキストを設定
     state.context_for = "notification"
     if config.debug_mode then
@@ -258,6 +258,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       if config.debug_mode then
         print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (仮想テキスト用)")
       end
+      local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
       api.get_gemini_advice(diff, function(virtual_text_advice)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
@@ -266,7 +267,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
           print("================================")
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, prompt, config.purpose, state)
+      end, vt_prompt, config.purpose, state)
       
       if content then
         -- Update content for all filetypes

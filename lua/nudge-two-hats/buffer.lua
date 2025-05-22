@@ -266,7 +266,7 @@ function M.get_buf_diff(buf, state)
 end
 
 -- バッファに応じたプロンプトを取得する関数
-function M.get_prompt_for_buffer(buf, state)
+function M.get_prompt_for_buffer(buf, state, context_for)
   -- コールバック結果を先に取得 - グローバルレベルのcallback
   local global_cb_result = run_callback(config.callback)
   -- 初期化
@@ -323,6 +323,11 @@ function M.get_prompt_for_buffer(buf, state)
         local hats = filetype_prompt.hats or config.default_cbt.hats or {}
         local notify_message_length = filetype_prompt.notify_message_length or config.notify_message_length
         local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config.virtual_text_message_length
+        local message_length = notify_message_length
+        context_for = context_for or (state and state.context_for) or "notification"
+        if context_for == "virtual_text" then
+          message_length = virtual_text_message_length
+        end
         if #hats > 0 then
           math.randomseed(os.time())
           selected_hat = hats[math.random(1, #hats)]
@@ -332,18 +337,23 @@ function M.get_prompt_for_buffer(buf, state)
         end
         -- prompt.luaモジュールから生成関数を呼び出す
         local prompt = require("nudge-two-hats.prompt")
-        local base = prompt.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, config.notify_message_length)
+        local base = prompt.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length)
         return base:gsub("%s+$", "")
       else
         -- テストでは、callback結果のみを期待している場合がある
         if cb_result and cb_result ~= "" then
           return cb_result
         end
-        
+
         selected_hat = nil
+        local message_length = virtual_text_message_length
+        context_for = context_for or (state and state.context_for) or "notification"
+        if context_for ~= "virtual_text" then
+          message_length = notify_message_length
+        end
         -- prompt.luaモジュールから生成関数を呼び出す
         local prompt = require("nudge-two-hats.prompt")
-        local base = prompt.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, config.virtual_text_message_length)
+        local base = prompt.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length)
         return base:gsub("%s+$", "")
       end
     end
