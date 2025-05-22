@@ -132,11 +132,8 @@ function M.setup(opts)
       local augroup_name = "nudge-two-hats-" .. buf
       pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
       -- create_autocmd関数をautocmdモジュールから呼び出します
-      autocmd.create_autocmd(buf, state, {
-        start_notification_timer = M.start_notification_timer,
-        clear_virtual_text = M.clear_virtual_text,
-        start_virtual_text_timer = M.start_virtual_text_timer
-      })
+      -- The autocmd module now uses its internally stored m_state and m_plugin_functions
+      autocmd.create_autocmd(buf)
       state.virtual_text.last_cursor_move[buf] = os.time()
       -- print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
       -- print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
@@ -240,11 +237,8 @@ function M.setup(opts)
     local augroup_name = "nudge-two-hats-" .. buf
     pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
     -- create_autocmd関数をautocmdモジュールから呼び出します
-    autocmd.create_autocmd(buf, state, {
-      start_notification_timer = M.start_notification_timer,
-      clear_virtual_text = M.clear_virtual_text,
-      start_virtual_text_timer = M.start_virtual_text_timer
-    })
+    -- The autocmd module now uses its internally stored m_state and m_plugin_functions
+    autocmd.create_autocmd(buf)
     state.virtual_text.last_cursor_move[buf] = os.time()
     local filetype_str = table.concat(filetypes, ", ")
     local source_str = using_current_filetype and "current buffer" or "specified files"
@@ -571,10 +565,14 @@ function M.setup(opts)
   local plugin_functions = {
     stop_notification_timer = M.stop_notification_timer,
     stop_virtual_text_timer = M.stop_virtual_text_timer,
-    start_virtual_text_timer = M.start_virtual_text_timer
+    start_virtual_text_timer = M.start_virtual_text_timer,
+    -- For autocmd.create_autocmd to access other functions if needed via m_plugin_functions
+    start_notification_timer = M.start_notification_timer,
+    clear_virtual_text = M.clear_virtual_text
   }
   autocmd.update_config(config)
-  autocmd.setup(state, plugin_functions)
+  -- Pass all necessary components to autocmd.setup
+  autocmd.setup(config, state, plugin_functions)
 end
 
 return M

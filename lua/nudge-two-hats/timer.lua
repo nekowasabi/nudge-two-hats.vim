@@ -12,6 +12,9 @@ end
 
 -- Function to stop notification timer for a buffer
 function M.stop_notification_timer(buf, state)
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug Timer] stop_notification_timer: Called for buf %d. Current timer ID: %s", buf, tostring(state.timers.notification[buf] or "nil")))
+  end
   local timer_id = state.timers.notification[buf]
   if timer_id then
     vim.fn.timer_stop(timer_id)
@@ -39,6 +42,10 @@ end
 
 -- Function to stop virtual text timer for a buffer
 function M.stop_virtual_text_timer(buf, state)
+  if config.debug_mode then
+    local current_timer_id = state.timers and state.timers.virtual_text and state.timers.virtual_text[buf]
+    print(string.format("[Nudge Two Hats Debug Timer] stop_virtual_text_timer: Called for buf %d. Current timer ID: %s", buf, tostring(current_timer_id or "nil")))
+  end
   state.timers = state.timers or {}
   state.timers.virtual_text = state.timers.virtual_text or {}
   local timer_id = state.timers.virtual_text[buf]
@@ -65,16 +72,28 @@ end
 
 -- Function to start notification timer for a buffer (for API requests)
 function M.start_notification_timer(buf, event_name, state, stop_notification_timer_func)
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Called for buf %d from event %s. Current timer ID for buf: %s", buf, event_name or "unknown", tostring(state.timers.notification[buf] or "nil")))
+  end
   if not state.enabled then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Not enabled for buf %d. Returning.", buf))
+    end
     return
   end
   -- Check if this is the current buffer
   local current_buf = vim.api.nvim_get_current_buf()
   if buf ~= current_buf then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: buf %d is not current buffer %d. Returning.", buf, current_buf))
+    end
     return
   end
   -- Check if buffer is valid
   if not vim.api.nvim_buf_is_valid(buf) then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: buf %d is not valid. Returning.", buf))
+    end
     return
   end
   -- Check if a notification timer is already running for this buffer
@@ -94,8 +113,10 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       local total_time = config.min_interval  -- Use min_interval directly in seconds
       local remaining_time = math.max(0, total_time - elapsed_time)
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒",
+        print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Timer already running for buf %d. Elapsed: %.1fs, Remaining: %.1fs. Returning.",
                            buf, elapsed_time, remaining_time))
+        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒",
+                           buf, elapsed_time, remaining_time)) -- Existing log
       end
       return
     end
@@ -151,11 +172,18 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     end
   end
   if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] 通知タイマー開始: バッファ %d, イベント %s", buf, event_name))
+    print(string.format("[Nudge Two Hats Debug] 通知タイマー開始: バッファ %d, イベント %s", buf, event_name)) -- Existing log
+    print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Starting new timer for buf %d. Interval: %d ms.", buf, config.min_interval * 1000))
   end
   -- Create a new notification timer with min_interval (in seconds)
   state.timers.notification[buf] = vim.fn.timer_start(config.min_interval * 1000, function()
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Fired for buf %d. Timer ID that fired: %s", buf, tostring(state.timers.notification[buf] or "original_id_unknown")))
+    end
     if not vim.api.nvim_buf_is_valid(buf) then
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Buf %d is no longer valid. Returning.", buf))
+      end
       return
     end
     vim.cmd("checktime " .. buf)
@@ -306,18 +334,29 @@ end
 
 -- Function to start virtual text timer for a buffer (for display)
 function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text_func)
+  if config.debug_mode then
+    local current_timer_id = state.timers and state.timers.virtual_text and state.timers.virtual_text[buf]
+    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Called for buf %d from event %s. Current timer ID for buf: %s", buf, event_name or "unknown", tostring(current_timer_id or "nil")))
+  end
   if not state.enabled then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Not enabled for buf %d. Returning.", buf))
+    end
     return
   end
   -- Check if this is the current buffer
   local current_buf = vim.api.nvim_get_current_buf()
   if buf ~= current_buf then
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: buf %d is not current buffer %d. Returning.", buf, current_buf))
+    end
     return
   end
   -- Check if buffer is valid
   if not vim.api.nvim_buf_is_valid(buf) then
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] Cannot start virtual text timer for invalid buffer %d", buf))
+      print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: buf %d is not valid. Returning.", buf))
+      print(string.format("[Nudge Two Hats Debug] Cannot start virtual text timer for invalid buffer %d", buf)) -- Existing log
     end
     return
   end
@@ -336,21 +375,30 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
   end
   if config.debug_mode then
     local event_str = event_name or "unknown"
-    print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_str))
+    print(string.format("[Nudge Two Hats Debug] virtual textタイマー開始: バッファ %d, イベント %s", buf, event_str)) -- Existing log
+    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Starting new timer for buf %d. Interval: %d ms.", buf, config.virtual_text.idle_time * 60 * 1000))
   end
   -- Calculate timer duration in milliseconds
   local timer_ms = config.virtual_text.idle_time * 60 * 1000
   -- Create a new timer
   state.timers.virtual_text[buf] = vim.fn.timer_start(timer_ms, function()
+    if config.debug_mode then
+      local current_timer_id_callback = state.timers and state.timers.virtual_text and state.timers.virtual_text[buf]
+      print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Fired for buf %d. Timer ID that fired: %s", buf, tostring(current_timer_id_callback or "original_id_unknown")))
+    end
     -- Check if buffer is still valid
     if not vim.api.nvim_buf_is_valid(buf) then
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Buf %d is no longer valid. Stopping timer and returning.", buf))
+      end
       M.stop_virtual_text_timer(buf, state)
       return
     end
     -- Check if we have advice to display
     if not state.virtual_text.last_advice[buf] then
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] No advice available for buffer %d", buf))
+        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: No advice for buf %d. Returning.", buf))
+        print(string.format("[Nudge Two Hats Debug] No advice available for buffer %d", buf)) -- Existing log
       end
       return
     end
