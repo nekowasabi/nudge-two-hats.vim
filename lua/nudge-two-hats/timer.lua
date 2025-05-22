@@ -96,31 +96,8 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     end
     return
   end
-  -- Check if a notification timer is already running for this buffer
-  if state.timers.notification[buf] then
-    local timer_info = vim.fn.timer_info(state.timers.notification[buf])
-    if timer_info and #timer_info > 0 then
-      -- Store the start time if not already set
-      if not state.timers.notification_start_time then
-        state.timers.notification_start_time = {}
-      end
-      if not state.timers.notification_start_time[buf] then
-        state.timers.notification_start_time[buf] = os.time()
-      end
-      -- Calculate elapsed and remaining time
-      local current_time = os.time()
-      local elapsed_time = current_time - state.timers.notification_start_time[buf]
-      local total_time = config.min_interval  -- Use min_interval directly in seconds
-      local remaining_time = math.max(0, total_time - elapsed_time)
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Timer already running for buf %d. Elapsed: %.1fs, Remaining: %.1fs. Returning.",
-                           buf, elapsed_time, remaining_time))
-        print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒",
-                           buf, elapsed_time, remaining_time)) -- Existing log
-      end
-      return
-    end
-  end
+  -- Removed the existing timer check block as per instructions.
+  -- The call to stop_notification_timer_func(buf) is now unconditional before starting a new timer.
   local current_content = ""
   if vim.api.nvim_buf_is_valid(buf) then
     vim.cmd("checktime " .. buf)
@@ -322,6 +299,9 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     end, prompt, config.purpose, state)
   end)
   
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Successfully set new timer for buf %d. New Timer ID: %s. Stored ID in state: %s", buf, tostring(state.timers.notification[buf]), tostring(state.timers.notification[buf])))
+  end
   return state.timers.notification[buf]
 end
 
