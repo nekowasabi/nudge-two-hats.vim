@@ -6,7 +6,9 @@ describe('nudge-two-hats buffer', function()
   local buffer
   local config = {
     debug_mode = false,
-    min_interval = 30,
+    notify_min_interval = 30,
+    notify_interval_correction = 1.1,
+    virtual_text_min_interval = 30,
     callback = "",
     filetype_prompts = {
       lua = {
@@ -278,7 +280,9 @@ describe('nudge-two-hats buffer', function()
       length_type = "characters",
       output_language = "ja",
       translate_messages = true,
-      min_interval = 6,
+      notify_min_interval = 6,
+      notify_interval_correction = 1.1,
+      virtual_text_min_interval = 6,
       virtual_text = {
         idle_time = 0.1,
         cursor_idle_delay = 0.1,

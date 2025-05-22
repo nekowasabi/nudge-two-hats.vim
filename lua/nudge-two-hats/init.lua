@@ -9,7 +9,8 @@ local state = {
   last_api_call = 0, -- Timestamp of the last API call
   timers = {
     notification = {}, -- Store notification timer IDs by buffer (for API requests)
-    virtual_text = {}  -- Store virtual text timer IDs by buffer (for display)
+    virtual_text = {},  -- Store virtual text timer IDs by buffer (for display)
+    virtual_text_advice = {} -- Store virtual text advice timer IDs by buffer
   },
   virtual_text = {
     namespace = nil, -- Namespace for virtual text extmarks
@@ -52,13 +53,18 @@ function M.stop_virtual_text_timer(buf)
 end
 
 -- timer.luaからの関数を呼び出すラッパー関数
+function M.stop_virtual_text_advice_timer(buf)
+  return timer.stop_virtual_text_advice_timer(buf, state)
+end
+
+-- timer.luaからの関数を呼び出すラッパー関数
 function M.start_notification_timer(buf, event_name)
   return timer.start_notification_timer(buf, event_name, state, M.stop_notification_timer)
 end
 
 -- timer.luaからの関数を呼び出すラッパー関数
 function M.stop_timer(buf)
-  return timer.stop_timer(buf, state, M.stop_notification_timer, M.stop_virtual_text_timer)
+  return timer.stop_timer(buf, state, M.stop_notification_timer, M.stop_virtual_text_timer, M.stop_virtual_text_advice_timer)
 end
 
 -- timer.luaからの関数を呼び出すラッパー関数
@@ -68,6 +74,11 @@ function M.start_virtual_text_timer(buf, event_name)
     M.start_virtual_text_timer(buffer_id)
   end
   return timer.start_virtual_text_timer(buf, event_name, state, M.display_virtual_text)
+end
+
+-- timer.luaからの関数を呼び出すラッパー関数
+function M.start_virtual_text_advice_timer(buf, event_name)
+  return timer.start_virtual_text_advice_timer(buf, event_name, state, M.stop_virtual_text_advice_timer)
 end
 
 -- virtual_textモジュールをインポート
@@ -242,6 +253,7 @@ function M.setup(opts)
     -- create_autocmd関数をautocmdモジュールから呼び出します
     autocmd.create_autocmd(buf, state, {
       start_notification_timer = M.start_notification_timer,
+      start_virtual_text_advice_timer = M.start_virtual_text_advice_timer,
       clear_virtual_text = M.clear_virtual_text,
       start_virtual_text_timer = M.start_virtual_text_timer
     })
@@ -571,7 +583,10 @@ function M.setup(opts)
   local plugin_functions = {
     stop_notification_timer = M.stop_notification_timer,
     stop_virtual_text_timer = M.stop_virtual_text_timer,
-    start_virtual_text_timer = M.start_virtual_text_timer
+    stop_virtual_text_advice_timer = M.stop_virtual_text_advice_timer,
+    start_notification_timer = M.start_notification_timer,
+    start_virtual_text_timer = M.start_virtual_text_timer,
+    start_virtual_text_advice_timer = M.start_virtual_text_advice_timer
   }
   autocmd.update_config(config)
   autocmd.setup(state, plugin_functions)
