@@ -213,25 +213,30 @@ end
 
 -- 自動コマンドを設定する関数
 function M.setup(config, state, plugin_functions)
+  local group = vim.api.nvim_create_augroup("nudge-two-hats-autocmd", { clear = true })
+
   vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = group,
     pattern = "*",
     callback = function()
       M.clear_tempfiles(config.debug_mode)
-    end
+    end,
   })
 
   vim.api.nvim_create_autocmd("BufLeave", {
+    group = group,
     pattern = "*",
     callback = function()
       M.buf_leave_callback(config, state, plugin_functions)
-    end
+    end,
   })
 
   vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
     pattern = "*",
     callback = function()
       M.buf_enter_callback(config, state, plugin_functions)
-    end
+    end,
   })
 end
 
