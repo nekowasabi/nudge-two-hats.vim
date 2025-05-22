@@ -69,14 +69,21 @@ local sanitize_cache_keys = {}
 local MAX_CACHE_SIZE = 20
 
 -- Sanitize text for API requests
-local function sanitize_text(text, state, diff)
+local function sanitize_text(text, state)
   if not text then
     return ""
   end
-  local sanitized_diff = sanitize_text(diff)
+  -- Removed: local sanitized_diff = sanitize_text(diff)
   if config.debug_mode then
-    print("[Nudge Two Hats Debug] Sanitized diff length: " .. #sanitized_diff)
-    print("[Nudge Two Hats Debug] Context for: " .. (state.context_for or "unknown"))
+    -- This log might be misleading now as it was intended for 'diff'
+    -- print("[Nudge Two Hats Debug] Sanitized diff length: " .. #sanitized_diff) 
+    -- For clarity, let's log the length of the text being sanitized
+    print("[Nudge Two Hats Debug] sanitize_text: Input text length: " .. #text)
+    if state then
+      print("[Nudge Two Hats Debug] Context for: " .. (state.context_for or "unknown"))
+    else
+      print("[Nudge Two Hats Debug] sanitize_text: state is nil")
+    end
     print("[Nudge Two Hats Debug] notify_message_length: " .. config.notify_message_length)
     print("[Nudge Two Hats Debug] virtual_text_message_length: " .. config.virtual_text_message_length)
   end
@@ -559,7 +566,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
       print("[Nudge Two Hats Debug] Diff truncated from " .. #diff .. " to " .. #truncated_diff .. " bytes")
     end
   end
-  local sanitized_diff = sanitize_text(truncated_diff)
+  local sanitized_diff = sanitize_text(truncated_diff, state)
   if config.debug_mode and sanitized_diff ~= truncated_diff then
     print("[Nudge Two Hats Debug] Diff content sanitized for UTF-8 compliance")
   end
