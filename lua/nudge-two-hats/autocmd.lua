@@ -157,7 +157,7 @@ function M.clear_tempfiles(debug_mode)
 end
 
 -- BufLeave自動コマンドのコールバック関数
-function M.buf_leave_callback(state, plugin_functions)
+function M.buf_leave_callback(config, state, plugin_functions)
   local buf = vim.api.nvim_get_current_buf()
   -- Stop notification timer
   local notification_timer_id = plugin_functions.stop_notification_timer(buf)
@@ -198,7 +198,7 @@ function M.buf_leave_callback(state, plugin_functions)
 end
 
 -- BufEnter自動コマンドのコールバック関数
-function M.buf_enter_callback(state, plugin_functions)
+function M.buf_enter_callback(config, state, plugin_functions)
   local buf = vim.api.nvim_get_current_buf()
   -- プラグインが有効な場合のみupdatetimeを設定
   if state.enabled then
