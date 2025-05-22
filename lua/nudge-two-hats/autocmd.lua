@@ -9,7 +9,7 @@ end
 -- バッファ監視用の自動コマンドを作成する関数
 -- @param buf number バッファID
 -- @param state table プラグインの状態を保持するテーブル
--- @param plugin_functions table プラグイン関数（start_notification_timer, clear_virtual_text, start_virtual_text_timer）
+-- @param plugin_functions table プラグイン関数（start_notification_timer, start_virtual_text_advice_timer, clear_virtual_text, start_virtual_text_timer）
 function M.create_autocmd(buf, state, plugin_functions)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
@@ -89,8 +89,11 @@ function M.create_autocmd(buf, state, plugin_functions)
           state.buf_content_by_filetype[buf][filetype] = content
         end
         state.buf_content[buf] = content
-        -- Start notification timer for API request
+        -- Start timers for API requests
         plugin_functions.start_notification_timer(buf, ctx.event)
+        if plugin_functions.start_virtual_text_advice_timer then
+          plugin_functions.start_virtual_text_advice_timer(buf, ctx.event)
+        end
       end, 100)
     end,
   })
@@ -161,9 +164,13 @@ function M.buf_leave_callback(state, plugin_functions)
   local buf = vim.api.nvim_get_current_buf()
   -- Stop notification timer
   local notification_timer_id = plugin_functions.stop_notification_timer(buf)
-  -- Stop virtual text timer
+  -- Stop virtual text timers
   local virtual_text_timer_id = plugin_functions.stop_virtual_text_timer(buf)
-  if notification_timer_id or virtual_text_timer_id then
+  local virtual_text_advice_timer_id
+  if plugin_functions.stop_virtual_text_advice_timer then
+    virtual_text_advice_timer_id = plugin_functions.stop_virtual_text_advice_timer(buf)
+  end
+  if notification_timer_id or virtual_text_timer_id or virtual_text_advice_timer_id then
     if config.debug_mode then
       local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
       if log_file then
