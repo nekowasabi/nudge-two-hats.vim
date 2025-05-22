@@ -267,7 +267,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
           print("================================")
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, vt_prompt, config.purpose, state)
+      end, state)
       
       if content then
         -- Update content for all filetypes

@@ -451,8 +451,8 @@ function M.setup(opts)
           print("================================")
         end
         -- 仮想テキスト用のアドバイスを保存
-        state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, vt_prompt, config.purpose, state)
+      state.virtual_text.last_advice[buf] = virtual_text_advice
+      end, state)
       
       if content then
         -- Update content for all filetypes
@@ -560,7 +560,7 @@ function M.setup(opts)
           print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, vt_prompt, config.purpose, state)
+      end, prompt, config.purpose, state)
     end, prompt, config.purpose, state)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
