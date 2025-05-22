@@ -4,6 +4,7 @@ local M = {}
 local m_config
 local m_state
 local m_plugin_functions
+local buf_enter_execution_count = 0
 
 -- Keep the original config require for M.update_config and M.clear_tempfiles direct access
 local original_config_module = require("nudge-two-hats.config")
@@ -279,6 +280,12 @@ end
 
 -- BufEnter自動コマンドのコールバック関数
 function M.buf_enter_callback()
+  buf_enter_execution_count = buf_enter_execution_count + 1
+  if m_config and m_config.debug_mode then
+    local current_buf_id = vim.api.nvim_get_current_buf()
+    local event_info = vim.inspect(vim.v.event) -- Inspect vim.v.event
+    print(string.format("[Nudge Two Hats Debug BufEnter] M.buf_enter_callback: START. Execution #%d for buf %d. vim.v.event: %s", buf_enter_execution_count, current_buf_id, event_info))
+  end
   if not m_config or not m_state or not m_plugin_functions then
     if (m_config and m_config.debug_mode) or (not m_config and original_config_module.debug_mode) then
       print("[Nudge Two Hats Debug] ERROR in buf_enter_callback: m_config, m_state, or m_plugin_functions is nil.")
@@ -354,6 +361,10 @@ function M.buf_enter_callback()
         m_plugin_functions.start_notification_timer(buf, "BufEnter")
       end
     end
+  end
+  if m_config and m_config.debug_mode then
+    local current_buf_id = vim.api.nvim_get_current_buf()
+    print(string.format("[Nudge Two Hats Debug BufEnter] M.buf_enter_callback: END. Execution #%d for buf %d.", buf_enter_execution_count, current_buf_id))
   end
 end
 

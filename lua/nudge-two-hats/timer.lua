@@ -154,6 +154,15 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
   end
   -- Create a new notification timer with min_interval (in seconds)
   state.timers.notification[buf] = vim.fn.timer_start(config.min_interval * 1000, function()
+    local debug_file = io.open("/tmp/nudge_notification_fired.log", "a")
+    if debug_file then
+      local current_timer_id_in_state = "unknown"
+      if state and state.timers and state.timers.notification and state.timers.notification[buf] then
+        current_timer_id_in_state = tostring(state.timers.notification[buf])
+      end
+      debug_file:write(string.format("%s - Notification timer callback started for buf %s. Current timer ID in state: %s. Expected firing timer ID: %s\n", os.date("!%Y-%m-%dT%H:%M:%SZ"), tostring(buf), current_timer_id_in_state, tostring(state.timers.notification[buf]))) -- Note: state.timers.notification[buf] here refers to the ID when timer was set.
+      debug_file:close()
+    end
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Fired for buf %d. Timer ID that fired: %s", buf, tostring(state.timers.notification[buf] or "original_id_unknown")))
     end
