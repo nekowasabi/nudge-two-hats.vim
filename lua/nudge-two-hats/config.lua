@@ -110,15 +110,16 @@ local config = {
     },
   },
   virtual_text_message_length = 10, -- 仮想テキストの表示に使用するメッセージの長さ
-  notify_message_length = 10, -- 通知に使用するメッセージの長さ
+  notify_message_length = 100, -- 通知に使用するメッセージの長さ
   length_type = "characters", -- Can be "characters" or "words"
   output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
   translate_messages = true, -- Whether to translate messages to the specified language
-  notify_min_interval = 30, -- Minimum interval between notification API calls in seconds
-  virtual_text_min_interval = 30, -- Minimum interval between virtual text API calls in seconds
+  notify_min_interval_seconds = 6.0, -- Minimum interval between notification API calls (in seconds)
+  notify_interval_correction = 1.0, -- Multiplier to adjust the notification interval
+  virtual_text_min_interval_seconds = 3.0, -- Minimum interval between virtual text API calls (in seconds)
   gemini_model = "gemini-2.5-flash-preview-05-20", -- Updated to latest Gemini model
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
-  debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+  debug_mode = true, -- When true, prints nudge text to Vim's :messages output
   virtual_text = {
     idle_time = 10, -- Time in minutes before showing virtual text
     cursor_idle_delay = 5, -- Time in minutes before setting timers after cursor stops

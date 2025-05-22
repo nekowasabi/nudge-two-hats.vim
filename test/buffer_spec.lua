@@ -7,6 +7,7 @@ describe('nudge-two-hats buffer', function()
   local config = {
     debug_mode = false,
     notify_min_interval = 30,
+    notify_interval_correction = 1.1,
     virtual_text_min_interval = 30,
     callback = "",
     filetype_prompts = {
@@ -280,6 +281,7 @@ describe('nudge-two-hats buffer', function()
       output_language = "ja",
       translate_messages = true,
       notify_min_interval = 6,
+      notify_interval_correction = 1.1,
       virtual_text_min_interval = 6,
       virtual_text = {
         idle_time = 0.1,

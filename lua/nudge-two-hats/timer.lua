@@ -36,7 +36,13 @@ function M.start_virtual_text_advice_timer(buf, event_name, state, stop_virtual_
     print(string.format("[Nudge Two Hats Debug] virtual text advice timer start: buffer %d, event %s", buf, event_name))
   end
 
-  state.timers.virtual_text_advice[buf] = vim.fn.timer_start(config.virtual_text_min_interval * 1000, function()
+  -- Calculate timer interval with a maximum limit to ensure timer works correctly
+  local raw_interval = config.virtual_text_min_interval_seconds * 1000
+  local interval = math.min(2000, math.max(100, math.floor(raw_interval)))
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] 仮想テキストアドバイスタイマー間隔: 計算値=%fミリ秒, 実際に使用する値=%dミリ秒", raw_interval, interval))
+  end
+  state.timers.virtual_text_advice[buf] = vim.fn.timer_start(interval, function()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
@@ -164,7 +170,8 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       -- Calculate elapsed and remaining time
       local current_time = os.time()
       local elapsed_time = current_time - state.timers.notification_start_time[buf]
-      local total_time = config.notify_min_interval  -- Use notify_min_interval directly in seconds
+      local correction = config.notify_interval_correction or 1
+      local total_time = config.notify_min_interval_seconds * correction -- Apply correction factor
       local remaining_time = math.max(0, total_time - elapsed_time)
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] 通知タイマーはすでに実行中です: バッファ %d, 経過時間: %.1f秒, 残り時間: %.1f秒",
@@ -261,8 +268,14 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] 通知タイマー開始: バッファ %d, イベント %s", buf, event_name))
   end
-  -- Create a new notification timer with notify_min_interval (in seconds)
-  state.timers.notification[buf] = vim.fn.timer_start(config.notify_min_interval * 1000, function()
+  -- Create a new notification timer with notify_min_interval_seconds (in seconds)
+  -- Calculate timer interval with a maximum limit to ensure timer works correctly
+  local raw_interval = (config.notify_min_interval_seconds * (config.notify_interval_correction or 1)) * 1000
+  local interval = math.min(2000, math.max(100, math.floor(raw_interval)))
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] u901au77e5u30bfu30a4u30deu30fcu9593u9694: u8a08u7b97u5024=%fu30dfu30eau79d2, u5b9fu969bu306bu4f7fu7528u3059u308bu5024=%du30dfu30eau79d2", raw_interval, interval))
+  end
+  state.timers.notification[buf] = vim.fn.timer_start(interval, function()
     if not vim.api.nvim_buf_is_valid(buf) then
       return
     end
@@ -423,7 +436,13 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
   -- Calculate timer duration in milliseconds
   local timer_ms = config.virtual_text.idle_time * 60 * 1000
   -- Create a new timer
-  state.timers.virtual_text[buf] = vim.fn.timer_start(timer_ms, function()
+  -- Calculate timer interval with a maximum limit to ensure timer works correctly
+  local raw_interval = timer_ms
+  local interval = math.min(3600000, math.max(100, math.floor(raw_interval)))
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] 仮想テキストタイマー間隔: 計算値=%fミリ秒, 実際に使用する値=%dミリ秒", raw_interval, interval))
+  end
+  state.timers.virtual_text[buf] = vim.fn.timer_start(interval, function()
     -- Check if buffer is still valid
     if not vim.api.nvim_buf_is_valid(buf) then
       M.stop_virtual_text_timer(buf, state)

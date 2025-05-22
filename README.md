@@ -95,6 +95,7 @@ require("nudge-two-hats").setup({
   -- Timing configuration
   execution_delay = 60000, -- Delay in milliseconds (1 minute)
   notify_min_interval = 1, -- Minimum interval between notification API calls in minutes
+  notify_interval_correction = 1.1, -- Adjustment multiplier applied to notify_min_interval
   virtual_text_min_interval = 1, -- Minimum interval between virtual text API calls in minutes
   
   -- API configuration

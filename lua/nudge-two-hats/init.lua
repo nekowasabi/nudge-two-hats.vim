@@ -584,6 +584,7 @@ function M.setup(opts)
     stop_notification_timer = M.stop_notification_timer,
     stop_virtual_text_timer = M.stop_virtual_text_timer,
     stop_virtual_text_advice_timer = M.stop_virtual_text_advice_timer,
+    start_notification_timer = M.start_notification_timer,
     start_virtual_text_timer = M.start_virtual_text_timer,
     start_virtual_text_advice_timer = M.start_virtual_text_advice_timer
   }
