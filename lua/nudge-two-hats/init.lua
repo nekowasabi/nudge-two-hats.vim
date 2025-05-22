@@ -132,7 +132,7 @@ function M.setup(opts)
       local augroup_name = "nudge-two-hats-" .. buf
       pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
       -- create_autocmd関数をautocmdモジュールから呼び出します
-      autocmd.create_autocmd(buf, state, config, {
+      autocmd.create_autocmd(buf, state, {
         start_notification_timer = M.start_notification_timer,
         clear_virtual_text = M.clear_virtual_text,
         start_virtual_text_timer = M.start_virtual_text_timer
@@ -240,7 +240,7 @@ function M.setup(opts)
     local augroup_name = "nudge-two-hats-" .. buf
     pcall(vim.api.nvim_del_augroup_by_name, augroup_name)
     -- create_autocmd関数をautocmdモジュールから呼び出します
-    autocmd.create_autocmd(buf, state, config, {
+    autocmd.create_autocmd(buf, state, {
       start_notification_timer = M.start_notification_timer,
       clear_virtual_text = M.clear_virtual_text,
       start_virtual_text_timer = M.start_virtual_text_timer
@@ -573,7 +573,8 @@ function M.setup(opts)
     stop_virtual_text_timer = M.stop_virtual_text_timer,
     start_virtual_text_timer = M.start_virtual_text_timer
   }
-  autocmd.setup(config, state, plugin_functions)
+  autocmd.update_config(config)
+  autocmd.setup(state, plugin_functions)
 end
 
 return M

@@ -163,6 +163,7 @@ describe('nudge-two-hats autocmd', function()
     
     -- autocmdモジュールを読み込む
     autocmd = require('nudge-two-hats.autocmd')
+    autocmd.update_config(config)
     
     -- テスト用バッファの設定
     state.test_buf = 1
@@ -187,7 +188,7 @@ describe('nudge-two-hats autocmd', function()
   
   it('自動コマンドが正しく作成されること', function()
     -- create_autocmd関数のテスト
-    autocmd.create_autocmd(state.test_buf, state, config, plugin_functions)
+    autocmd.create_autocmd(state.test_buf, state, plugin_functions)
     
     -- 自動コマンドが作成されたことを確認
     assert.is_not_nil(state.last_callback)
@@ -224,7 +225,8 @@ describe('nudge-two-hats autocmd', function()
     
     -- setup関数が正常に実行されることを確認
     local success, error_msg = pcall(function()
-      autocmd.setup(config, test_state, plugin_functions)
+      autocmd.update_config(config)
+      autocmd.setup(test_state, plugin_functions)
     end)
     
     -- エラーが発生しないことを確認
@@ -233,7 +235,8 @@ describe('nudge-two-hats autocmd', function()
   
   it('setupが適切な自動コマンドを登録すること', function()
     -- 自動コマンド設定のテスト
-    autocmd.setup(config, state, plugin_functions)
+    autocmd.update_config(config)
+    autocmd.setup(state, plugin_functions)
     
     -- 少なくとも1つの自動コマンドが作成されたことを確認
     assert.is_not_nil(state.last_callback)
@@ -247,7 +250,8 @@ describe('nudge-two-hats autocmd', function()
       'clear_tempfiles',
       'buf_leave_callback',
       'buf_enter_callback',
-      'setup'
+      'setup',
+      'update_config'
     }
     
     -- 全ての必要な関数が公開されていることを確認
