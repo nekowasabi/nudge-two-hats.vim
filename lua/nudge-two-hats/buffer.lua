@@ -214,15 +214,7 @@ function M.get_buf_diff(buf, state)
           state.buf_content_by_filetype[buf][detected_filetype] = content
         end
         state.buf_content[buf] = content
-        if state.temp_files and state.temp_files[buf] then
-          local temp_file_path = state.temp_files[buf]
-          os.execute("chmod 644 " .. temp_file_path)
-          os.remove(temp_file_path)
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
-          end
-          state.temp_files[buf] = nil
-        end
+        -- Temp file deletion removed from here
         return content, diff, detected_filetype
       elseif force_diff then
         local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
@@ -230,15 +222,7 @@ function M.get_buf_diff(buf, state)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
         end
-        if state.temp_files and state.temp_files[buf] then
-          local temp_file_path = state.temp_files[buf]
-          os.execute("chmod 644 " .. temp_file_path)
-          os.remove(temp_file_path)
-          if config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] 通知後にテンポラリファイルを削除しました: %s", temp_file_path))
-          end
-          state.temp_files[buf] = nil
-        end
+        -- Temp file deletion removed from here
         return content, minimal_diff, detected_filetype
       end
     else

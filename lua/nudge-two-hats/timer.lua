@@ -105,41 +105,6 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     vim.cmd("checktime " .. buf)
     -- Get the entire buffer content
     current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-    -- Initialize temp file storage if needed
-    if not state.temp_files then
-      state.temp_files = {}
-    end
-    -- Create a consistent temporary file path for this buffer (without timestamp)
-    local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
-    -- Delete existing file if it exists (to ensure only one file per buffer)
-    if vim.fn.filereadable(temp_file_path) == 1 then
-      os.remove(temp_file_path)
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 既存のテンポラリファイルを削除しました: %s", temp_file_path))
-      end
-    end
-    local temp_file = io.open(temp_file_path, "w")
-    if temp_file then
-      temp_file:write(current_content)
-      temp_file:close()
-      os.execute("chmod 444 " .. temp_file_path)
-      -- Store the temp file path for this buffer
-      state.temp_files[buf] = temp_file_path
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] タイマー開始時に元のバッファ内容をテンポラリファイルに保存: バッファ %d, ファイル %s, サイズ=%d文字", 
-          buf, temp_file_path, #current_content))
-        -- Calculate content hash for comparison
-        local content_hash = 0
-        for i = 1, #current_content do
-          content_hash = (content_hash * 31 + string.byte(current_content, i)) % 1000000007
-        end
-        print(string.format("[Nudge Two Hats Debug] 元のバッファ内容ハッシュ: %d", content_hash))
-      end
-    else
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] テンポラリファイルの作成に失敗しました: %s", temp_file_path))
-      end
-    end
     -- Initialize buffer content storage if needed (for backward compatibility)
     if not state.buf_content_by_filetype[buf] then
       state.buf_content_by_filetype[buf] = {}
@@ -164,7 +129,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     for _, filetype in ipairs(filetypes) do
       state.buf_content_by_filetype[buf][filetype] = current_content
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字", 
+        print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字",
           filetype, #current_content))
       end
     end
@@ -268,6 +233,36 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
       end, state)
+
+      -- Write buffer content to temp file after successful notification processing
+      if vim.api.nvim_buf_is_valid(buf) then
+        local current_content_for_temp = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+        if not state.temp_files then
+          state.temp_files = {}
+        end
+        local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
+        if vim.fn.filereadable(temp_file_path) == 1 then
+          os.remove(temp_file_path)
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] Callback: 既存のテンポラリファイルを削除しました: %s", temp_file_path))
+          end
+        end
+        local temp_file = io.open(temp_file_path, "w")
+        if temp_file then
+          temp_file:write(current_content_for_temp)
+          temp_file:close()
+          os.execute("chmod 644 " .. temp_file_path) -- Changed permissions to 644
+          state.temp_files[buf] = temp_file_path
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] Callback: バッファ内容をテンポラリファイルに保存: バッファ %d, ファイル %s, サイズ=%d文字",
+              buf, temp_file_path, #current_content_for_temp))
+          end
+        else
+          if config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] Callback: テンポラリファイルの作成に失敗しました: %s", temp_file_path))
+          end
+        end
+      end
       
       if content then
         -- Update content for all filetypes

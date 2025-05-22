@@ -183,6 +183,18 @@ function M.buf_leave_callback(state, plugin_functions)
   if state.original_updatetime then
     vim.o.updatetime = state.original_updatetime
   end
+
+  -- Delete the temporary file for this buffer
+  if state.temp_files and state.temp_files[buf] then
+    local temp_file_path = state.temp_files[buf]
+    if vim.fn.filereadable(temp_file_path) == 1 then
+      os.remove(temp_file_path)
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] BufLeave: Deleted temp file for buffer %d at %s", buf, temp_file_path))
+      end
+    end
+    state.temp_files[buf] = nil
+  end
 end
 
 -- BufEnter自動コマンドのコールバック関数
@@ -212,6 +224,36 @@ function M.buf_enter_callback(state, plugin_functions)
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] BufEnter: Restarted virtual text timer for buffer %d", buf))
       end
+
+      -- Create baseline temporary file for the buffer
+      local current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+      local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
+      
+      -- Ensure state.temp_files is initialized
+      state.temp_files = state.temp_files or {}
+
+      -- Remove existing file if it exists, to ensure a fresh baseline
+      if vim.fn.filereadable(temp_file_path) == 1 then
+        os.remove(temp_file_path)
+      end
+
+      local temp_file = io.open(temp_file_path, "w")
+      if temp_file then
+        temp_file:write(current_content)
+        temp_file:close()
+        os.execute("chmod 644 " .. temp_file_path)
+        state.temp_files[buf] = temp_file_path
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] BufEnter: Created baseline temp file for buffer %d at %s", buf, temp_file_path))
+        end
+      else
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug] BufEnter: Failed to create baseline temp file for buffer %d at %s", buf, temp_file_path))
+        end
+      end
+
+      -- Start notification timer as well
+      plugin_functions.start_notification_timer(buf, "BufEnter")
     end
   end
 end
