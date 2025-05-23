@@ -1,8 +1,6 @@
 local config = {
-  system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
-  purpose = "", -- Work purpose or objective (e.g., "code review", "refactoring", "feature development")
-  -- Vim function name to append custom text to the prompt
-  callback = "",
+  -- Global settings that are not context-specific
+  callback = "", -- Vim function name to append custom text to the prompt
   translations = {
     en = {
       enabled = "enabled",
@@ -27,90 +25,6 @@ local config = {
       unknown_error = "不明なエラー",
     }
   },
-  default_cbt = {
-    role = "Cognitive behavioral therapy specialist",
-    direction = "Guide towards healthier thought patterns and behaviors",
-    emotion = "Empathetic and understanding",
-    tone = "Supportive and encouraging but direct",
-    hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
-  },
-  filetype_prompts = {
-    markdown = {
-      prompt = "Give advice about this writing, focusing on clarity and structure.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more structured writing",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
-      callback = "",
-    },
-    text = {
-      prompt = "Give advice about this writing, focusing on clarity and structure.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more structured writing",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
-      callback = "",
-    },
-    tex = {
-      prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards well-formatted and structured document",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
-      callback = "",
-    },
-    rst = {
-      prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more organized documentation",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
-      callback = "",
-    },
-    org = {
-      prompt = "Give advice about this Org document, focusing on organization and structure.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards better organized and structured document",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
-      callback = "",
-    },
-    
-    lua = {
-      prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more maintainable code",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
-      callback = "",
-    },
-    python = {
-      prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more maintainable code",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
-      callback = "",
-    },
-    javascript = {
-      prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-      role = "Cognitive behavioral therapy specialist",
-      direction = "Guide towards clearer and more maintainable code",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
-      callback = "",
-    },
-  },
-  virtual_text_message_length = 10, -- 仮想テキストの表示に使用するメッセージの長さ
-  notify_message_length = 10, -- 通知に使用するメッセージの長さ
   length_type = "characters", -- Can be "characters" or "words"
   output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
   translate_messages = true, -- Whether to translate messages to the specified language
@@ -119,7 +33,190 @@ local config = {
   gemini_model = "gemini-2.5-flash-preview-05-20", -- Updated to latest Gemini model
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+
+  -- Context-specific settings for notifications
+  notify = {
+    system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
+    purpose = "", -- Work purpose or objective
+    default_cbt = {
+      role = "Cognitive behavioral therapy specialist",
+      direction = "Guide towards healthier thought patterns and behaviors",
+      emotion = "Empathetic and understanding",
+      tone = "Supportive and encouraging but direct",
+      hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
+    },
+    filetype_prompts = {
+      markdown = {
+        prompt = "Give advice about this writing, focusing on clarity and structure.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more structured writing",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+        callback = "",
+      },
+      text = {
+        prompt = "Give advice about this writing, focusing on clarity and structure.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more structured writing",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+        callback = "",
+      },
+      tex = {
+        prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards well-formatted and structured document",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
+        callback = "",
+      },
+      rst = {
+        prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more organized documentation",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
+        callback = "",
+      },
+      org = {
+        prompt = "Give advice about this Org document, focusing on organization and structure.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards better organized and structured document",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
+        callback = "",
+      },
+      lua = {
+        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more maintainable code",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
+        callback = "",
+      },
+      python = {
+        prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more maintainable code",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
+        callback = "",
+      },
+      javascript = {
+        prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more maintainable code",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
+        callback = "",
+      },
+    },
+    notify_message_length = 10, -- Default message length for notifications in this context
+    virtual_text_message_length = 10, -- Default message length for virtual text in this context (less likely to be used but here for structural parallelism)
+  },
+
+  -- Context-specific settings for virtual text
   virtual_text = {
+    system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
+    purpose = "", -- Work purpose or objective
+    default_cbt = {
+      role = "Cognitive behavioral therapy specialist",
+      direction = "Guide towards healthier thought patterns and behaviors",
+      emotion = "Empathetic and understanding",
+      tone = "Supportive and encouraging but direct",
+      hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
+    },
+    filetype_prompts = {
+      markdown = {
+        prompt = "Give advice about this writing, focusing on clarity and structure.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more structured writing",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+        callback = "",
+      },
+      text = {
+        prompt = "テキスト内容を題材として、アドバイスしてください。前置きなしで、端的にメッセージのみを出力してください。", -- Specific prompt from issue for text/virtual_text
+        role = "トリックスターであり、常に民衆の意表を突く発言のみを行う", -- Specific role from issue
+        direction = "意味深なアドバイスを行う", -- Specific direction from issue
+        emotion = "Empathetic and understanding", -- Kept from original, can be overridden
+        tone = "前置きなしで、直接的に", -- Specific tone from issue
+        hats = { -- Specific hats from issue
+          "law",
+          "chaos",
+          "neutral",
+          "trickster",
+        },
+        purpose = "集中が途切れないように、ナッジによってさりげなく現在の行動を促す", -- Specific purpose from issue
+        callback = "NudgeCallback", -- Specific callback from issue
+      },
+      tex = {
+        prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards well-formatted and structured document",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
+        callback = "",
+      },
+      rst = {
+        prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more organized documentation",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
+        callback = "",
+      },
+      org = {
+        prompt = "Give advice about this Org document, focusing on organization and structure.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards better organized and structured document",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
+        callback = "",
+      },
+      lua = {
+        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more maintainable code",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
+        callback = "",
+      },
+      python = {
+        prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more maintainable code",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
+        callback = "",
+      },
+      javascript = {
+        prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
+        role = "Cognitive behavioral therapy specialist",
+        direction = "Guide towards clearer and more maintainable code",
+        emotion = "Empathetic and understanding",
+        tone = "Supportive and encouraging but direct",
+        hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
+        callback = "",
+      },
+    },
+    notify_message_length = 10, -- Default message length for notifications in this context (less likely to be used)
+    virtual_text_message_length = 10, -- Default message length for virtual text in this context
+    -- Specific settings for virtual_text appearance from original config
     text_color = "#000000", -- Text color in hex format
     background_color = "#FFFFFF", -- Background color in hex format
   },
