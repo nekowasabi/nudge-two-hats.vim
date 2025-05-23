@@ -290,11 +290,11 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
   end
   -- Check if we have a specific prompt for any of the filetypes
   for _, filetype in ipairs(filetypes) do
-    if filetype and config.filetype_prompts[filetype] then
+    if filetype and config[context].filetype_prompts and config[context].filetype_prompts[filetype] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
       end
-      local filetype_prompt = config.filetype_prompts[filetype]
+      local filetype_prompt = config[context].filetype_prompts[filetype]
       -- テスト用のcallbackを優先して使用
       local cb_result = ""
       if config.callback and config.callback ~= "" then
@@ -316,14 +316,15 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
           return cb_result
         end
         
-        local role = filetype_prompt.role or config.default_cbt.role
-        local direction = filetype_prompt.direction or config.default_cbt.direction
-        local emotion = filetype_prompt.emotion or config.default_cbt.emotion
-        local tone = filetype_prompt.tone or config.default_cbt.tone
+        local default_cbt_for_context = config[context].default_cbt or {} -- Use an empty table if default_cbt for context is nil
+        local role = filetype_prompt.role or default_cbt_for_context.role
+        local direction = filetype_prompt.direction or default_cbt_for_context.direction
+        local emotion = filetype_prompt.emotion or default_cbt_for_context.emotion
+        local tone = filetype_prompt.tone or default_cbt_for_context.tone
         local prompt_text = filetype_prompt.prompt
-        local hats = filetype_prompt.hats or config.default_cbt.hats or {}
-        local notify_message_length = filetype_prompt.notify_message_length or config.notify_message_length
-        local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config.virtual_text_message_length
+        local hats = filetype_prompt.hats or default_cbt_for_context.hats or {}
+        local notify_message_length = filetype_prompt.notify_message_length or config[context].notify_message_length
+        local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config[context].virtual_text_message_length
         local message_length = notify_message_length
         -- Use the passed 'context' argument directly
         if context == "virtual_text" then
@@ -365,7 +366,8 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
   if cb_result and cb_result ~= "" then
     return cb_result
   else
-    return config.system_prompt
+    -- Fallback to context-specific system prompt if no other prompt is found
+    return config[context].system_prompt
   end
 end
 

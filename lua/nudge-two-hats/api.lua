@@ -537,24 +537,24 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     log_file:close()
   end
 
-  local system_prompt = prompt or config.system_prompt
-  local context_for = state.context_for or "notification"
-  local purpose_text = purpose or config.purpose
+  local context_for = state.context_for or "notification" -- Ensure context_for is defined before use
+  local system_prompt = prompt or config[context_for].system_prompt
+  local purpose_text = purpose or config[context_for].purpose
   if purpose_text and purpose_text ~= "" then
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end
   local output_lang = get_language()
   if output_lang == "ja" then
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config.notify_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].notify_message_length)
     else
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config.virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].virtual_text_message_length)
     end
   else
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config.notify_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].notify_message_length)
     else
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config.virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].virtual_text_message_length)
     end
   end
   -- print(system_prompt)
@@ -637,9 +637,9 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                   advice_cache[to_remove] = nil
                 end
               end
-              local message_length = config.notify_message_length
+              local message_length = config[context_for].notify_message_length
               if context_for == "virtual_text" then
-                message_length = config.virtual_text_message_length
+                message_length = config[context_for].virtual_text_message_length
               end
               if config.length_type == "characters" then
                 if #advice > message_length then
@@ -709,9 +709,9 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                response.candidates[1].content and response.candidates[1].content.parts and
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
-              local message_length = config.notify_message_length
+              local message_length = config[context_for].notify_message_length
               if context_for == "virtual_text" then
-                message_length = config.virtual_text_message_length
+                message_length = config[context_for].virtual_text_message_length
               end
               if config.length_type == "characters" then
                 if #advice > message_length then
