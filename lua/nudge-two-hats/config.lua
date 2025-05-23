@@ -35,7 +35,7 @@ local config = {
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
 
   -- Context-specific settings for notifications
-  notify = {
+  notification = {
     system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
     purpose = "", -- Work purpose or objective
     default_cbt = {
