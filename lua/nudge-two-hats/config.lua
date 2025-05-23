@@ -36,10 +36,10 @@ local config = {
 
   -- Context-specific settings for notifications
   notification = {
-    system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
+    system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time. (for notifications)",
     purpose = "", -- Work purpose or objective
     default_cbt = {
-      role = "Cognitive behavioral therapy specialist",
+      role = "Notification Advisor Role", -- Differentiated
       direction = "Guide towards healthier thought patterns and behaviors",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
@@ -92,8 +92,8 @@ local config = {
         callback = "",
       },
       lua = {
-        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-        role = "Cognitive behavioral therapy specialist",
+        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing. (notification advice for Lua)", -- Differentiated
+        role = "Lua Notification Advisor", -- Differentiated
         direction = "Guide towards clearer and more maintainable code",
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
@@ -119,16 +119,15 @@ local config = {
         callback = "",
       },
     },
-    notify_message_length = 10, -- Default message length for notifications in this context
-    virtual_text_message_length = 10, -- Default message length for virtual text in this context (less likely to be used but here for structural parallelism)
+    notify_message_length = 10,
+    virtual_text_message_length = 10,
   },
 
-  -- Context-specific settings for virtual text
   virtual_text = {
-    system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time.",
-    purpose = "", -- Work purpose or objective
+    system_prompt = "Analyze this code change and provide varied, specific advice based on the actual diff content. Consider whether the programmer is focusing on refactoring, adding new features, fixing bugs, or improving tests. Your advice should be tailored to the specific changes you see in the diff and should vary in content and style each time. (for virtual text)",
+    purpose = "",
     default_cbt = {
-      role = "Cognitive behavioral therapy specialist",
+      role = "Virtual Text Helper Role", -- Differentiated
       direction = "Guide towards healthier thought patterns and behaviors",
       emotion = "Empathetic and understanding",
       tone = "Supportive and encouraging but direct",
@@ -144,20 +143,15 @@ local config = {
         hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
         callback = "",
       },
-      text = {
-        prompt = "テキスト内容を題材として、アドバイスしてください。前置きなしで、端的にメッセージのみを出力してください。", -- Specific prompt from issue for text/virtual_text
-        role = "トリックスターであり、常に民衆の意表を突く発言のみを行う", -- Specific role from issue
-        direction = "意味深なアドバイスを行う", -- Specific direction from issue
-        emotion = "Empathetic and understanding", -- Kept from original, can be overridden
-        tone = "前置きなしで、直接的に", -- Specific tone from issue
-        hats = { -- Specific hats from issue
-          "law",
-          "chaos",
-          "neutral",
-          "trickster",
-        },
-        purpose = "集中が途切れないように、ナッジによってさりげなく現在の行動を促す", -- Specific purpose from issue
-        callback = "NudgeCallback", -- Specific callback from issue
+      text = { -- This is the specific Japanese example that needs to be preserved
+        prompt = "テキスト内容を題材として、アドバイスしてください。前置きなしで、端的にメッセージのみを出力してください。",
+        role = "トリックスターであり、常に民衆の意表を突く発言のみを行う",
+        direction = "意味深なアドバイスを行う",
+        emotion = "Empathetic and understanding",
+        tone = "前置きなしで、直接的に",
+        hats = { "law", "chaos", "neutral", "trickster" },
+        purpose = "集中が途切れないように、ナッジによってさりげなく現在の行動を促す",
+        callback = "NudgeCallback",
       },
       tex = {
         prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
@@ -187,8 +181,8 @@ local config = {
         callback = "",
       },
       lua = {
-        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-        role = "Cognitive behavioral therapy specialist",
+        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing. (virtual text advice for Lua)", -- Differentiated
+        role = "Lua Virtual Text Helper", -- Differentiated
         direction = "Guide towards clearer and more maintainable code",
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
@@ -214,12 +208,10 @@ local config = {
         callback = "",
       },
     },
-    notify_message_length = 10, -- Default message length for notifications in this context (less likely to be used)
-    virtual_text_message_length = 10, -- Default message length for virtual text in this context
-    -- Specific settings for virtual_text appearance from original config
-    text_color = "#000000", -- Text color in hex format
-    background_color = "#FFFFFF", -- Background color in hex format
+    notify_message_length = 10,
+    virtual_text_message_length = 10,
+    text_color = "#000000",
+    background_color = "#FFFFFF",
   },
 }
-
 return config
