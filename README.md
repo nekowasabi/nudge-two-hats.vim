@@ -16,6 +16,8 @@ Inspired by [An example of preparatory refactoring](https://martinfowler.com/art
 - Purpose parameter to enhance AI suggestions
 - Context-specific configurations for notifications and virtual text.
 
+test
+
 ## Installation
 
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
