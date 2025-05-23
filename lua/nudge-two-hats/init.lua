@@ -183,10 +183,6 @@ function M.setup(opts)
     end
   end, {})
 
-  vim.api.nvim_create_user_command("NudgeTwoHatsSetApiKey", function(args)
-    state.api_key = args.args
-    vim.notify(api.translate_message(config.translations.en.api_key_set), vim.log.levels.INFO)
-  end, { nargs = 1 })
 
   vim.api.nvim_create_user_command("NudgeTwoHatsStart", function(args)
     local buf = vim.api.nvim_get_current_buf()

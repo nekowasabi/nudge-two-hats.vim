@@ -5,22 +5,18 @@ local config = {
     en = {
       enabled = "enabled",
       disabled = "disabled",
-      api_key_set = "Gemini API key set",
       started_buffer = "Nudge Two Hats started for current buffer",
       debug_enabled = "Debug mode enabled - nudge text will be printed to :messages",
       no_changes = "No changes detected to generate advice",
-      api_key_not_set = "Gemini API key not set. Set GEMINI_API_KEY environment variable or use :NudgeTwoHatsSetApiKey to set it.",
       api_error = "Gemini API error",
       unknown_error = "Unknown error",
     },
     ja = {
       enabled = "有効",
       disabled = "無効",
-      api_key_set = "Gemini APIキーが設定されました",
       started_buffer = "現在のバッファでNudge Two Hatsが開始されました",
       debug_enabled = "デバッグモードが有効 - ナッジテキストが:messagesに表示されます",
       no_changes = "アドバイスを生成するための変更が検出されませんでした",
-      api_key_not_set = "Gemini APIキーが設定されていません。GEMINI_API_KEY環境変数を設定するか、:NudgeTwoHatsSetApiKeyを使用して設定してください。",
       api_error = "Gemini APIエラー",
       unknown_error = "不明なエラー",
     }

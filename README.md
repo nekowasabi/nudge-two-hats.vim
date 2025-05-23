@@ -196,17 +196,7 @@ require("nudge-two-hats").setup({
 
 6. Toggle debug mode (prints nudge text to Vim's `:messages`):
    ```
-   :NudgeTwoHatsDebugToggle
-   ```
-
-7. Debug virtual text display:
-   ```
-   :NudgeTwoHatsDebugVirtualText
-   ```
-
-8. Debug virtual text timer:
-   ```
-   :NudgeTwoHatsDebugVirtualTextTimer
+   :NudgeTwoHatsDebugNotify
    ```
 
 ## How It Works

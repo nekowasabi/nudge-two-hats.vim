@@ -4,9 +4,9 @@
 local M = {}
 
 -- プロンプトを生成する関数
--- @param role - ロール（役割）
--- @param selected_hat - 選択された帽子
--- @param direction - 方向性や指示
+-- @param role - 役割
+-- @param selected_hat - モード（帽子）
+-- @param direction - 方向性
 -- @param emotion - 感情
 -- @param tone - トーン（口調）
 -- @param prompt_text - プロンプトのテキスト内容
@@ -29,15 +29,13 @@ I am a %s wearing the %s hat.
 %s
 %s
 
-IMPORTANT: 必ずレスポンスは%d文字以内にしてください。長すぎるレスポンスは切り捨てられます。]]
-    
+MUST: レスポンスは%d文字の文章にしてください。1文字でも超えることは禁止します。]]
     local final_prompt = string.format(base, role, selected_hat, direction, advisory_line, prompt_text, message_length)
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
         final_prompt = final_prompt .. '\n\nCRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: ' .. lua_literal_message .. '. Generate a distinct new message.'
     end
-    
     return final_prompt
 end
 
@@ -66,7 +64,7 @@ I am a %s.
 %s
 %s
 
-IMPORTANT: Your response MUST be concise and not exceed %d characters. Longer responses will be truncated.]]
+MUST: Your response MUST be concise and not exceed %d characters. Longer responses will be truncated.]]
 
     local final_prompt = string.format(base, role, direction, advisory_line, prompt_text, message_length)
 
@@ -74,7 +72,6 @@ IMPORTANT: Your response MUST be concise and not exceed %d characters. Longer re
         local lua_literal_message = string.format("%q", last_message_to_avoid)
         final_prompt = final_prompt .. '\n\nCRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: ' .. lua_literal_message .. '. Generate a distinct new message.'
     end
-    
     return final_prompt
 end
 
