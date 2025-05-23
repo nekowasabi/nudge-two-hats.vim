@@ -324,11 +324,11 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
   return state.timers.notification[buf]
 end
 
--- Function to stop both notification and virtual text timers for a buffer
+-- Function to stop virtual text timer for a buffer (called by state.stop_timer)
 function M.stop_timer(buf, state, stop_notification_timer_func, stop_virtual_text_timer_func)
-  local notification_timer_id = stop_notification_timer_func(buf)
+  -- local notification_timer_id = stop_notification_timer_func(buf) -- This line should be removed or commented out
   local virtual_text_timer_id = stop_virtual_text_timer_func(buf)
-  return notification_timer_id or virtual_text_timer_id
+  return virtual_text_timer_id -- Only return the virtual_text_timer_id
 end
 
 -- Function to start virtual text timer for a buffer (for display)
