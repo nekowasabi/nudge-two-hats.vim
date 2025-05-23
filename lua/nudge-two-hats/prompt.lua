@@ -27,7 +27,7 @@ IMPORTANT: 必ずレスポンスは%d文字以内にしてください。長す�
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         final_prompt = final_prompt .. string.format('
 
-IMPORTANT: Avoid repeating content similar to the following message: "%s"', last_message_to_avoid)
+CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: "%s". Generate a distinct new message.', last_message_to_avoid)
     end
     
     return final_prompt
@@ -56,7 +56,7 @@ IMPORTANT: Your response MUST be concise and not exceed %d characters. Longer re
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         final_prompt = final_prompt .. string.format('
 
-IMPORTANT: Avoid repeating content similar to the following message: "%s"', last_message_to_avoid)
+CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: "%s". Generate a distinct new message.', last_message_to_avoid)
     end
     
     return final_prompt
