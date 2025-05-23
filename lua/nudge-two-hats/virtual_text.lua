@@ -42,22 +42,14 @@ end
 function M.display_virtual_text(buf, advice)
   -- 仮想テキスト表示関数では切り詰めを行わない
   -- 既にAPIコールで指定した長さのメッセージが生成されている
+  -- 改行を除去する
+  advice = string.gsub(advice, "[\n\r]", "")
   local message_length = config.virtual_text_message_length
 
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] Virtual text advice length: %d, expected: %d", #advice, message_length))
   end
 
-  -- -- virtual_text_message_lengthが小さい場合は差し替えを実行
-  -- if config.notify_message_length > config.virtual_text_message_length then
-  --   if config.debug_mode then
-  --     print(string.format("[Nudge Two Hats Debug] Temporarily swapping notify_message_length %d with virtual_text_message_length %d",
-  --                       config.notify_message_length, config.virtual_text_message_length))
-  --   end
-  --   -- notify_message_length に virtual_text_message_length を設定 (一時的)
-  --   config.notify_message_length = config.virtual_text_message_length
-  --   temp_swap = true
-  -- end
   local log_file = open_log_file()
   if log_file then
     log_file:write("=== display_virtual_text called at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
