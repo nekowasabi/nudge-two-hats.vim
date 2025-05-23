@@ -34,9 +34,23 @@ IMPORTANT: 必ずレスポンスは%d文字以内にしてください。長す�
     local final_prompt = string.format(base, role, selected_hat, direction, advisory_line, prompt_text, message_length)
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
+        local B = '\\' -- Backslash character
+        local Q = "'" -- Single quote character
+        local escaped_last_message_chars = {}
+        for i = 1, #last_message_to_avoid do
+            local char = string.sub(last_message_to_avoid, i, i)
+            if char == Q then
+                table.insert(escaped_last_message_chars, B)
+                table.insert(escaped_last_message_chars, Q)
+            else
+                table.insert(escaped_last_message_chars, char)
+            end
+        end
+        local escaped_last_message = table.concat(escaped_last_message_chars)
+        
         final_prompt = final_prompt .. string.format('
 
-CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: "%s". Generate a distinct new message.', last_message_to_avoid)
+CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: "%s". Generate a distinct new message.', escaped_last_message)
     end
     
     return final_prompt
@@ -72,9 +86,23 @@ IMPORTANT: Your response MUST be concise and not exceed %d characters. Longer re
     local final_prompt = string.format(base, role, direction, advisory_line, prompt_text, message_length)
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
+        local B = '\\' -- Backslash character
+        local Q = "'" -- Single quote character
+        local escaped_last_message_chars = {}
+        for i = 1, #last_message_to_avoid do
+            local char = string.sub(last_message_to_avoid, i, i)
+            if char == Q then
+                table.insert(escaped_last_message_chars, B)
+                table.insert(escaped_last_message_chars, Q)
+            else
+                table.insert(escaped_last_message_chars, char)
+            end
+        end
+        local escaped_last_message = table.concat(escaped_last_message_chars)
+        
         final_prompt = final_prompt .. string.format('
 
-CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: "%s". Generate a distinct new message.', last_message_to_avoid)
+CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: "%s". Generate a distinct new message.', escaped_last_message)
     end
     
     return final_prompt
