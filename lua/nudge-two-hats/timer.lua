@@ -183,17 +183,42 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       return
     end
     vim.cmd("checktime " .. buf)
-    local content, diff, diff_filetype = buffer.get_buf_diff(buf, state)
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] get_buf_diff結果: バッファ %d, diff %s, filetype %s",
-                         buf, diff and "あり" or "なし", diff_filetype or "なし"))
-    end
-    if not diff then
+    local original_content, current_diff, current_diff_filetype = buffer.get_buf_diff(buf, state)
+
+    if not current_diff then
       if config.debug_mode then
-        print("[Nudge Two Hats Debug] diffが検出されなかったため、通知をスキップします")
+        print(string.format("[Nudge Two Hats Debug Timer] Notification timer: No actual diff for buf %d. Creating context diff.", buf))
       end
-      return
+      local cursor_pos = vim.api.nvim_win_get_cursor(0)
+      local cursor_row = cursor_pos[1] -- 1-based
+      local line_count = vim.api.nvim_buf_line_count(buf)
+      local context_start_line = math.max(1, cursor_row - 20)
+      local context_end_line = math.min(line_count, cursor_row + 20)
+      local context_lines = vim.api.nvim_buf_get_lines(buf, context_start_line - 1, context_end_line, false)
+      
+      local diff_lines = {}
+      for _, line in ipairs(context_lines) do
+        table.insert(diff_lines, "+ " .. line)
+      end
+      current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s",
+                                   context_start_line, 0,
+                                   context_start_line, #context_lines,
+                                   table.concat(diff_lines, "\n"))
+
+      if state.buf_filetypes[buf] then
+        current_diff_filetype = string.gmatch(state.buf_filetypes[buf], "[^,]+")() -- Get first filetype
+      else
+        current_diff_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+      end
+      if not current_diff_filetype or current_diff_filetype == "" then
+        current_diff_filetype = "text" -- Default
+      end
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] Notification context diff created for buf %d. Filetype: %s. Diff preview: %s", buf, current_diff_filetype, string.sub(current_diff, 1, 100)))
+      end
     end
+
+    -- Now current_diff will always exist. Proceed with the API call.
     local current_time = os.time()
     if not state.last_api_call_notification then
       state.last_api_call_notification = 0
@@ -207,8 +232,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     state.last_api_call_notification = current_time
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知を実行します")
-      print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
-      print(diff)
+      print(string.format("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: %s. Diff preview: %s", (current_diff_filetype or "unknown"), string.sub(current_diff, 1, 200)))
     end
     local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     state.context_for = "notification"
@@ -216,7 +240,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
       print("[Nudge Two Hats Debug] context_for: " .. state.context_for)
     end
-    api.get_gemini_advice(diff, function(advice)
+    api.get_gemini_advice(current_diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
@@ -230,29 +254,23 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         print(advice)
         print("==========================")
       end
-      if content then
+      if original_content then 
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
         local callback_filetypes = {}
         if state.buf_filetypes[buf] then
-          for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
-            table.insert(callback_filetypes, filetype)
-          end
+          for ft_item in string.gmatch(state.buf_filetypes[buf], "[^,]+") do table.insert(callback_filetypes, ft_item) end
         else
-          local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-          if current_filetype and current_filetype ~= "" then
-            table.insert(callback_filetypes, current_filetype)
-          end
+          local current_ft = vim.api.nvim_buf_get_option(buf, "filetype")
+          if current_ft and current_ft ~= "" then table.insert(callback_filetypes, current_ft) end
         end
         if #callback_filetypes > 0 then
-          for _, filetype in ipairs(callback_filetypes) do
-            state.buf_content_by_filetype[buf][filetype] = content
-          end
+          for _, ft_item in ipairs(callback_filetypes) do state.buf_content_by_filetype[buf][ft_item] = original_content end
         else
-          state.buf_content_by_filetype[buf]["_default"] = content
+          state.buf_content_by_filetype[buf]["_default"] = original_content
         end
-        state.buf_content[buf] = content
+        state.buf_content[buf] = original_content
         if config.debug_mode then
-          print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
+          print("[Nudge Two Hats Debug] Notification API callback: Buffer content state updated with original_content.")
         end
       end
     end, prompt, config.purpose, state)
