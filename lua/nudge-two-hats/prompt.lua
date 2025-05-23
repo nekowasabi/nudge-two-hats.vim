@@ -35,9 +35,7 @@ IMPORTANT: 必ずレスポンスは%d文字以内にしてください。長す�
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
-        final_prompt = final_prompt .. string.format('
-
-CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: %s. Generate a distinct new message.', lua_literal_message)
+        final_prompt = final_prompt .. '\n\nCRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: ' .. lua_literal_message .. '. Generate a distinct new message.'
     end
     
     return final_prompt
@@ -74,9 +72,7 @@ IMPORTANT: Your response MUST be concise and not exceed %d characters. Longer re
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
-        final_prompt = final_prompt .. string.format('
-
-CRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: %s. Generate a distinct new message.', lua_literal_message)
+        final_prompt = final_prompt .. '\n\nCRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: ' .. lua_literal_message .. '. Generate a distinct new message.'
     end
     
     return final_prompt
