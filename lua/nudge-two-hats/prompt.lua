@@ -24,13 +24,25 @@ function M.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_
     end
 
     local base = [[
-I am a %s wearing the %s hat.
-%s.
-%s
+# Role: %s wearing the %s hat mode
+
+## Direction
 %s
 
-MUST: レスポンスは%d文字の文章にしてください。1文字でも超えることは禁止します。]]
-    local final_prompt = string.format(base, role, selected_hat, direction, advisory_line, prompt_text, message_length)
+> %s
+
+%s
+
+**MUST: レスポンスは%d文字の文章にしてください。1文字でも超えることは禁止します。**]]
+    local final_prompt = string.format(
+      base,
+      role,
+      selected_hat,
+      direction,
+      advisory_line,
+      prompt_text,
+      message_length
+    )
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
@@ -64,7 +76,7 @@ I am a %s.
 %s
 %s
 
-MUST: Your response MUST be concise and not exceed %d characters. Longer responses will be truncated.]]
+**MUST: レスポンスは%d文字の文章にしてください。1文字でも超えることは禁止します。**]]
 
     local final_prompt = string.format(base, role, direction, advisory_line, prompt_text, message_length)
 
