@@ -338,7 +338,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
         end
         -- prompt.luaモジュールから生成関数を呼び出す
         local prompt_module = require("nudge-two-hats.prompt")
-        local base = prompt_module.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length, last_message_to_avoid)
+        local base = prompt_module.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
         return base:gsub("%s+$", "")
       else
         -- テストでは、callback結果のみを期待している場合がある
@@ -354,7 +354,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
         end
         -- prompt.luaモジュールから生成関数を呼び出す
         local prompt_module = require("nudge-two-hats.prompt")
-        local base = prompt_module.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length, last_message_to_avoid)
+        local base = prompt_module.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
         return base:gsub("%s+$", "")
       end
     end
