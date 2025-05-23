@@ -250,9 +250,26 @@ function M.get_buf_diff(buf, state)
 end
 
 -- バッファに応じたプロンプトを取得する関数
-function M.get_prompt_for_buffer(buf, state, context_for)
+function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to context for clarity in this function
   -- コールバック結果を先に取得 - グローバルレベルのcallback
   local global_cb_result = run_callback(config.callback)
+
+  -- Retrieve last message based on context
+  local last_message_to_avoid = nil
+  if context == "notification" then
+    if state.notifications and state.notifications.last_advice then
+      last_message_to_avoid = state.notifications.last_advice[buf]
+    end
+  elseif context == "virtual_text" then
+    if state.virtual_text and state.virtual_text.last_advice then
+      last_message_to_avoid = state.virtual_text.last_advice[buf]
+    end
+  end
+  if config.debug_mode and last_message_to_avoid then
+    print(string.format("[Nudge Two Hats Debug Buffer] Last message to avoid for context '%s', buf %d: %s", context, buf, string.sub(last_message_to_avoid, 1, 50)))
+  elseif config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug Buffer] No last message to avoid for context '%s', buf %d.", context, buf))
+  end
   -- 初期化
   local filetypes = {}
   -- Check if we have stored filetypes for this buffer
@@ -308,8 +325,8 @@ function M.get_prompt_for_buffer(buf, state, context_for)
         local notify_message_length = filetype_prompt.notify_message_length or config.notify_message_length
         local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config.virtual_text_message_length
         local message_length = notify_message_length
-        context_for = context_for or (state and state.context_for) or "notification"
-        if context_for == "virtual_text" then
+        -- Use the passed 'context' argument directly
+        if context == "virtual_text" then
           message_length = virtual_text_message_length
         end
         if #hats > 0 then
@@ -320,8 +337,8 @@ function M.get_prompt_for_buffer(buf, state, context_for)
           end
         end
         -- prompt.luaモジュールから生成関数を呼び出す
-        local prompt = require("nudge-two-hats.prompt")
-        local base = prompt.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length)
+        local prompt_module = require("nudge-two-hats.prompt")
+        local base = prompt_module.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length, last_message_to_avoid)
         return base:gsub("%s+$", "")
       else
         -- テストでは、callback結果のみを期待している場合がある
@@ -331,13 +348,13 @@ function M.get_prompt_for_buffer(buf, state, context_for)
 
         selected_hat = nil
         local message_length = virtual_text_message_length
-        context_for = context_for or (state and state.context_for) or "notification"
-        if context_for ~= "virtual_text" then
+        -- Use the passed 'context' argument directly
+        if context ~= "virtual_text" then
           message_length = notify_message_length
         end
         -- prompt.luaモジュールから生成関数を呼び出す
-        local prompt = require("nudge-two-hats.prompt")
-        local base = prompt.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length)
+        local prompt_module = require("nudge-two-hats.prompt")
+        local base = prompt_module.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length, last_message_to_avoid)
         return base:gsub("%s+$", "")
       end
     end

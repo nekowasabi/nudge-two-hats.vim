@@ -15,7 +15,10 @@ local state = {
   virtual_text = {
     namespace = nil, -- Namespace for virtual text extmarks
     extmarks = {}, -- Store extmark IDs by buffer
-    last_advice = {} -- Store last advice by buffer
+    last_advice = {} -- For virtual text
+  },
+  notifications = { -- New structure for notifications
+    last_advice = {} -- To store last notification message per buffer
   }
 }
 
