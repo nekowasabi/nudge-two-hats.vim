@@ -318,89 +318,127 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
 
   state.timers = state.timers or {}
   state.timers.virtual_text = state.timers.virtual_text or {}
-  M.stop_virtual_text_timer(buf, state) -- Stop existing timer before starting a new one
+  M.stop_virtual_text_timer(buf, state) -- Stop any existing timer first
 
+  local function make_virtual_text_timer_callback(current_buf_arg, current_state_arg, current_config_arg, current_display_func_arg, current_buffer_module_arg, current_api_module_arg)
+    local callback_func -- Forward declaration for recursion
+    callback_func = function()
+      if not vim.api.nvim_buf_is_valid(current_buf_arg) or not current_state_arg.enabled then
+        if current_config_arg.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer: Buf %d invalid or plugin disabled. Not rescheduling.", current_buf_arg))
+        end
+        current_state_arg.timers.virtual_text[current_buf_arg] = nil -- Ensure timer ID is cleared
+        return
+      end
+
+      if current_config_arg.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] Virtual text SELF-RESCHEDULING timer callback: Fired for buf %d.", current_buf_arg))
+      end
+
+      local current_time = os.time()
+      if not current_state_arg.last_api_call_virtual_text then
+        current_state_arg.last_api_call_virtual_text = 0
+      end
+
+      if (current_time - current_state_arg.last_api_call_virtual_text) < current_config_arg.virtual_text_interval_seconds then
+        if current_config_arg.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Interval not yet met for buf %d. Last call: %s, Current: %s. Skipping API call, will reschedule.", current_buf_arg, os.date("%c", current_state_arg.last_api_call_virtual_text), os.date("%c", current_time)))
+        end
+        -- Even if interval not met for API call, we still reschedule the timer.
+        if vim.api.nvim_buf_is_valid(current_buf_arg) and current_state_arg.enabled then
+          local next_timer_id = vim.fn.timer_start(current_config_arg.virtual_text_interval_seconds * 1000, callback_func)
+          current_state_arg.timers.virtual_text[current_buf_arg] = next_timer_id
+          if current_config_arg.debug_mode then
+            print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer for buf %d rescheduled (interval not met path). New ID: %s", current_buf_arg, tostring(next_timer_id)))
+          end
+        else
+          current_state_arg.timers.virtual_text[current_buf_arg] = nil
+        end
+        return
+      end
+
+      vim.cmd("checktime " .. current_buf_arg) -- Ensure buffer is up-to-date
+      local content, diff, diff_filetype = current_buffer_module_arg.get_buf_diff(current_buf_arg, current_state_arg)
+
+      if diff then
+        if current_config_arg.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Diff detected for buf %d. Filetype: %s. Proceeding with API call.", current_buf_arg, diff_filetype or "unknown"))
+        end
+        current_state_arg.last_api_call_virtual_text = current_time -- Update timestamp before API call
+        current_state_arg.context_for = "virtual_text"
+        local prompt = current_buffer_module_arg.get_prompt_for_buffer(current_buf_arg, current_state_arg, "virtual_text")
+
+        current_api_module_arg.get_gemini_advice(diff, function(advice)
+          if current_config_arg.debug_mode then
+            print(string.format("[Nudge Two Hats Debug Timer] Virtual text API callback: Received advice for buf %d: %s", current_buf_arg, advice or "nil"))
+          end
+          if advice then
+            current_state_arg.virtual_text.last_advice[current_buf_arg] = advice
+            current_display_func_arg(current_buf_arg, advice) -- This call might stop the timer ID that just fired
+            if content then -- Update buffer content after successful API call and advice display
+              current_state_arg.buf_content_by_filetype[current_buf_arg] = current_state_arg.buf_content_by_filetype[current_buf_arg] or {}
+              local callback_filetypes = {}
+              if current_state_arg.buf_filetypes[current_buf_arg] then
+                for ft_item in string.gmatch(current_state_arg.buf_filetypes[current_buf_arg], "[^,]+") do table.insert(callback_filetypes, ft_item) end
+              else
+                local current_ft = vim.api.nvim_buf_get_option(current_buf_arg, "filetype")
+                if current_ft and current_ft ~= "" then table.insert(callback_filetypes, current_ft) end
+              end
+              if #callback_filetypes > 0 then
+                for _, ft_item in ipairs(callback_filetypes) do current_state_arg.buf_content_by_filetype[current_buf_arg][ft_item] = content end
+              else
+                current_state_arg.buf_content_by_filetype[current_buf_arg]["_default"] = content
+              end
+              current_state_arg.buf_content[current_buf_arg] = content
+            end
+          end
+          -- Reschedule after processing the API response (or lack thereof)
+          if vim.api.nvim_buf_is_valid(current_buf_arg) and current_state_arg.enabled then
+            local next_timer_id = vim.fn.timer_start(current_config_arg.virtual_text_interval_seconds * 1000, callback_func)
+            current_state_arg.timers.virtual_text[current_buf_arg] = next_timer_id
+            if current_config_arg.debug_mode then
+              print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer for buf %d rescheduled (after API call). New ID: %s", current_buf_arg, tostring(next_timer_id)))
+            end
+          else
+            current_state_arg.timers.virtual_text[current_buf_arg] = nil
+          end
+        end, prompt, current_config_arg.purpose, current_state_arg)
+      else
+        if current_config_arg.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: No diff detected for buf %d. Skipping API call, will reschedule.", current_buf_arg))
+        end
+        -- No diff, so just reschedule the timer.
+        if vim.api.nvim_buf_is_valid(current_buf_arg) and current_state_arg.enabled then
+          local next_timer_id = vim.fn.timer_start(current_config_arg.virtual_text_interval_seconds * 1000, callback_func)
+          current_state_arg.timers.virtual_text[current_buf_arg] = next_timer_id
+          if current_config_arg.debug_mode then
+            print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer for buf %d rescheduled (no diff path). New ID: %s", current_buf_arg, tostring(next_timer_id)))
+          end
+        else
+          current_state_arg.timers.virtual_text[current_buf_arg] = nil
+        end
+      end
+    end
+    return callback_func
+  end
+
+  local timer_callback = make_virtual_text_timer_callback(buf, state, config, display_virtual_text_func, buffer, api)
+  
   if config.debug_mode then
     local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
     if log_file then
       local event_info = event_name and (" triggered by " .. event_name) or ""
-      log_file:write("=== Virtual text timer start" .. event_info .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
+      log_file:write("=== Virtual text timer INITIAL start" .. event_info .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
       log_file:write("Buffer: " .. buf .. "\n")
       log_file:close()
     end
-    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Starting new RECURRING timer for buf %d. Interval: %d ms.", buf, config.virtual_text_interval_seconds * 1000))
+    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Starting INITIAL self-rescheduling timer for buf %d. Interval: %d ms.", buf, config.virtual_text_interval_seconds * 1000))
   end
-
-  state.timers.virtual_text[buf] = vim.fn.timer_start(config.virtual_text_interval_seconds * 1000, function()
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug Timer] Virtual text RECURRING timer callback: Fired for buf %d.", buf))
-    end
-    if not vim.api.nvim_buf_is_valid(buf) then
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Buf %d is no longer valid. Stopping timer.", buf))
-      end
-      M.stop_virtual_text_timer(buf, state) -- Stop the timer if buffer is invalid
-      return
-    end
-
-    local current_time = os.time()
-    if not state.last_api_call_virtual_text then
-      state.last_api_call_virtual_text = 0
-    end
-
-    if (current_time - state.last_api_call_virtual_text) < config.virtual_text_interval_seconds then
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Interval not yet met for buf %d. Last call: %s, Current: %s. Skipping API call.", buf, os.date("%c", state.last_api_call_virtual_text), os.date("%c", current_time)))
-      end
-      return -- Respect the interval for API calls, even if timer fires more often
-    end
-
-    vim.cmd("checktime " .. buf) -- Ensure buffer is up-to-date
-    local content, diff, diff_filetype = buffer.get_buf_diff(buf, state)
-
-    if diff then
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Diff detected for buf %d. Filetype: %s. Proceeding with API call.", buf, diff_filetype or "unknown"))
-        print(diff)
-      end
-      state.last_api_call_virtual_text = current_time -- Update timestamp before API call
-      state.context_for = "virtual_text"
-      local prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
-
-      api.get_gemini_advice(diff, function(advice)
-        if config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug Timer] Virtual text API callback: Received advice for buf %d: %s", buf, advice or "nil"))
-        end
-        if advice then
-          state.virtual_text.last_advice[buf] = advice
-          display_virtual_text_func(buf, advice) -- Call the display function with new advice
-          if content then -- Update buffer content after successful API call and advice display
-            state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-            local callback_filetypes = {}
-            if state.buf_filetypes[buf] then
-              for ft_item in string.gmatch(state.buf_filetypes[buf], "[^,]+") do table.insert(callback_filetypes, ft_item) end
-            else
-              local current_ft = vim.api.nvim_buf_get_option(buf, "filetype")
-              if current_ft and current_ft ~= "" then table.insert(callback_filetypes, current_ft) end
-            end
-            if #callback_filetypes > 0 then
-              for _, ft_item in ipairs(callback_filetypes) do state.buf_content_by_filetype[buf][ft_item] = content end
-            else
-              state.buf_content_by_filetype[buf]["_default"] = content
-            end
-            state.buf_content[buf] = content
-          end
-        end
-      end, prompt, config.purpose, state)
-    else
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: No diff detected for buf %d. Skipping API call.", buf))
-      end
-    end
-  end, { ["repeat"] = -1 }) -- Set as a repeating timer
+  
+  state.timers.virtual_text[buf] = vim.fn.timer_start(config.virtual_text_interval_seconds * 1000, timer_callback)
 
   if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Successfully set new RECURRING timer for buf %d. New Timer ID: %s", buf, tostring(state.timers.virtual_text[buf])))
+    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Successfully set INITIAL self-rescheduling timer for buf %d. New Timer ID: %s", buf, tostring(state.timers.virtual_text[buf])))
   end
   return state.timers.virtual_text[buf]
 end
