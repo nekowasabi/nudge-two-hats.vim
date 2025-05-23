@@ -17,7 +17,12 @@ function M.stop_notification_timer(buf, state)
   end
   local timer_id = state.timers.notification[buf]
   if timer_id then
-    vim.fn.timer_stop(timer_id)
+    local ok, err = pcall(vim.fn.timer_stop, timer_id)
+    if not ok then
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] ERROR pcalling timer_stop for notification timer ID %s, buf %d: %s", tostring(timer_id), buf, tostring(err)))
+      end
+    end
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 通知タイマー停止: バッファ %d, タイマーID %d",
         buf, timer_id))
@@ -35,7 +40,7 @@ function M.stop_notification_timer(buf, state)
     if state.timers.notification_start_time and state.timers.notification_start_time[buf] then
       state.timers.notification_start_time[buf] = nil
     end
-    return old_timer_id
+    return timer_id
   end
   return nil
 end
@@ -50,7 +55,12 @@ function M.stop_virtual_text_timer(buf, state)
   state.timers.virtual_text = state.timers.virtual_text or {}
   local timer_id = state.timers.virtual_text[buf]
   if timer_id then
-    vim.fn.timer_stop(timer_id)
+    local ok, err = pcall(vim.fn.timer_stop, timer_id)
+    if not ok then
+      if config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] ERROR pcalling timer_stop for virtual text timer ID %s, buf %d: %s", tostring(timer_id), buf, tostring(err)))
+      end
+    end
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] Stopped virtual text timer for buffer %d with ID %d",
         buf, timer_id))
