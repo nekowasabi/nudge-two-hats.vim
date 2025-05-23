@@ -496,8 +496,8 @@ function M.setup(opts)
           print("[Nudge Two Hats Debug] バッファ内容を更新しました: " .. table.concat(callback_filetypes, ", "))
         end
       end
-    end, prompt, config.purpose, state)
-  end, {})
+    end, -- Removed extraneous arguments from here
+    { nargs = "*" }) -- Ensured NudgeTwoHatsNow also has its options table defined
   vim.api.nvim_create_user_command("NudgeTwoHatsDebugNotify", function()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.api.nvim_buf_is_valid(buf) then
@@ -576,8 +576,8 @@ function M.setup(opts)
           print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, prompt, config.purpose, state)
-    end, prompt, config.purpose, state)
+      end, vt_prompt, config.purpose, state) -- Corrected arguments for the inner get_gemini_advice
+    end, prompt, config.purpose, state) -- Corrected arguments for the outer get_gemini_advice
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
     end
