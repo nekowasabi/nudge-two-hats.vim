@@ -412,6 +412,14 @@ function M.setup(opts)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
+      if advice then
+        state.notifications = state.notifications or {}
+        state.notifications.last_advice = state.notifications.last_advice or {}
+        state.notifications.last_advice[buf] = advice
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug NudgeTwoHatsNow] Stored notification advice for buf %d: %s", buf, string.sub(advice, 1, 50)))
+        end
+      end
       local title = "Nudge Two Hats"
       local current_selected_hat_notification = buffer.get_selected_hat() -- Get hat specifically for this call context
       if current_selected_hat_notification then
@@ -458,7 +466,12 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行 (NudgeTwoHatsNow): " .. (virtual_text_advice or "アドバイスなし"))
       end
       if virtual_text_advice then
-        state.virtual_text.last_advice[buf] = virtual_text_advice
+        state.virtual_text = state.virtual_text or {} -- Ensure structure exists
+        state.virtual_text.last_advice = state.virtual_text.last_advice or {}
+        state.virtual_text.last_advice[buf] = virtual_text_advice -- This line is confirmed to be present
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug NudgeTwoHatsNow] Stored virtual text advice for buf %d: %s", buf, string.sub(virtual_text_advice, 1, 50)))
+        end
         M.display_virtual_text(buf, virtual_text_advice) -- Display immediately
         if config.debug_mode then
           print("\n=== Nudge Two Hats 仮想テキスト (NudgeTwoHatsNow) ===")

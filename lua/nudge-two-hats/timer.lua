@@ -244,6 +244,11 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
+      if advice then -- Store advice if received
+        state.notifications = state.notifications or {}
+        state.notifications.last_advice = state.notifications.last_advice or {}
+        state.notifications.last_advice[buf] = advice
+      end
       local title = "Nudge Two Hats"
       if state.selected_hat then
         title = state.selected_hat
@@ -422,7 +427,11 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
           print(string.format("[Nudge Two Hats Debug Timer] Virtual text API callback: Received advice for buf %d: %s", current_buf_arg, advice or "nil"))
         end
         if advice then
-          current_state_arg.virtual_text.last_advice[current_buf_arg] = advice
+          -- Ensure state structure exists (it should, but good for robustness)
+          current_state_arg.virtual_text = current_state_arg.virtual_text or {}
+          current_state_arg.virtual_text.last_advice = current_state_arg.virtual_text.last_advice or {}
+          current_state_arg.virtual_text.last_advice[current_buf_arg] = advice -- This line is correctly placed
+          
           current_display_func_arg(current_buf_arg, advice) -- This call might stop the timer ID that just fired
           
           -- Use 'original_content' for updating buffer state
