@@ -114,13 +114,12 @@ local config = {
   length_type = "characters", -- Can be "characters" or "words"
   output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
   translate_messages = true, -- Whether to translate messages to the specified language
-  min_interval = 30, -- Minimum interval between API calls in seconds
+  notify_interval_seconds = 5, -- Minimum interval between API calls in seconds
+  virtual_text_interval_seconds = 10, -- Time in seconds before showing virtual text
   gemini_model = "gemini-2.5-flash-preview-05-20", -- Updated to latest Gemini model
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
   virtual_text = {
-    idle_time = 10, -- Time in minutes before showing virtual text
-    cursor_idle_delay = 5, -- Time in minutes before setting timers after cursor stops
     text_color = "#000000", -- Text color in hex format
     background_color = "#FFFFFF", -- Background color in hex format
   },

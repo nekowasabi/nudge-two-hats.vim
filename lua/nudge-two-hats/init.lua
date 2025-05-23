@@ -6,7 +6,8 @@ local state = {
   buf_content_by_filetype = {}, -- Store buffer content by buffer ID and filetype
   buf_filetypes = {}, -- Store buffer filetypes when NudgeTwoHatsStart is executed
   api_key = nil, -- Gemini API key
-  last_api_call = 0, -- Timestamp of the last API call
+  last_api_call_notification = 0, -- Timestamp of the last API call for notifications
+  last_api_call_virtual_text = 0, -- Timestamp of the last API call for virtual text
   timers = {
     notification = {}, -- Store notification timer IDs by buffer (for API requests)
     virtual_text = {}  -- Store virtual text timer IDs by buffer (for display)
@@ -14,8 +15,7 @@ local state = {
   virtual_text = {
     namespace = nil, -- Namespace for virtual text extmarks
     extmarks = {}, -- Store extmark IDs by buffer
-    last_advice = {}, -- Store last advice by buffer
-    last_cursor_move = {}, -- Store last cursor move timestamp by buffer
+    last_advice = {} -- Store last advice by buffer
   }
 }
 
@@ -58,15 +58,15 @@ end
 
 -- timer.luaからの関数を呼び出すラッパー関数
 function M.stop_timer(buf)
-  return timer.stop_timer(buf, state, M.stop_notification_timer, M.stop_virtual_text_timer)
+  -- This function is now only expected to stop the virtual text timer.
+  -- The notification timer will be managed independently.
+  return timer.stop_virtual_text_timer(buf, state)
 end
 
 -- timer.luaからの関数を呼び出すラッパー関数
 function M.start_virtual_text_timer(buf, event_name)
-  -- M.display_virtual_text関数へのコールバックを登録
-  state.start_virtual_text_timer_callback = function(buffer_id)
-    M.start_virtual_text_timer(buffer_id)
-  end
+  -- The callback to M.start_virtual_text_timer itself (previously in state.start_virtual_text_timer_callback)
+  -- is handled by the recurring nature of the timer in timer.lua now.
   return timer.start_virtual_text_timer(buf, event_name, state, M.display_virtual_text)
 end
 
@@ -80,6 +80,11 @@ end
 
 -- display_virtual_textのラッパー関数
 function M.display_virtual_text(buf, advice)
+  -- When new virtual text is displayed, we should stop any existing virtual text timer 
+  -- for that buffer, as new advice has been received and displayed.
+  -- The timer.start_virtual_text_timer will be called again if needed by other events (e.g. BufEnter, NudgeTwoHatsToggle)
+  -- or by its own recurring callback if no new diff is found.
+  M.stop_virtual_text_timer(buf) 
   return virtual_text.display_virtual_text(buf, advice)
 end
 
@@ -134,12 +139,12 @@ function M.setup(opts)
       -- create_autocmd関数をautocmdモジュールから呼び出します
       -- The autocmd module now uses its internally stored m_state and m_plugin_functions
       autocmd.create_autocmd(buf)
-      state.virtual_text.last_cursor_move[buf] = os.time()
-      -- print("[Nudge Two Hats] Registered autocmds for buffer " .. buf .. " with filetypes: " .. state.buf_filetypes[buf])
-      -- print("[Nudge Two Hats] CursorHold should now trigger every " .. vim.o.updatetime .. "ms")
-      -- print("[Nudge Two Hats] Virtual text should appear after " .. config.virtual_text.idle_time .. " minutes of idle cursor")
+      -- Start both timers when enabling
+      M.start_notification_timer(buf, "NudgeTwoHatsToggle_enable")
+      M.start_virtual_text_timer(buf, "NudgeTwoHatsToggle_enable")
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Set updatetime to 1000ms (original: " .. state.original_updatetime .. "ms)")
+        print("[Nudge Two Hats Debug] Notification and Virtual Text timers started for buffer " .. buf .. " via NudgeTwoHatsToggle.")
       end
     else
       if state.original_updatetime then
@@ -153,44 +158,24 @@ function M.setup(opts)
           M.clear_virtual_text(buf)
         end
       end
-      for buf, timer_id in pairs(state.timers.notification) do
-        if timer_id then
-          vim.fn.timer_stop(timer_id)
-          state.timers.notification[buf] = nil
-          if log_file then
-            log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-            if log_file then
-              log_file:write("Stopping notification timer with ID: " .. timer_id .. " when disabling plugin\n")
-              log_file:close()
-            end
+      -- Stop both timers for all relevant buffers
+      for b, _ in pairs(state.buf_filetypes) do -- Iterate over buffers managed by the plugin
+        if vim.api.nvim_buf_is_valid(b) then
+          M.stop_notification_timer(b)
+          M.stop_virtual_text_timer(b)
+          if config.debug_mode then
+            print("[Nudge Two Hats Debug] Notification and Virtual Text timers stopped for buffer " .. b .. " via NudgeTwoHatsToggle disable.")
           end
         end
       end
-      for buf, timer_id in pairs(state.timers.virtual_text) do
-        if timer_id then
-          vim.fn.timer_stop(timer_id)
-          state.timers.virtual_text[buf] = nil
-          if log_file then
-            log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-            if log_file then
-              log_file:write("Stopping virtual text timer with ID: " .. timer_id .. " when disabling plugin\n")
-              log_file:close()
-            end
-          end
-        end
-      end
-      for buf, timer_id in pairs(state.virtual_text.timers) do
-        if timer_id then
-          vim.fn.timer_stop(timer_id)
-          state.virtual_text.timers[buf] = nil
-          if log_file then
-            log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-            if log_file then
-              log_file:write("Stopping legacy timer with ID: " .. timer_id .. " when disabling plugin\n")
-              log_file:close()
-            end
-          end
-        end
+      -- Clear any legacy timers just in case (though they should not be active with new code)
+      if state.virtual_text.timers then
+         for b, timer_id in pairs(state.virtual_text.timers) do
+           if timer_id then
+             vim.fn.timer_stop(timer_id)
+             state.virtual_text.timers[b] = nil
+           end
+         end
       end
     end
   end, {})
@@ -239,10 +224,15 @@ function M.setup(opts)
     -- create_autocmd関数をautocmdモジュールから呼び出します
     -- The autocmd module now uses its internally stored m_state and m_plugin_functions
     autocmd.create_autocmd(buf)
-    state.virtual_text.last_cursor_move[buf] = os.time()
+    -- Start both timers when enabling via NudgeTwoHatsStart
+    M.start_notification_timer(buf, "NudgeTwoHatsStart")
+    M.start_virtual_text_timer(buf, "NudgeTwoHatsStart")
     local filetype_str = table.concat(filetypes, ", ")
     local source_str = using_current_filetype and "current buffer" or "specified files"
     vim.notify(string.format("Nudge Two Hats enabled for filetypes: %s (from %s)", filetype_str, source_str), vim.log.levels.INFO)
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Notification and Virtual Text timers started for buffer " .. buf .. " via NudgeTwoHatsStart.")
+    end
   end, { nargs = "*" })
   vim.api.nvim_create_user_command("NudgeTwoHatsDebug", function()
     print("==========================================")
@@ -253,9 +243,10 @@ function M.setup(opts)
     print(string.format("API key set: %s", state.api_key and "true" or "false"))
     print(string.format("Original updatetime: %s", state.original_updatetime or "not set"))
     print(string.format("Current updatetime: %s", vim.o.updatetime))
-    print(string.format("Virtual text idle time: %s minutes", config.virtual_text.idle_time))
-    print(string.format("Notification idle time: %s minutes", config.notification.idle_time))
-    print(string.format("Last API call: %s", state.last_api_call or "never"))
+    print(string.format("Virtual text idle time: %s minutes", config.virtual_text_interval_seconds / 60))
+    print(string.format("Notification idle time: %s minutes", config.notify_interval_seconds / 60))
+    print(string.format("Last API call notification: %s", state.last_api_call_notification or "never"))
+    print(string.format("Last API call virtual text: %s", state.last_api_call_virtual_text or "never"))
     print("\nActive Buffers:")
 
     local active_notification_timers = 0
@@ -401,7 +392,8 @@ function M.setup(opts)
       state.buf_content_by_filetype[buf][filetype] = context_content
     end
     state.buf_content[buf] = context_content
-    state.last_api_call = 0
+    state.last_api_call_notification = 0
+    state.last_api_call_virtual_text = 0
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: " .. (diff_filetype or "unknown"))
       print(diff)
@@ -418,8 +410,9 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
       local title = "Nudge Two Hats"
-      if selected_hat then
-        title = selected_hat
+      local current_selected_hat_notification = buffer.get_selected_hat() -- Get hat specifically for this call context
+      if current_selected_hat_notification then
+        title = current_selected_hat_notification
       end
       if config.debug_mode then
         print("[Nudge Two Hats Debug] vim.notifyを呼び出します: " .. title)
@@ -429,27 +422,55 @@ function M.setup(opts)
         icon = "🎩",
       })
       if config.debug_mode then
-        print("\n=== Nudge Two Hats 通知 ===")
+        print("\n=== Nudge Two Hats 通知 (NudgeTwoHatsNow) ===")
         print(advice)
-        print("==========================")
+        print("============================================")
       end
-      
-      -- 仮想テキスト用に別途Gemini APIを呼び出し
-      state.context_for = "virtual_text"
-      local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
-      api.get_gemini_advice(diff, function(virtual_text_advice)
-        if config.debug_mode then
-          print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
-          print("\n=== Nudge Two Hats 仮想テキスト ===")
-          print(virtual_text_advice)
-          print("================================")
+      if content then -- Update content after notification API call
+        state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
+        local callback_filetypes_notif = {}
+        if state.buf_filetypes[buf] then
+          for ft in string.gmatch(state.buf_filetypes[buf], "[^,]+") do table.insert(callback_filetypes_notif, ft) end
+        else
+          local cft_notif = vim.api.nvim_buf_get_option(buf, "filetype")
+          if cft_notif and cft_notif ~= "" then table.insert(callback_filetypes_notif, cft_notif) end
         end
-        -- 仮想テキスト用のアドバイスを保存
-      state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, state)
+        if #callback_filetypes_notif > 0 then
+          for _, ft in ipairs(callback_filetypes_notif) do state.buf_content_by_filetype[buf][ft] = content end
+        else
+          state.buf_content_by_filetype[buf]["_default"] = content
+        end
+        state.buf_content[buf] = content
+      end
+    end, prompt, config.purpose, state)
+
+    -- 仮想テキスト用に別途Gemini APIを呼び出し
+    state.context_for = "virtual_text"
+    local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] NudgeTwoHatsNow: Calling get_gemini_advice for virtual text.")
+    end
+    api.get_gemini_advice(diff, function(virtual_text_advice)
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行 (NudgeTwoHatsNow): " .. (virtual_text_advice or "アドバイスなし"))
+      end
+      if virtual_text_advice then
+        state.virtual_text.last_advice[buf] = virtual_text_advice
+        M.display_virtual_text(buf, virtual_text_advice) -- Display immediately
+        if config.debug_mode then
+          print("\n=== Nudge Two Hats 仮想テキスト (NudgeTwoHatsNow) ===")
+          print(virtual_text_advice)
+          print("===================================================")
+        end
+        -- Note: Content update for virtual text is handled by its own timer logic if needed,
+        -- or here if we decide NudgeTwoHatsNow should also force update content for VT context.
+        -- For now, assuming the notification's content update is sufficient or VT timer will handle.
+      end
+    end, vt_prompt, config.purpose, state)
       
-      if content then
-        -- Update content for all filetypes
+    if content then
+        -- This content update might be redundant if the notification callback already did it.
+        -- However, ensuring it here for safety, especially if API calls are truly independent.
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
         -- Get the filetypes for this buffer within the callback
         local callback_filetypes = {}
@@ -529,7 +550,8 @@ function M.setup(opts)
       print("[Nudge Two Hats Debug] Filetype: " .. (current_filetype or "unknown"))
       print("[Nudge Two Hats Debug] コンテキスト範囲: " .. context_start .. "-" .. context_end .. " 行")
     end
-    state.last_api_call = 0
+    state.last_api_call_notification = 0
+    state.last_api_call_virtual_text = 0
     -- 通知用にGemini APIを呼び出し
     state.context_for = "notification"
     api.get_gemini_advice(diff, function(advice)

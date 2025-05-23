@@ -48,10 +48,8 @@ function M.create_autocmd(buf)
     m_state.buf_content_by_filetype[buf][filetype] = content
   end
   m_state.buf_content[buf] = content
-  local current_time = os.time()
-  m_state.virtual_text.last_cursor_move[buf] = current_time
   if m_config and m_config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s",
+    print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s for autocmds.",
       buf, table.concat(filetypes, ", ")))
   end
 
@@ -130,9 +128,7 @@ function M.create_autocmd(buf)
       if not m_state or not m_state.enabled then
         return
       end
-      if m_state then
-        m_state.virtual_text.last_cursor_move[buf] = os.time()
-      end
+      -- Removed m_state.virtual_text.last_cursor_move[buf] = os.time()
       if not m_plugin_functions or not m_plugin_functions.clear_virtual_text then
         if m_config and m_config.debug_mode then
           print("[Nudge Two Hats Debug] ERROR in create_autocmd CursorMoved: m_plugin_functions or m_plugin_functions.clear_virtual_text is nil. Buffer: " .. buf)
@@ -140,21 +136,12 @@ function M.create_autocmd(buf)
         return
       end
       m_plugin_functions.clear_virtual_text(buf)
-      -- Restart virtual text timer
-      if not m_plugin_functions or not m_plugin_functions.start_virtual_text_timer then
-        if m_config and m_config.debug_mode then
-          print("[Nudge Two Hats Debug] ERROR in create_autocmd CursorMoved: m_plugin_functions or m_plugin_functions.start_virtual_text_timer is nil. Buffer: " .. buf)
-        end
-        return
-      end
-      m_plugin_functions.start_virtual_text_timer(buf, "CursorMoved")
+      -- Removed call to m_plugin_functions.start_virtual_text_timer(buf, "CursorMoved")
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text and restarted timer", buf))
-      end
-      if m_config and m_config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text. Virtual text timer continues its recurring schedule.", buf))
         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
         if log_file then
-          log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text\n",
+          log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text. VT timer is recurring.\n",
             buf, os.date("%Y-%m-%d %H:%M:%S")))
           log_file:close()
         end
@@ -169,9 +156,7 @@ function M.create_autocmd(buf)
       if not m_state or not m_state.enabled then
         return
       end
-      if m_state then
-        m_state.virtual_text.last_cursor_move[buf] = os.time()
-      end
+      -- Removed m_state.virtual_text.last_cursor_move[buf] = os.time()
       if not m_plugin_functions or not m_plugin_functions.clear_virtual_text then
         if m_config and m_config.debug_mode then
           print("[Nudge Two Hats Debug] ERROR in create_autocmd CursorMovedI: m_plugin_functions or m_plugin_functions.clear_virtual_text is nil. Buffer: " .. buf)
@@ -179,19 +164,12 @@ function M.create_autocmd(buf)
         return
       end
       m_plugin_functions.clear_virtual_text(buf)
-      -- Restart virtual text timer
-      if not m_plugin_functions or not m_plugin_functions.start_virtual_text_timer then
-        if m_config and m_config.debug_mode then
-          print("[Nudge Two Hats Debug] ERROR in create_autocmd CursorMovedI: m_plugin_functions or m_plugin_functions.start_virtual_text_timer is nil. Buffer: " .. buf)
-        end
-        return
-      end
-      m_plugin_functions.start_virtual_text_timer(buf, "CursorMovedI")
+      -- Removed call to m_plugin_functions.start_virtual_text_timer(buf, "CursorMovedI")
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text and restarted timer", buf))
+        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text. Virtual text timer continues its recurring schedule.", buf))
         local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
         if log_file then
-          log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text\n",
+          log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text. VT timer is recurring.\n",
             buf, os.date("%Y-%m-%d %H:%M:%S")))
           log_file:close()
         end
@@ -341,7 +319,7 @@ function M.buf_enter_callback()
       print(string.format("[Nudge Two Hats Debug] BufEnter: Switched to buffer %d", buf))
     end
     if m_config.debug_mode then
-      local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
+      local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a") -- Changed log file name
       if log_file then
         log_file:write("=== BufEnter triggered at " .. os.date("%Y-%m-%d %H:%M:%S") .. " ===\n")
         log_file:write("Current buffer: " .. buf .. "\n")
@@ -350,19 +328,26 @@ function M.buf_enter_callback()
       end
     end
     if m_state.buf_filetypes[buf] then
-      -- アドバイス表示用のvirtual textタイマーを開始
-      if not m_plugin_functions or not m_plugin_functions.start_virtual_text_timer then
-        if m_config.debug_mode then
-          print("[Nudge Two Hats Debug] ERROR in buf_enter_callback: m_plugin_functions or m_plugin_functions.start_virtual_text_timer is nil. Buffer: " .. buf)
-        end
-      else
-        m_plugin_functions.start_virtual_text_timer(buf)
-        if m_config.debug_mode then
-          print(string.format("[Nudge Two Hats Debug] BufEnter: Restarted virtual text timer for buffer %d", buf))
-        end
-      end
+      -- Notification timer is started on BufEnter to catch up with potential changes
+      -- The virtual text timer is already recurring and should not be restarted here
+      -- unless it was explicitly stopped for this buffer.
+      -- Since NudgeTwoHatsToggle and NudgeTwoHatsStart now manage starting VT timer,
+      -- BufEnter should primarily focus on notification timer and ensuring VT is running if it should be.
+      -- However, the current design is that VT timer is started when plugin is enabled for a buffer.
+      -- If it was stopped by BufLeave, it should be restarted by BufEnter.
 
-      -- Create baseline temporary file for the buffer
+      if m_plugin_functions and m_plugin_functions.start_virtual_text_timer then
+         m_plugin_functions.start_virtual_text_timer(buf, "BufEnter_re-start_check")
+         if m_config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] BufEnter: Ensured virtual text timer is (re)started for buffer %d if it was stopped.", buf))
+         end
+      else
+         if m_config.debug_mode then
+            print("[Nudge Two Hats Debug] ERROR in buf_enter_callback: m_plugin_functions.start_virtual_text_timer is nil. Cannot ensure VT timer restart. Buffer: " .. buf)
+         end
+      end
+      
+      -- Create baseline temporary file for the buffer (this part seems related to diff calculation, keep as is)
       local current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
       local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
       
@@ -396,6 +381,9 @@ function M.buf_enter_callback()
         end
       else
         m_plugin_functions.start_notification_timer(buf, "BufEnter")
+        if m_config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug] BufEnter: Notification timer started for buffer %d.", buf))
+        end
       end
     end
   end
