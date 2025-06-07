@@ -14,32 +14,54 @@ local M = {}
 -- @param context - The context of the prompt (e.g., "notification", "virtual_text")
 -- @param last_message_to_avoid - (Optional) Previous message to avoid repeating
 function M.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
-    local advisory_line
+    -- Determine context-specific descriptions
+    local context_name_str
+    local context_guidance_str
     if context == "notification" then
-        advisory_line = string.format("As a UI notification, with %s emotions and a %s tone, I will advise:", emotion, tone)
+        context_name_str = "UI Notification"
+        context_guidance_str = "Your advice will be displayed as a UI notification. It needs to be concise, impactful, and easily digestible at a glance."
     elseif context == "virtual_text" then
-        advisory_line = string.format("For subtle virtual text display, with %s emotions and a %s tone, I will advise:", emotion, tone)
+        context_name_str = "Virtual Text in Editor"
+        context_guidance_str = "Your advice will be shown as virtual text alongside the code. It should be subtle, highly relevant to the immediate code context, and very brief."
     else
-        advisory_line = string.format("With %s emotions and a %s tone, I will advise:", emotion, tone) -- Fallback
+        context_name_str = "General Context" -- Fallback
+        context_guidance_str = "Your advice will be used in a general context."
     end
 
-    local base = [[
-# Role: %s wearing the %s hat mode
+    local base_template = [[
+# AI Agent Instructions
 
-## Direction
+## 1. Persona
+- **Role**: %s
+- **Mode (Hat)**: %s
+
+## 2. Objective
+- **Direction**: %s
+
+## 3. Style
+- **Emotion**: %s
+- **Tone**: %s
+
+## 4. Output Medium
+- **Context**: %s
+- **Guidance for this Context**: %s
+
+## 5. Task
 %s
 
-> %s
+## 6. Constraints
+- **Message Length**: Your response MUST be EXACTLY %d characters. Adhere strictly to this character limit.
+]]
 
-%s
-
-**MUST: レスポンスは%d文字の文章にしてください。1文字でも超えることは禁止します。**]]
     local final_prompt = string.format(
-      base,
+      base_template,
       role,
       selected_hat,
       direction,
-      advisory_line,
+      emotion,
+      tone,
+      context_name_str,
+      context_guidance_str,
       prompt_text,
       message_length
     )
@@ -61,24 +83,55 @@ end
 -- @param context - The context of the prompt (e.g., "notification", "virtual_text")
 -- @param last_message_to_avoid - (Optional) Previous message to avoid repeating
 function M.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
-    local advisory_line
+    -- Determine context-specific descriptions (shared with M.generate_prompt or re-defined if necessary)
+    local context_name_str
+    local context_guidance_str
     if context == "notification" then
-        advisory_line = string.format("As a UI notification, with %s emotions and a %s tone, I will advise:", emotion, tone)
+        context_name_str = "UI Notification"
+        context_guidance_str = "Your advice will be displayed as a UI notification. It needs to be concise, impactful, and easily digestible at a glance."
     elseif context == "virtual_text" then
-        advisory_line = string.format("For subtle virtual text display, with %s emotions and a %s tone, I will advise:", emotion, tone)
+        context_name_str = "Virtual Text in Editor"
+        context_guidance_str = "Your advice will be shown as virtual text alongside the code. It should be subtle, highly relevant to the immediate code context, and very brief."
     else
-        advisory_line = string.format("With %s emotions and a %s tone, I will advise:", emotion, tone) -- Fallback
+        context_name_str = "General Context" -- Fallback
+        context_guidance_str = "Your advice will be used in a general context."
     end
 
-    local base = [[
-I am a %s.
-%s.
-%s
+    local base_template_no_hat = [[
+# AI Agent Instructions
+
+## 1. Persona
+- **Role**: %s
+
+## 2. Objective
+- **Direction**: %s
+
+## 3. Style
+- **Emotion**: %s
+- **Tone**: %s
+
+## 4. Output Medium
+- **Context**: %s
+- **Guidance for this Context**: %s
+
+## 5. Task
 %s
 
-**MUST: レスポンスは%d文字の文章にしてください。1文字でも超えることは禁止します。**]]
+## 6. Constraints
+- **Message Length**: Your response MUST be EXACTLY %d characters. Adhere strictly to this character limit.
+]]
 
-    local final_prompt = string.format(base, role, direction, advisory_line, prompt_text, message_length)
+    local final_prompt = string.format(
+      base_template_no_hat,
+      role,
+      direction,
+      emotion,
+      tone,
+      context_name_str,
+      context_guidance_str,
+      prompt_text,
+      message_length
+    )
 
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
