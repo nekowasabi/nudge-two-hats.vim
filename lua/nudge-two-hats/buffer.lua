@@ -317,7 +317,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
         if cb_result and cb_result ~= "" then
           return cb_result
         end
-        
+
         local default_cbt_for_context = config[context].default_cbt or {} -- Use an empty table if default_cbt for context is nil
         local role = filetype_prompt.role or default_cbt_for_context.role
         local direction = filetype_prompt.direction or default_cbt_for_context.direction
@@ -328,7 +328,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
         local notify_message_length = filetype_prompt.notify_message_length or config[context].notify_message_length
         local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config[context].virtual_text_message_length
         local message_length = notify_message_length
-        
+
         if config.debug_mode then
           print("[Nudge Two Hats Debug] === PROMPT CONFIG DEBUG ===")
           print("[Nudge Two Hats Debug] Filetype: " .. filetype)
