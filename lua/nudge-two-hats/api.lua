@@ -582,7 +582,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     },
     generationConfig = {
       thinkingConfig = {
-        thinkingBudget = 0
+        thinkingBudget = 512,
       },
       temperature = 0.2,
       topK = 40,

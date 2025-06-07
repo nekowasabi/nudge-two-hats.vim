@@ -3,6 +3,12 @@
 
 local M = {}
 
+-- メッセージ多様性モジュールをインポート
+local variety = require("nudge-two-hats.message_variety")
+
+-- config設定へのアクセス
+local config = require("nudge-two-hats.config")
+
 -- プロンプトを生成する関数
 -- @param role - 役割
 -- @param selected_hat - モード（帽子）
@@ -14,6 +20,9 @@ local M = {}
 -- @param context - The context of the prompt (e.g., "notification", "virtual_text")
 -- @param last_message_to_avoid - (Optional) Previous message to avoid repeating
 function M.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
+    -- 動的な要素を追加（message_varietyモジュールを使用）
+    prompt_text = variety.enhance_prompt(prompt_text)
+    
     -- Determine context-specific descriptions
     local context_name_str
     local context_guidance_str
@@ -69,6 +78,10 @@ function M.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
         final_prompt = final_prompt .. '\n\nCRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: ' .. lua_literal_message .. '. Generate a distinct new message.'
+    -- 生成されたプロンプトをログに記録（デバッグ用）
+    if config and config.debug_mode then
+        print("[Nudge Two Hats Debug] Enhanced prompt with variety features (with hat)")
+    end
     end
     return final_prompt
 end
@@ -83,6 +96,9 @@ end
 -- @param context - The context of the prompt (e.g., "notification", "virtual_text")
 -- @param last_message_to_avoid - (Optional) Previous message to avoid repeating
 function M.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
+    -- 動的な要素を追加（message_varietyモジュールを使用）
+    prompt_text = variety.enhance_prompt(prompt_text)
+    
     -- Determine context-specific descriptions (shared with M.generate_prompt or re-defined if necessary)
     local context_name_str
     local context_guidance_str
@@ -136,8 +152,28 @@ function M.generate_prompt_without_hat(role, direction, emotion, tone, prompt_te
     if last_message_to_avoid and last_message_to_avoid ~= "" then
         local lua_literal_message = string.format("%q", last_message_to_avoid)
         final_prompt = final_prompt .. '\n\nCRITICAL INSTRUCTION: Your response MUST NOT be identical or very similar to the following previous message: ' .. lua_literal_message .. '. Generate a distinct new message.'
+    -- 生成されたプロンプトをログに記録（デバッグ用）
+    if config and config.debug_mode then
+        print("[Nudge Two Hats Debug] Enhanced prompt with variety features (without hat)")
+    end
     end
     return final_prompt
+end
+
+-- AIによる応答を履歴に記録する関数
+function M.record_message(message)
+  -- message_varietyモジュールに履歴を記録
+  variety.record_message(message)
+end
+
+-- デバッグ用：履歴を取得
+function M.get_message_history()
+  return variety.get_message_history()
+end
+
+-- デバッグ用：履歴をクリア
+function M.clear_message_history()
+  return variety.clear_message_history()
 end
 
 return M
