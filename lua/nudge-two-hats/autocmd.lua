@@ -125,26 +125,18 @@ function M.create_autocmd(buf)
     group = augroup,
     buffer = buf,
     callback = function()
-      if not m_state or not m_state.enabled then
-        return
-      end
-      -- Removed m_state.virtual_text.last_cursor_move[buf] = os.time()
-      if not m_plugin_functions or not m_plugin_functions.clear_virtual_text then
-        if m_config and m_config.debug_mode then
-          print("[Nudge Two Hats Debug] ERROR in create_autocmd CursorMoved: m_plugin_functions or m_plugin_functions.clear_virtual_text is nil. Buffer: " .. buf)
-        end
-        return
-      end
+      if not m_state or not m_state.enabled or not m_plugin_functions then return end
+      if not vim.api.nvim_buf_is_valid(buf) then return end
+
+      m_state.virtual_text = m_state.virtual_text or {}
+      m_state.virtual_text.is_displayed = m_state.virtual_text.is_displayed or {}
+      m_state.virtual_text.is_displayed[buf] = false
+
       m_plugin_functions.clear_virtual_text(buf)
-      -- Removed call to m_plugin_functions.start_virtual_text_timer(buf, "CursorMoved")
+      m_plugin_functions.start_virtual_text_timer(buf, "CursorMoved_restart")
+
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor moved in buffer %d, cleared virtual text. Virtual text timer continues its recurring schedule.", buf))
-        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-        if log_file then
-          log_file:write(string.format("Cursor moved in buffer %d at %s, cleared virtual text. VT timer is recurring.\n",
-            buf, os.date("%Y-%m-%d %H:%M:%S")))
-          log_file:close()
-        end
+        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMoved in buf %d: Cleared display flag, cleared text, restarted VT timer.", buf))
       end
     end
   })
@@ -153,26 +145,18 @@ function M.create_autocmd(buf)
     group = augroup,
     buffer = buf,
     callback = function()
-      if not m_state or not m_state.enabled then
-        return
-      end
-      -- Removed m_state.virtual_text.last_cursor_move[buf] = os.time()
-      if not m_plugin_functions or not m_plugin_functions.clear_virtual_text then
-        if m_config and m_config.debug_mode then
-          print("[Nudge Two Hats Debug] ERROR in create_autocmd CursorMovedI: m_plugin_functions or m_plugin_functions.clear_virtual_text is nil. Buffer: " .. buf)
-        end
-        return
-      end
+      if not m_state or not m_state.enabled or not m_plugin_functions then return end
+      if not vim.api.nvim_buf_is_valid(buf) then return end
+
+      m_state.virtual_text = m_state.virtual_text or {}
+      m_state.virtual_text.is_displayed = m_state.virtual_text.is_displayed or {}
+      m_state.virtual_text.is_displayed[buf] = false
+
       m_plugin_functions.clear_virtual_text(buf)
-      -- Removed call to m_plugin_functions.start_virtual_text_timer(buf, "CursorMovedI")
+      m_plugin_functions.start_virtual_text_timer(buf, "CursorMovedI_restart")
+
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] Cursor moved in Insert mode in buffer %d, cleared virtual text. Virtual text timer continues its recurring schedule.", buf))
-        local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
-        if log_file then
-          log_file:write(string.format("Cursor moved in Insert mode in buffer %d at %s, cleared virtual text. VT timer is recurring.\n",
-            buf, os.date("%Y-%m-%d %H:%M:%S")))
-          log_file:close()
-        end
+        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMovedI in buf %d: Cleared display flag, cleared text, restarted VT timer.", buf))
       end
     end
   })
@@ -329,21 +313,24 @@ function M.buf_enter_callback()
     end
     if m_state.buf_filetypes[buf] then
       -- Notification timer is started on BufEnter to catch up with potential changes
-      -- The virtual text timer is already recurring and should not be restarted here
-      -- unless it was explicitly stopped for this buffer.
-      -- Since NudgeTwoHatsToggle and NudgeTwoHatsStart now manage starting VT timer,
-      -- BufEnter should primarily focus on notification timer and ensuring VT is running if it should be.
-      -- However, the current design is that VT timer is started when plugin is enabled for a buffer.
-      -- If it was stopped by BufLeave, it should be restarted by BufEnter.
+      m_state.virtual_text = m_state.virtual_text or {}
+      m_state.virtual_text.is_displayed = m_state.virtual_text.is_displayed or {}
+      m_state.virtual_text.is_displayed[buf] = false
+
+      if m_plugin_functions and m_plugin_functions.clear_virtual_text then
+        m_plugin_functions.clear_virtual_text(buf)
+      elseif m_config and m_config.debug_mode then
+        print("[Nudge Two Hats Debug Autocmd] BufEnter: m_plugin_functions.clear_virtual_text is nil for buf " .. buf)
+      end
 
       if m_plugin_functions and m_plugin_functions.start_virtual_text_timer then
-         m_plugin_functions.start_virtual_text_timer(buf, "BufEnter_re-start_check")
-         if m_config.debug_mode then
-            print(string.format("[Nudge Two Hats Debug] BufEnter: Ensured virtual text timer is (re)started for buffer %d if it was stopped.", buf))
+         m_plugin_functions.start_virtual_text_timer(buf, "BufEnter_restart")
+         if m_config and m_config.debug_mode then
+            print(string.format("[Nudge Two Hats Debug Autocmd] BufEnter for buf %d: Cleared display flag, cleared text, restarted VT timer.", buf))
          end
       else
-         if m_config.debug_mode then
-            print("[Nudge Two Hats Debug] ERROR in buf_enter_callback: m_plugin_functions.start_virtual_text_timer is nil. Cannot ensure VT timer restart. Buffer: " .. buf)
+         if m_config and m_config.debug_mode then
+            print("[Nudge Two Hats Debug Autocmd] ERROR in buf_enter_callback: m_plugin_functions.start_virtual_text_timer is nil. Cannot restart VT timer for buf: " .. buf)
          end
       end
       

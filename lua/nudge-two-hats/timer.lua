@@ -350,122 +350,123 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
         if current_config_arg.debug_mode then
           print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer: Buf %d invalid or plugin disabled. Not rescheduling.", current_buf_arg))
         end
-        current_state_arg.timers.virtual_text[current_buf_arg] = nil -- Ensure timer ID is cleared
+        current_state_arg.timers.virtual_text[current_buf_arg] = nil
         return
       end
 
       if current_config_arg.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Virtual text SELF-RESCHEDULING timer callback: Fired for buf %d.", current_buf_arg))
+        print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Fired for buf %d.", current_buf_arg))
       end
+
+      local current_pos = vim.fn.getcurpos()
+      local cursor_moved = true -- Assume cursor moved by default
+      if current_state_arg.last_cursor_pos and current_state_arg.last_cursor_pos[current_buf_arg] then
+        if current_pos[2] == current_state_arg.last_cursor_pos[current_buf_arg][2] and -- line
+           current_pos[3] == current_state_arg.last_cursor_pos[current_buf_arg][3] then -- col
+          cursor_moved = false
+        end
+      end
+
+      current_state_arg.virtual_text = current_state_arg.virtual_text or {}
+      current_state_arg.virtual_text.is_displayed = current_state_arg.virtual_text.is_displayed or {}
+
+      if not cursor_moved then
+        if current_state_arg.virtual_text.is_displayed[current_buf_arg] then
+          if current_config_arg.debug_mode then
+            print(string.format("[Nudge Two Hats Debug Timer] Cursor static AND virtual text displayed for buf %d. Stopping timer.", current_buf_arg))
+          end
+          M.stop_virtual_text_timer(current_buf_arg, current_state_arg) -- Stop the timer
+          return -- Do not proceed to API call or reschedule
+        else
+          if current_config_arg.debug_mode then
+            print(string.format("[Nudge Two Hats Debug Timer] Cursor static, virtual text NOT displayed for buf %d. Proceeding to API call check.", current_buf_arg))
+          end
+          -- Proceed to API call logic
+        end
+      else -- Cursor has moved
+        if current_config_arg.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Cursor MOVED for buf %d. Clearing display flag, proceeding to API call check.", current_buf_arg))
+        end
+        current_state_arg.virtual_text.is_displayed[current_buf_arg] = false -- Clear display flag
+        -- Proceed to API call logic
+      end
+
+      -- Update last cursor position AFTER checking for movement
+      current_state_arg.last_cursor_pos = current_state_arg.last_cursor_pos or {}
+      current_state_arg.last_cursor_pos[current_buf_arg] = current_pos
 
       local current_time = os.time()
       if not current_state_arg.last_api_call_virtual_text then
         current_state_arg.last_api_call_virtual_text = 0
       end
 
+      -- API Call Interval Check (only if we haven't returned already)
       if (current_time - current_state_arg.last_api_call_virtual_text) < current_config_arg.virtual_text_interval_seconds then
         if current_config_arg.debug_mode then
-          print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Interval not yet met for buf %d. Last call: %s, Current: %s. Skipping API call, will reschedule.", current_buf_arg, os.date("%c", current_state_arg.last_api_call_virtual_text), os.date("%c", current_time)))
+          print(string.format("[Nudge Two Hats Debug Timer] API interval not met for buf %d. Rescheduling timer.", current_buf_arg))
         end
-        -- Even if interval not met for API call, we still reschedule the timer.
         if vim.api.nvim_buf_is_valid(current_buf_arg) and current_state_arg.enabled then
           local next_timer_id = vim.fn.timer_start(current_config_arg.virtual_text_interval_seconds * 1000, callback_func)
           current_state_arg.timers.virtual_text[current_buf_arg] = next_timer_id
-          if current_config_arg.debug_mode then
-            print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer for buf %d rescheduled (interval not met path). New ID: %s", current_buf_arg, tostring(next_timer_id)))
-          end
         else
           current_state_arg.timers.virtual_text[current_buf_arg] = nil
         end
         return
       end
 
-      vim.cmd("checktime " .. current_buf_arg) -- Ensure buffer is up-to-date
+      -- Proceed with API Call
+      if current_config_arg.debug_mode then
+        print(string.format("[Nudge Two Hats Debug Timer] Proceeding with API call for buf %d.", current_buf_arg))
+      end
+      vim.cmd("checktime " .. current_buf_arg)
       local original_content, current_diff, current_diff_filetype = current_buffer_module_arg.get_buf_diff(current_buf_arg, current_state_arg)
 
       if not current_diff then
+        -- Create context diff if no actual diff (logic remains similar)
         if current_config_arg.debug_mode then
-          print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer: No actual diff for buf %d. Creating context diff.", current_buf_arg))
+          print(string.format("[Nudge Two Hats Debug Timer] No actual diff for buf %d. Creating context diff.", current_buf_arg))
         end
-        local cursor_pos = vim.api.nvim_win_get_cursor(0)
-        local cursor_row = cursor_pos[1] -- 1-based
+        local temp_cursor_pos = vim.api.nvim_win_get_cursor(0) -- Use a temp var for cursor pos for context diff
+        local temp_cursor_row = temp_cursor_pos[1]
         local line_count = vim.api.nvim_buf_line_count(current_buf_arg)
-        local context_start_line = math.max(1, cursor_row - 20)
-        local context_end_line = math.min(line_count, cursor_row + 20)
+        local context_start_line = math.max(1, temp_cursor_row - 20)
+        local context_end_line = math.min(line_count, temp_cursor_row + 20)
         local context_lines = vim.api.nvim_buf_get_lines(current_buf_arg, context_start_line - 1, context_end_line, false)
-        
         local diff_lines = {}
-        for _, line in ipairs(context_lines) do
-          table.insert(diff_lines, "+ " .. line)
-        end
-        current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s",
-                                     context_start_line, 0, -- Indicate 0 lines from old version at this point
-                                     context_start_line, #context_lines, -- Indicate new lines added
-                                     table.concat(diff_lines, "\n"))
-
+        for _, line in ipairs(context_lines) do table.insert(diff_lines, "+ " .. line) end
+        current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s", context_start_line, 0, context_start_line, #context_lines, table.concat(diff_lines, "\n"))
         if current_state_arg.buf_filetypes[current_buf_arg] then
-          current_diff_filetype = string.gmatch(current_state_arg.buf_filetypes[current_buf_arg], "[^,]+")() -- Get first filetype
+          current_diff_filetype = string.gmatch(current_state_arg.buf_filetypes[current_buf_arg], "[^,]+")()
         else
           current_diff_filetype = vim.api.nvim_buf_get_option(current_buf_arg, "filetype")
         end
-        if not current_diff_filetype or current_diff_filetype == "" then
-          current_diff_filetype = "text" -- Default if no filetype found
-        end
-        if current_config_arg.debug_mode then
-          print(string.format("[Nudge Two Hats Debug Timer] Context diff created for buf %d. Filetype: %s. Diff preview: %s", current_buf_arg, current_diff_filetype, string.sub(current_diff, 1, 100)))
-        end
+        if not current_diff_filetype or current_diff_filetype == "" then current_diff_filetype = "text" end
       end
 
-      -- Now, current_diff will always exist (either actual or context-based)
-      -- Proceed with the API call logic using current_diff and current_diff_filetype:
-      current_state_arg.last_api_call_virtual_text = current_time -- Update timestamp before API call (moved from inside 'if diff then')
+      current_state_arg.last_api_call_virtual_text = current_time
       current_state_arg.context_for = "virtual_text"
       local prompt = current_buffer_module_arg.get_prompt_for_buffer(current_buf_arg, current_state_arg, "virtual_text")
 
       current_api_module_arg.get_gemini_advice(current_diff, function(advice)
         if current_config_arg.debug_mode then
-          print(string.format("[Nudge Two Hats Debug Timer] Virtual text API callback: Received advice for buf %d: %s", current_buf_arg, advice or "nil"))
+          print(string.format("[Nudge Two Hats Debug Timer] API callback: Received advice for buf %d: %s", current_buf_arg, advice or "nil"))
         end
         if advice then
-          -- Ensure state structure exists (it should, but good for robustness)
-          current_state_arg.virtual_text = current_state_arg.virtual_text or {}
           current_state_arg.virtual_text.last_advice = current_state_arg.virtual_text.last_advice or {}
-          current_state_arg.virtual_text.last_advice[current_buf_arg] = advice -- This line is correctly placed
-          
-          current_display_func_arg(current_buf_arg, advice) -- This call might stop the timer ID that just fired
-          
-          -- Use 'original_content' for updating buffer state
-          if original_content then 
-            current_state_arg.buf_content_by_filetype[current_buf_arg] = current_state_arg.buf_content_by_filetype[current_buf_arg] or {}
-            local callback_filetypes = {}
-            if current_state_arg.buf_filetypes[current_buf_arg] then
-              for ft_item in string.gmatch(current_state_arg.buf_filetypes[current_buf_arg], "[^,]+") do table.insert(callback_filetypes, ft_item) end
-            else
-              local current_ft = vim.api.nvim_buf_get_option(current_buf_arg, "filetype")
-              if current_ft and current_ft ~= "" then table.insert(callback_filetypes, current_ft) end
-            end
-            if #callback_filetypes > 0 then
-              for _, ft_item in ipairs(callback_filetypes) do current_state_arg.buf_content_by_filetype[current_buf_arg][ft_item] = original_content end
-            else
-              current_state_arg.buf_content_by_filetype[current_buf_arg]["_default"] = original_content
-            end
-            current_state_arg.buf_content[current_buf_arg] = original_content
-            if current_config_arg.debug_mode then
-                print(string.format("[Nudge Two Hats Debug Timer] Updated buffer content state for buf %d using original_content.", current_buf_arg))
-            end
-          elseif current_config_arg.debug_mode then
-             print(string.format("[Nudge Two Hats Debug Timer] original_content was nil for buf %d. Buffer content state not updated from it.", current_buf_arg))
-          end
-        end
-        -- Reschedule after processing the API response (or lack thereof)
-        if vim.api.nvim_buf_is_valid(current_buf_arg) and current_state_arg.enabled then
-          local next_timer_id = vim.fn.timer_start(current_config_arg.virtual_text_interval_seconds * 1000, callback_func)
-          current_state_arg.timers.virtual_text[current_buf_arg] = next_timer_id
-          if current_config_arg.debug_mode then
-            print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer for buf %d rescheduled (after API call). New ID: %s", current_buf_arg, tostring(next_timer_id)))
-          end
+          current_state_arg.virtual_text.last_advice[current_buf_arg] = advice
+          current_display_func_arg(current_buf_arg, advice) -- This should set is_displayed and stop the timer
+          -- DO NOT reschedule timer here if advice is received, as display_virtual_text should handle timer stop.
         else
-          current_state_arg.timers.virtual_text[current_buf_arg] = nil
+          -- No advice received, or API call failed. Reschedule timer to try again later.
+          if vim.api.nvim_buf_is_valid(current_buf_arg) and current_state_arg.enabled then
+            if current_config_arg.debug_mode then
+              print(string.format("[Nudge Two Hats Debug Timer] No advice from API for buf %d. Rescheduling timer.", current_buf_arg))
+            end
+            local next_timer_id = vim.fn.timer_start(current_config_arg.virtual_text_interval_seconds * 1000, callback_func)
+            current_state_arg.timers.virtual_text[current_buf_arg] = next_timer_id
+          else
+            current_state_arg.timers.virtual_text[current_buf_arg] = nil
+          end
         end
       end, prompt, current_config_arg.purpose, current_state_arg)
     end -- This 'end' closes the 'if (current_time - ...)' block for API interval check

@@ -8,6 +8,7 @@ local state = {
   api_key = nil, -- Gemini API key
   last_api_call_notification = 0, -- Timestamp of the last API call for notifications
   last_api_call_virtual_text = 0, -- Timestamp of the last API call for virtual text
+  last_cursor_pos = {}, -- Stores last known cursor position {buf -> {win, lnum, col, coladd}}
   timers = {
     notification = {}, -- Store notification timer IDs by buffer (for API requests)
     virtual_text = {}  -- Store virtual text timer IDs by buffer (for display)

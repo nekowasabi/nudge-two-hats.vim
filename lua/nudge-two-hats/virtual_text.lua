@@ -33,6 +33,9 @@ function M.clear_virtual_text(buf)
   end
   vim.api.nvim_buf_del_extmark(buf, state.virtual_text.namespace, state.virtual_text.extmarks[buf])
   state.virtual_text.extmarks[buf] = nil
+  if state.virtual_text.is_displayed and state.virtual_text.is_displayed[buf] then
+    state.virtual_text.is_displayed[buf] = false
+  end
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Virtual text cleared")
   end
@@ -115,6 +118,8 @@ function M.display_virtual_text(buf, advice)
     return
   end
   state.virtual_text.extmarks[buf] = extmark_id
+  state.virtual_text.is_displayed = state.virtual_text.is_displayed or {}
+  state.virtual_text.is_displayed[buf] = true
   if log_file then
     log_file:write("Successfully set extmark with ID: " .. extmark_id .. "\n")
     log_file:write("Virtual text should now be visible at line " .. (row + 1) .. "\n\n")
