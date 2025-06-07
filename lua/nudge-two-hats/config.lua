@@ -146,7 +146,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         callback = "",
       },
     },
-    notify_message_length = 10,
+    notify_message_length = 80,
   },
 
   virtual_text = {
@@ -265,7 +265,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         callback = "",
       },
     },
-    virtual_text_message_length = 10,
+    virtual_text_message_length = 40,
     text_color = "#000000",
     background_color = "#FFFFFF",
   },

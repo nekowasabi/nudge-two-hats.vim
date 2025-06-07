@@ -121,7 +121,12 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("NudgeTwoHatsToggle", function(args)
     state.enabled = not state.enabled
     local status = state.enabled and api.translate_message(config.translations.en.enabled) or api.translate_message(config.translations.en.disabled)
-    vim.notify("Nudge Two Hats " .. status, vim.log.levels.INFO)
+    local toggle_message = "Nudge Two Hats " .. status
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] " .. toggle_message)
+    else
+      vim.notify(toggle_message, vim.log.levels.INFO)
+    end
     if state.enabled then
       if not state.original_updatetime then
         state.original_updatetime = vim.o.updatetime
@@ -234,9 +239,12 @@ function M.setup(opts)
     M.start_virtual_text_timer(buf, "NudgeTwoHatsStart")
     local filetype_str = table.concat(filetypes, ", ")
     local source_str = using_current_filetype and "current buffer" or "specified files"
-    vim.notify(string.format("Nudge Two Hats enabled for filetypes: %s (from %s)", filetype_str, source_str), vim.log.levels.INFO)
+    local enable_message = string.format("Nudge Two Hats enabled for filetypes: %s (from %s)", filetype_str, source_str)
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] Notification and Virtual Text timers started for buffer " .. buf .. " via NudgeTwoHatsStart.")
+      -- print("[Nudge Two Hats Debug] " .. enable_message)
+      -- print("[Nudge Two Hats Debug] Notification and Virtual Text timers started for buffer " .. buf .. " via NudgeTwoHatsStart.")
+    else
+      -- vim.notify(enable_message, vim.log.levels.INFO)
     end
   end, { nargs = "*" })
   vim.api.nvim_create_user_command("NudgeTwoHatsDebug", function()

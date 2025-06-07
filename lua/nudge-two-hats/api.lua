@@ -505,8 +505,10 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     local error_msg = translate_message(config.translations.en.api_key_not_set)
     if config.debug_mode then
       print("[Nudge Two Hats Debug] APIキーが設定されていません")
+      print("[Nudge Two Hats Debug] Error: " .. error_msg)
+    else
+      vim.notify(error_msg, vim.log.levels.ERROR)
     end
-    vim.notify(error_msg, vim.log.levels.ERROR)
     return
   end
 
@@ -538,7 +540,14 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   end
 
   local context_for = state.context_for or "notification" -- Ensure context_for is defined before use
-  local system_prompt = prompt or config[context_for].system_prompt
+  local system_prompt = prompt
+  if not system_prompt then
+    -- If no prompt is provided, use the system prompt as fallback (this should not happen with proper usage)
+    system_prompt = config[context_for].system_prompt
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Warning: Using config system_prompt as fallback. This may indicate an issue with prompt generation.")
+    end
+  end
   local purpose_text = purpose or config[context_for].purpose
   if purpose_text and purpose_text ~= "" then
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
@@ -546,15 +555,15 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   local output_lang = get_language()
   if output_lang == "ja" then
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].notify_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].notify_message_length)
     else
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に必ず%d文字ぴったりの簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].virtual_text_message_length)
     end
   else
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].notify_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].notify_message_length)
     else
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice with EXACTLY %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].virtual_text_message_length)
     end
   end
   -- print(system_prompt)
@@ -582,7 +591,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     },
     generationConfig = {
       thinkingConfig = {
-        thinkingBudget = 512,
+        thinkingBudget = 0,
       },
       temperature = 0.2,
       topK = 40,
@@ -595,7 +604,11 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
       print("[Nudge Two Hats Debug] JSON encoding failed: " .. tostring(request_data))
     end
     local error_msg = translate_message(config.translations.en.api_error)
-    vim.notify(error_msg .. ": JSON encoding failed", vim.log.levels.ERROR)
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Error: " .. error_msg .. ": JSON encoding failed")
+    else
+      vim.notify(error_msg .. ": JSON encoding failed", vim.log.levels.ERROR)
+    end
     callback(translate_message(config.translations.en.api_error))
     return
   end
@@ -667,7 +680,12 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
             end
           else
             local error_msg = translate_message(config.translations.en.api_error)
-            vim.notify(error_msg .. ": " .. (response.body or translate_message(config.translations.en.unknown_error)), vim.log.levels.ERROR)
+            local full_error = error_msg .. ": " .. (response.body or translate_message(config.translations.en.unknown_error))
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Error: " .. full_error)
+            else
+              vim.notify(full_error, vim.log.levels.ERROR)
+            end
             callback(translate_message(config.translations.en.api_error))
           end
         end)
@@ -749,7 +767,12 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
               log_file:close()
             end
             local error_msg = translate_message(config.translations.en.api_error)
-            vim.notify(error_msg .. ": " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+            local full_error = error_msg .. ": " .. table.concat(data, "\n")
+            if config.debug_mode then
+              print("[Nudge Two Hats Debug] Error: " .. full_error)
+            else
+              vim.notify(full_error, vim.log.levels.ERROR)
+            end
           end)
         end
       end,

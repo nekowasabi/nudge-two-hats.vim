@@ -239,6 +239,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     if config.debug_mode then
       print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
       print("[Nudge Two Hats Debug] context_for: " .. state.context_for)
+      print("[Nudge Two Hats Debug] prompt preview: " .. (prompt and string.sub(prompt, 1, 100) or "nil"))
     end
     api.get_gemini_advice(current_diff, function(advice)
       if config.debug_mode then
@@ -253,7 +254,11 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       if state.selected_hat then
         title = state.selected_hat
       end
-      vim.notify(advice, vim.log.levels.INFO, { title = title, icon = "🎩" })
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] " .. title .. ": " .. advice)
+      else
+        vim.notify(advice, vim.log.levels.INFO, { title = title, icon = "🎩" })
+      end
       if config.debug_mode then
         print("\n=== Nudge Two Hats 通知 ===")
         print(advice)

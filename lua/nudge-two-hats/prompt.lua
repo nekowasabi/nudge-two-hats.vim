@@ -59,7 +59,7 @@ function M.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_
 %s
 
 ## 6. Constraints
-- **Message Length**: Your response MUST be EXACTLY %d characters. Adhere strictly to this character limit.
+- **Message Length**: Your response should be within %d characters. Aim for conciseness while maintaining meaning.
 ]]
 
     local final_prompt = string.format(
