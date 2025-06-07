@@ -162,129 +162,143 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     print(string.format("[Nudge Two Hats Debug] 通知タイマー開始: バッファ %d, イベント %s", buf, event_name)) -- Existing log
     print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Starting new timer for buf %d. Interval: %d ms.", buf, config.notify_interval_seconds * 1000))
   end
-  -- Create a new notification timer with notify_interval_seconds (in seconds)
-  state.timers.notification[buf] = vim.fn.timer_start(config.notify_interval_seconds * 1000, function()
-    -- local debug_file = io.open("/tmp/nudge_notification_fired.log", "a") -- Keep this commented or remove if not essential for debugging this specific part
-    -- if debug_file then
-    --   local current_timer_id_in_state = "unknown"
-    --   if state and state.timers and state.timers.notification and state.timers.notification[buf] then
-    --     current_timer_id_in_state = tostring(state.timers.notification[buf])
-    --   end
-    --   debug_file:write(string.format("%s - Notification timer callback started for buf %s. Current timer ID in state: %s. Expected firing timer ID: %s. config.debug_mode: %s\n", os.date("!%Y-%m-%dT%H:%M:%SZ"), tostring(buf), current_timer_id_in_state, tostring(state.timers.notification[buf]), tostring(config.debug_mode)))
-    --   debug_file:close()
-    -- end
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Fired for buf %d. Timer ID that fired: %s", buf, tostring(state.timers.notification[buf] or "original_id_unknown")))
-    end
-    if not vim.api.nvim_buf_is_valid(buf) then
+  -- Create a recursive notification timer function that continues to run regardless of cursor movement
+  local function create_notification_timer_callback(target_buf, target_state, target_config, target_stop_func, target_buffer_module, target_api_module)
+    local callback_func
+    callback_func = function()
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Buf %d is no longer valid. Returning.", buf))
+        print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Fired for buf %d. Timer ID that fired: %s", target_buf, tostring(target_state.timers.notification[target_buf] or "original_id_unknown")))
       end
-      return
-    end
-    vim.cmd("checktime " .. buf)
-    local original_content, current_diff, current_diff_filetype = buffer.get_buf_diff(buf, state)
-
-    if not current_diff then
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Notification timer: No actual diff for buf %d. Creating context diff.", buf))
-      end
-      local cursor_pos = vim.api.nvim_win_get_cursor(0)
-      local cursor_row = cursor_pos[1] -- 1-based
-      local line_count = vim.api.nvim_buf_line_count(buf)
-      local context_start_line = math.max(1, cursor_row - 20)
-      local context_end_line = math.min(line_count, cursor_row + 20)
-      local context_lines = vim.api.nvim_buf_get_lines(buf, context_start_line - 1, context_end_line, false)
-      
-      local diff_lines = {}
-      for _, line in ipairs(context_lines) do
-        table.insert(diff_lines, "+ " .. line)
-      end
-      current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s",
-                                   context_start_line, 0,
-                                   context_start_line, #context_lines,
-                                   table.concat(diff_lines, "\n"))
-
-      if state.buf_filetypes[buf] then
-        current_diff_filetype = string.gmatch(state.buf_filetypes[buf], "[^,]+")() -- Get first filetype
-      else
-        current_diff_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-      end
-      if not current_diff_filetype or current_diff_filetype == "" then
-        current_diff_filetype = "text" -- Default
-      end
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Timer] Notification context diff created for buf %d. Filetype: %s. Diff preview: %s", buf, current_diff_filetype, string.sub(current_diff, 1, 100)))
-      end
-    end
-
-    -- Now current_diff will always exist. Proceed with the API call.
-    local current_time = os.time()
-    if not state.last_api_call_notification then
-      state.last_api_call_notification = 0
-    end
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 通知タイマー発火 - 前回のAPI呼び出し(通知): %s, 現在時刻: %s, 経過: %d秒",
-        os.date("%c", state.last_api_call_notification),
-        os.date("%c", current_time),
-        (current_time - state.last_api_call_notification)))
-    end
-    state.last_api_call_notification = current_time
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] 通知を実行します")
-      print(string.format("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: %s. Diff preview: %s", (current_diff_filetype or "unknown"), string.sub(current_diff, 1, 200)))
-    end
-    local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
-    state.context_for = "notification"
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
-      print("[Nudge Two Hats Debug] context_for: " .. state.context_for)
-      print("[Nudge Two Hats Debug] prompt preview: " .. (prompt and string.sub(prompt, 1, 100) or "nil"))
-    end
-    api.get_gemini_advice(current_diff, function(advice)
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
-      end
-      if advice then -- Store advice if received
-        state.notifications = state.notifications or {}
-        state.notifications.last_advice = state.notifications.last_advice or {}
-        state.notifications.last_advice[buf] = advice
-      end
-      local title = "Nudge Two Hats"
-      if state.selected_hat then
-        title = state.selected_hat
-      end
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] " .. title .. ": " .. advice)
-      else
-        vim.notify(advice, vim.log.levels.INFO, { title = title, icon = "🎩" })
-      end
-      if config.debug_mode then
-        print("\n=== Nudge Two Hats 通知 ===")
-        print(advice)
-        print("==========================")
-      end
-      if original_content then 
-        state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-        local callback_filetypes = {}
-        if state.buf_filetypes[buf] then
-          for ft_item in string.gmatch(state.buf_filetypes[buf], "[^,]+") do table.insert(callback_filetypes, ft_item) end
-        else
-          local current_ft = vim.api.nvim_buf_get_option(buf, "filetype")
-          if current_ft and current_ft ~= "" then table.insert(callback_filetypes, current_ft) end
-        end
-        if #callback_filetypes > 0 then
-          for _, ft_item in ipairs(callback_filetypes) do state.buf_content_by_filetype[buf][ft_item] = original_content end
-        else
-          state.buf_content_by_filetype[buf]["_default"] = original_content
-        end
-        state.buf_content[buf] = original_content
+      if not vim.api.nvim_buf_is_valid(target_buf) or not target_state.enabled then
         if config.debug_mode then
-          print("[Nudge Two Hats Debug] Notification API callback: Buffer content state updated with original_content.")
+          print(string.format("[Nudge Two Hats Debug Timer] Notification timer callback: Buf %d invalid or plugin disabled. Not rescheduling.", target_buf))
+        end
+        target_state.timers.notification[target_buf] = nil
+        return
+      end
+
+      vim.cmd("checktime " .. target_buf)
+      local original_content, current_diff, current_diff_filetype = target_buffer_module.get_buf_diff(target_buf, target_state)
+
+      if not current_diff then
+        if target_config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Notification timer: No actual diff for buf %d. Creating context diff.", target_buf))
+        end
+        local cursor_pos = vim.api.nvim_win_get_cursor(0)
+        local cursor_row = cursor_pos[1] -- 1-based
+        local line_count = vim.api.nvim_buf_line_count(target_buf)
+        local context_start_line = math.max(1, cursor_row - 20)
+        local context_end_line = math.min(line_count, cursor_row + 20)
+        local context_lines = vim.api.nvim_buf_get_lines(target_buf, context_start_line - 1, context_end_line, false)
+        
+        local diff_lines = {}
+        for _, line in ipairs(context_lines) do
+          table.insert(diff_lines, "+ " .. line)
+        end
+        current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s",
+                                     context_start_line, 0,
+                                     context_start_line, #context_lines,
+                                     table.concat(diff_lines, "\n"))
+
+        if target_state.buf_filetypes[target_buf] then
+          current_diff_filetype = string.gmatch(target_state.buf_filetypes[target_buf], "[^,]+")() -- Get first filetype
+        else
+          current_diff_filetype = vim.api.nvim_buf_get_option(target_buf, "filetype")
+        end
+        if not current_diff_filetype or current_diff_filetype == "" then
+          current_diff_filetype = "text" -- Default
+        end
+        if target_config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Notification context diff created for buf %d. Filetype: %s. Diff preview: %s", target_buf, current_diff_filetype, string.sub(current_diff, 1, 100)))
         end
       end
-    end, prompt, config.purpose, state)
-  end)
+
+      -- Check interval for notification API calls
+      local current_time = os.time()
+      if not target_state.last_api_call_notification then
+        target_state.last_api_call_notification = 0
+      end
+
+      -- Always reschedule the next notification timer regardless of API call
+      if vim.api.nvim_buf_is_valid(target_buf) and target_state.enabled then
+        local next_timer_id = vim.fn.timer_start(target_config.notify_interval_seconds * 1000, callback_func)
+        target_state.timers.notification[target_buf] = next_timer_id
+        if target_config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Notification timer rescheduled for buf %d. New Timer ID: %s", target_buf, tostring(next_timer_id)))
+        end
+      else
+        target_state.timers.notification[target_buf] = nil
+      end
+
+      -- Now current_diff will always exist. Proceed with the API call.
+      if target_config.debug_mode then
+        print(string.format("[Nudge Two Hats Debug] 通知タイマー発火 - 前回のAPI呼び出し(通知): %s, 現在時刻: %s, 経過: %d秒",
+          os.date("%c", target_state.last_api_call_notification),
+          os.date("%c", current_time),
+          (current_time - target_state.last_api_call_notification)))
+      end
+      target_state.last_api_call_notification = current_time
+      if target_config.debug_mode then
+        print("[Nudge Two Hats Debug] 通知を実行します")
+        print(string.format("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: %s. Diff preview: %s", (current_diff_filetype or "unknown"), string.sub(current_diff, 1, 200)))
+      end
+      local prompt = target_buffer_module.get_prompt_for_buffer(target_buf, target_state, "notification")
+      target_state.context_for = "notification"
+      if target_config.debug_mode then
+        print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
+        print("[Nudge Two Hats Debug] context_for: " .. target_state.context_for)
+        print("[Nudge Two Hats Debug] prompt preview: " .. (prompt and string.sub(prompt, 1, 100) or "nil"))
+      end
+      target_api_module.get_gemini_advice(current_diff, function(advice)
+        if target_config.debug_mode then
+          print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
+        end
+        if advice then -- Store advice if received
+          target_state.notifications = target_state.notifications or {}
+          target_state.notifications.last_advice = target_state.notifications.last_advice or {}
+          target_state.notifications.last_advice[target_buf] = advice
+        end
+        local title = "Nudge Two Hats"
+        if target_state.selected_hat then
+          title = target_state.selected_hat
+        end
+        if target_config.debug_mode then
+          print("[Nudge Two Hats Debug] " .. title .. ": " .. advice)
+        else
+          vim.notify(advice, vim.log.levels.INFO, { title = title, icon = "🎩" })
+        end
+        if target_config.debug_mode then
+          print("\n=== Nudge Two Hats 通知 ===")
+          print(advice)
+          print("==========================")
+        end
+        if original_content then 
+          target_state.buf_content_by_filetype[target_buf] = target_state.buf_content_by_filetype[target_buf] or {}
+          local callback_filetypes = {}
+          if target_state.buf_filetypes[target_buf] then
+            for ft_item in string.gmatch(target_state.buf_filetypes[target_buf], "[^,]+") do table.insert(callback_filetypes, ft_item) end
+          else
+            local current_ft = vim.api.nvim_buf_get_option(target_buf, "filetype")
+            if current_ft and current_ft ~= "" then table.insert(callback_filetypes, current_ft) end
+          end
+          if #callback_filetypes > 0 then
+            for _, ft_item in ipairs(callback_filetypes) do target_state.buf_content_by_filetype[target_buf][ft_item] = original_content end
+          else
+            target_state.buf_content_by_filetype[target_buf]["_default"] = original_content
+          end
+          target_state.buf_content[target_buf] = original_content
+          if target_config.debug_mode then
+            print("[Nudge Two Hats Debug] Notification API callback: Buffer content state updated with original_content.")
+          end
+        end
+      end, prompt, target_config.purpose, target_state)
+    end
+    return callback_func
+  end
+
+  -- Create and start the notification timer
+  local notification_callback = create_notification_timer_callback(buf, state, config, stop_notification_timer_func, buffer, api)
+  state.timers.notification[buf] = vim.fn.timer_start(config.notify_interval_seconds * 1000, notification_callback)
 
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: Successfully set new timer for buf %d. New Timer ID: %s. Stored ID in state: %s", buf, tostring(state.timers.notification[buf]), tostring(state.timers.notification[buf])))

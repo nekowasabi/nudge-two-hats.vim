@@ -527,6 +527,17 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     end
   end
 
+  -- Check for previous notification message to avoid duplicates
+  local context_for = state.context_for or "notification"
+  local current_buf = vim.api.nvim_get_current_buf()
+  local previous_message = nil
+  
+  if context_for == "notification" and state.notifications and state.notifications.last_advice then
+    previous_message = state.notifications.last_advice[current_buf]
+  elseif context_for == "virtual_text" and state.virtual_text and state.virtual_text.last_advice then
+    previous_message = state.virtual_text.last_advice[current_buf]
+  end
+
   local log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
   if log_file then
     log_file:write("--- New API Request ---\n")
@@ -553,17 +564,28 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end
   local output_lang = get_language()
+  
+  -- Add anti-duplication instruction if previous message exists
+  local anti_duplication_prompt = ""
+  if previous_message and previous_message ~= "" then
+    if output_lang == "ja" then
+      anti_duplication_prompt = string.format("\n重要: 前回のメッセージ「%s」と全く同じ内容は避け、必ず異なる視点や表現でアドバイスしてください。", previous_message)
+    else
+      anti_duplication_prompt = string.format("\nIMPORTANT: Avoid repeating the exact same content as the previous message: \"%s\". Provide advice from a different perspective or with different wording.", previous_message)
+    end
+  end
+  
   if output_lang == "ja" then
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].notify_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", config[context_for].notify_message_length, anti_duplication_prompt)
     else
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。", config[context_for].virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", config[context_for].virtual_text_message_length, anti_duplication_prompt)
     end
   else
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].notify_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.%s", config[context_for].notify_message_length, anti_duplication_prompt)
     else
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.", config[context_for].virtual_text_message_length)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.%s", config[context_for].virtual_text_message_length, anti_duplication_prompt)
     end
   end
   -- print(system_prompt)
@@ -642,6 +664,113 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                result.candidates[1].content and result.candidates[1].content.parts and
                result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
               local advice = result.candidates[1].content.parts[1].text
+              
+              -- Check if the new advice is identical to the previous message
+              if previous_message and advice == previous_message then
+                if config.debug_mode then
+                  print("[Nudge Two Hats Debug] Identical message detected, requesting retry...")
+                end
+                -- Request a different response by modifying the prompt
+                local retry_prompt = system_prompt
+                if output_lang == "ja" then
+                  retry_prompt = retry_prompt .. "\n追加指示: 前回と全く同じ回答でした。必ず異なる内容で再度アドバイスしてください。"
+                else
+                  retry_prompt = retry_prompt .. "\nAdditional instruction: The previous response was identical. Please provide a completely different advice."
+                end
+                
+                -- Make a retry API call with modified prompt
+                local retry_request_data = vim.fn.json_encode({
+                  contents = {
+                    {
+                      parts = {
+                        {
+                          text = retry_prompt .. "\n\n" .. sanitized_diff
+                        }
+                      }
+                    }
+                  },
+                  generationConfig = {
+                    thinkingConfig = {
+                      thinkingBudget = 0,
+                    },
+                    temperature = 0.7, -- Increase temperature for more variation
+                    topK = 60,
+                    topP = 0.9,
+                    maxOutputTokens = 1024
+                  }
+                })
+                
+                -- Use curl for immediate retry
+                local temp_retry_file = "/tmp/nudge_two_hats_retry.json"
+                local retry_file = io.open(temp_retry_file, "w")
+                if retry_file then
+                  retry_file:write(retry_request_data)
+                  retry_file:close()
+                end
+                
+                local endpoint = config.api_endpoint:gsub("[<>]", "")
+                local full_url = endpoint .. "?key=" .. api_key
+                local retry_command = string.format("curl -s -X POST %s -H 'Content-Type: application/json' -d @%s", full_url, temp_retry_file)
+                
+                vim.fn.jobstart(retry_command, {
+                  on_stdout = function(_, retry_data)
+                    if retry_data and #retry_data > 0 and retry_data[1] ~= "" then
+                      vim.schedule(function()
+                        local retry_ok, retry_response = pcall(vim.json.decode, table.concat(retry_data, "\n"))
+                        if retry_ok and retry_response and retry_response.candidates and retry_response.candidates[1] and
+                           retry_response.candidates[1].content and retry_response.candidates[1].content.parts and
+                           retry_response.candidates[1].content.parts[1] and retry_response.candidates[1].content.parts[1].text then
+                          local retry_advice = retry_response.candidates[1].content.parts[1].text
+                          
+                          -- Apply length limits to retry advice
+                          local message_length = config[context_for].notify_message_length
+                          if context_for == "virtual_text" then
+                            message_length = config[context_for].virtual_text_message_length
+                          end
+                          if config.length_type == "characters" then
+                            if #retry_advice > message_length then
+                              retry_advice = safe_truncate(retry_advice, message_length)
+                            end
+                          else
+                            local words = {}
+                            for word in retry_advice:gmatch("%S+") do
+                              table.insert(words, word)
+                            end
+                            if #words > message_length then
+                              local truncated_words = {}
+                              for i = 1, message_length do
+                                table.insert(truncated_words, words[i])
+                              end
+                              retry_advice = table.concat(truncated_words, " ")
+                            end
+                          end
+                          if config.translate_messages then
+                            retry_advice = translate_message(retry_advice)
+                          end
+                          
+                          if config.debug_mode then
+                            print("[Nudge Two Hats Debug] Retry successful, using different advice")
+                          end
+                          callback(retry_advice)
+                        else
+                          -- If retry fails, use original advice anyway
+                          if config.debug_mode then
+                            print("[Nudge Two Hats Debug] Retry failed, using original advice")
+                          end
+                          callback(advice)
+                        end
+                      end)
+                    end
+                  end,
+                  on_exit = function()
+                    if vim.fn.filereadable(temp_retry_file) == 1 then
+                      vim.fn.delete(temp_retry_file)
+                    end
+                  end
+                })
+                return -- Don't continue with the original response processing
+              end
+              
               if cache_key then
                 advice_cache[cache_key] = advice
                 table.insert(advice_cache_keys, cache_key)
@@ -727,6 +856,22 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                response.candidates[1].content and response.candidates[1].content.parts and
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
+              
+              -- Check if the new advice is identical to the previous message (curl fallback)
+              if previous_message and advice == previous_message then
+                if config.debug_mode then
+                  print("[Nudge Two Hats Debug] Identical message detected in curl fallback, using temperature variation...")
+                end
+                -- For curl fallback, we'll modify the advice slightly rather than making another API call
+                local suffix_variations = {
+                  ja = {" (改善案)", " (別のアプローチ)", " (追加提案)", " (代替案)", " (補足)"},
+                  en = {" (Alternative)", " (Improvement)", " (Additional)", " (Variant)", " (Supplement)"}
+                }
+                local variations = suffix_variations[output_lang] or suffix_variations.en
+                local random_suffix = variations[math.random(#variations)]
+                advice = advice .. random_suffix
+              end
+              
               local message_length = config[context_for].notify_message_length
               if context_for == "virtual_text" then
                 message_length = config[context_for].virtual_text_message_length
