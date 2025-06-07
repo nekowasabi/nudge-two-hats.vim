@@ -160,10 +160,16 @@ function M.generate_prompt_without_hat(role, direction, emotion, tone, prompt_te
     return final_prompt
 end
 
--- AIによる応答を履歴に記録する関数
+-- AIによる応答を履歴に記録する関数（コンテキスト情報付き）
 function M.record_message(message)
-  -- message_varietyモジュールに履歴を記録
-  variety.record_message(message)
+  -- より詳細なコンテキスト情報と一緒に記録
+  local context_info = {
+    file_type = vim.fn.expand("%:e"),
+    timestamp = os.time(),
+    hour = tonumber(os.date("%H")),
+    day_of_week = os.date("%A")
+  }
+  variety.record_message(message, context_info)
 end
 
 -- デバッグ用：履歴を取得

@@ -84,8 +84,8 @@ local function sanitize_text(text, state)
     else
       print("[Nudge Two Hats Debug] sanitize_text: state is nil")
     end
-    print("[Nudge Two Hats Debug] notify_message_length: " .. config.notify_message_length)
-    print("[Nudge Two Hats Debug] virtual_text_message_length: " .. config.virtual_text_message_length)
+    print("[Nudge Two Hats Debug] notify_message_length: " .. (config.notification and config.notification.notify_message_length or "nil"))
+    print("[Nudge Two Hats Debug] virtual_text_message_length: " .. (config.virtual_text and config.virtual_text.virtual_text_message_length or "nil"))
   end
   if sanitize_cache[text] then
     if config.debug_mode then

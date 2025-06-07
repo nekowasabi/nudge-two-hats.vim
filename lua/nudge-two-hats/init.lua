@@ -95,7 +95,11 @@ end
 
 function M.setup(opts)
   if opts then
-    config = vim.tbl_deep_extend("force", config, opts)
+    -- Mark as user-configured to prevent default setup
+    vim.g.nudge_two_hats_configured = true
+    -- Complete config replacement to ensure user settings override defaults
+    local user_config = vim.tbl_deep_extend("force", config, opts)
+    config = user_config
     api.update_config(config)
     -- Update buffer module config
     local buffer = require("nudge-two-hats.buffer")

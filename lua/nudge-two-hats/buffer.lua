@@ -293,6 +293,8 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
     if filetype and config[context].filetype_prompts and config[context].filetype_prompts[filetype] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
+        print("[Nudge Two Hats Debug] Context: " .. context)
+        print("[Nudge Two Hats Debug] Config source: " .. (vim.g.nudge_two_hats_configured and "user" or "default"))
       end
       local filetype_prompt = config[context].filetype_prompts[filetype]
       -- テスト用のcallbackを優先して使用
@@ -326,6 +328,20 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
         local notify_message_length = filetype_prompt.notify_message_length or config[context].notify_message_length
         local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config[context].virtual_text_message_length
         local message_length = notify_message_length
+        
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] === PROMPT CONFIG DEBUG ===")
+          print("[Nudge Two Hats Debug] Filetype: " .. filetype)
+          print("[Nudge Two Hats Debug] Config source: " .. (vim.g.nudge_two_hats_configured and "USER CONFIG" or "DEFAULT CONFIG"))
+          print("[Nudge Two Hats Debug] Role: " .. (role or "nil"))
+          print("[Nudge Two Hats Debug] Direction: " .. (direction or "nil"))
+          print("[Nudge Two Hats Debug] Emotion: " .. (emotion or "nil"))
+          print("[Nudge Two Hats Debug] Tone: " .. (tone or "nil"))
+          print("[Nudge Two Hats Debug] Prompt text: " .. (prompt_text and string.sub(prompt_text, 1, 100) or "nil"))
+          print("[Nudge Two Hats Debug] Hats: " .. table.concat(hats or {}, ", "))
+          print("[Nudge Two Hats Debug] Message length: " .. (message_length or "nil"))
+          print("[Nudge Two Hats Debug] ==============================")
+        end
         -- Use the passed 'context' argument directly
         if context == "virtual_text" then
           message_length = virtual_text_message_length

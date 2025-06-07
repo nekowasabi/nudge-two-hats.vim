@@ -47,7 +47,7 @@ function M.display_virtual_text(buf, advice)
   -- 既にAPIコールで指定した長さのメッセージが生成されている
   -- 改行を除去する
   advice = string.gsub(advice, "[\n\r]", "")
-  local message_length = config.virtual_text_message_length
+  local message_length = config.virtual_text and config.virtual_text.virtual_text_message_length or 10
 
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] Virtual text advice length: %d, expected: %d", #advice, message_length))
