@@ -86,14 +86,14 @@ function M.pause_notification_timer(buf, state)
   if not state.timers or not state.timers.notification or not state.timers.notification[buf] then
     return
   end
-  
+
   if not state.timers.paused_notification then
     state.timers.paused_notification = {}
   end
-  
+
   -- Store the timer ID and mark as paused
   state.timers.paused_notification[buf] = state.timers.notification[buf]
-  
+
   -- Stop the actual timer
   local timer_id = state.timers.notification[buf]
   if timer_id then
@@ -102,7 +102,7 @@ function M.pause_notification_timer(buf, state)
       print(string.format("[Nudge Two Hats Debug Timer] ERROR stopping notification timer for pause: %s", tostring(err)))
     end
     state.timers.notification[buf] = nil
-    
+
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug Timer] Paused notification timer for buf %d (timer ID: %d)", buf, timer_id))
     end
@@ -114,17 +114,17 @@ function M.resume_notification_timer(buf, state, stop_notification_timer_func)
   if not state.timers or not state.timers.paused_notification or not state.timers.paused_notification[buf] then
     return
   end
-  
+
   -- Clear the paused state
   state.timers.paused_notification[buf] = nil
-  
+
   -- Update last cursor move time
   state.last_cursor_move_time = state.last_cursor_move_time or {}
   state.last_cursor_move_time[buf] = os.time()
-  
+
   -- Restart the notification timer
   M.start_notification_timer(buf, "resume", state, stop_notification_timer_func)
-  
+
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug Timer] Resumed notification timer for buf %d", buf))
   end
@@ -135,11 +135,11 @@ function M.check_cursor_idle(buf, state)
   if not state.last_cursor_move_time or not state.last_cursor_move_time[buf] then
     return false
   end
-  
+
   local current_time = os.time()
   local last_move_time = state.last_cursor_move_time[buf]
   local idle_time = current_time - last_move_time
-  
+
   return idle_time >= config.cursor_idle_threshold_seconds
 end
 
@@ -175,7 +175,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     -- Get filetypes and update content
     local filetypes = utils.get_buffer_filetypes(buf, state)
     utils.update_buffer_content(buf, buffer_content, filetypes, state)
-    
+
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetypes=%s, サイズ=%d文字",
         table.concat(filetypes, ", "), #buffer_content))
@@ -233,7 +233,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         end
         local cursor_pos = vim.api.nvim_win_get_cursor(0)
         local cursor_row = cursor_pos[1]
-        
+
         current_diff, _ = utils.create_context_diff(target_buf, cursor_row, 20)
 
         if target_state.buf_filetypes[target_buf] then
@@ -310,7 +310,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
           print(advice)
           print("==========================")
         end
-        if original_content then 
+        if original_content then
           target_state.buf_content_by_filetype[target_buf] = target_state.buf_content_by_filetype[target_buf] or {}
           local callback_filetypes = {}
           if target_state.buf_filetypes[target_buf] then
@@ -348,17 +348,17 @@ end
 function M.stop_timer(buf, state, stop_notification_timer_func, stop_virtual_text_timer_func)
   local notification_timer_id = nil
   local virtual_text_timer_id = nil
-  
+
   -- Stop notification timer if function provided
   if stop_notification_timer_func then
     notification_timer_id = stop_notification_timer_func(buf)
   end
-  
+
   -- Stop virtual text timer if function provided
   if stop_virtual_text_timer_func then
     virtual_text_timer_id = stop_virtual_text_timer_func(buf)
   end
-  
+
   -- Return the notification timer ID (as expected by the test)
   return notification_timer_id
 end
@@ -471,7 +471,7 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
         end
         local temp_cursor_pos = vim.api.nvim_win_get_cursor(0)
         local temp_cursor_row = temp_cursor_pos[1]
-        
+
         current_diff, _ = utils.create_context_diff(current_buf_arg, temp_cursor_row, 20)
         if current_state_arg.buf_filetypes[current_buf_arg] then
           current_diff_filetype = string.gmatch(current_state_arg.buf_filetypes[current_buf_arg], "[^,]+")()
@@ -513,7 +513,7 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
   end
 
   local timer_callback = make_virtual_text_timer_callback(buf, state, config, display_virtual_text_func, buffer, api)
-  
+
   if config.debug_mode then
     local log_file = io.open("/tmp/nudge_two_hats_virtual_text_debug.log", "a")
     if log_file then
@@ -524,7 +524,7 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
     end
     print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Starting INITIAL self-rescheduling timer for buf %d. Interval: %d ms.", buf, config.virtual_text_interval_seconds * 1000))
   end
-  
+
   state.timers.virtual_text[buf] = vim.fn.timer_start(config.virtual_text_interval_seconds * 1000, timer_callback)
 
   if config.debug_mode then

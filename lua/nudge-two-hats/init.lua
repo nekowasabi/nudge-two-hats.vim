@@ -95,11 +95,11 @@ end
 
 -- display_virtual_textのラッパー関数
 function M.display_virtual_text(buf, advice)
-  -- When new virtual text is displayed, we should stop any existing virtual text timer 
+  -- When new virtual text is displayed, we should stop any existing virtual text timer
   -- for that buffer, as new advice has been received and displayed.
   -- The timer.start_virtual_text_timer will be called again if needed by other events (e.g. BufEnter, NudgeTwoHatsToggle)
   -- or by its own recurring callback if no new diff is found.
-  M.stop_virtual_text_timer(buf) 
+  M.stop_virtual_text_timer(buf)
   return virtual_text.display_virtual_text(buf, advice)
 end
 
@@ -347,11 +347,11 @@ function M.setup(opts)
     if not vim.api.nvim_buf_is_valid(buf) then
       return nil
     end
-    
+
     state.timers = state.timers or {}
     state.timers.virtual_text = state.timers.virtual_text or {}
     state.timers.notification = state.timers.notification or {}
-    
+
     local filetypes = {}
     if state.buf_filetypes[buf] then
       for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
@@ -367,12 +367,12 @@ function M.setup(opts)
         end
       end
     end
-    
+
     if #filetypes == 0 then
       vim.notify("No filetypes specified or detected", vim.log.levels.INFO)
       return nil
     end
-    
+
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     local cursor_row = cursor_pos[1]
     local line_count = vim.api.nvim_buf_line_count(buf)
@@ -380,7 +380,7 @@ function M.setup(opts)
     local context_end = math.min(line_count, cursor_row + 20)
     local context_lines = vim.api.nvim_buf_get_lines(buf, context_start - 1, context_end, false)
     local context_content = table.concat(context_lines, "\n")
-    
+
     return {
       filetypes = filetypes,
       context_content = context_content,
@@ -389,37 +389,37 @@ function M.setup(opts)
       context_lines = context_lines
     }
   end
-  
+
   -- Helper function to execute notification API call
   local function execute_notification_api(buf, diff, diff_filetype, content, filetypes)
     local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     state.context_for = "notification"
-    
+
     api.get_gemini_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
-      
+
       if advice then
         state.notifications = state.notifications or {}
         state.notifications.last_advice = state.notifications.last_advice or {}
         state.notifications.last_advice[buf] = advice
       end
-      
+
       local title = "Nudge Two Hats"
       local current_selected_hat = buffer.get_selected_hat()
       if current_selected_hat then
         title = current_selected_hat
       end
-      
+
       vim.notify(advice, vim.log.levels.INFO, { title = title, icon = "🎩" })
-      
+
       if config.debug_mode then
         print("\n=== Nudge Two Hats 通知 (NudgeTwoHatsNow) ===")
         print(advice)
         print("============================================")
       end
-      
+
       if content then
         state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
         for _, ft in ipairs(filetypes) do
@@ -429,24 +429,24 @@ function M.setup(opts)
       end
     end, prompt, config.purpose, state)
   end
-  
+
   -- Helper function to execute virtual text API call
   local function execute_virtual_text_api(buf, diff, diff_filetype)
     state.context_for = "virtual_text"
     local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
-    
+
     api.get_gemini_advice(diff, function(virtual_text_advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
       end
-      
+
       if virtual_text_advice then
         state.virtual_text = state.virtual_text or {}
         state.virtual_text.last_advice = state.virtual_text.last_advice or {}
         state.virtual_text.last_advice[buf] = virtual_text_advice
-        
+
         M.display_virtual_text(buf, virtual_text_advice)
-        
+
         if config.debug_mode then
           print("\n=== Nudge Two Hats 仮想テキスト (NudgeTwoHatsNow) ===")
           print(virtual_text_advice)
@@ -462,14 +462,14 @@ function M.setup(opts)
     if not context_data then
       return
     end
-    
+
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Using filetypes: " .. table.concat(context_data.filetypes, ", "))
     end
-    
+
     local stored_content = state.buf_content[buf]
     local stored_content_by_filetype = state.buf_content_by_filetype[buf] or {}
-    
+
     local content, diff, diff_filetype = buffer.get_buf_diff(buf, state)
     if not diff then
       diff = string.format("@@ -%d,%d +%d,%d @@\n+ %s",
@@ -481,7 +481,7 @@ function M.setup(opts)
         print("[Nudge Two Hats Debug] Created forced diff for NudgeTwoHatsNow command")
       end
     end
-    
+
     for _, filetype in ipairs(context_data.filetypes) do
       if not state.buf_content_by_filetype[buf] then
         state.buf_content_by_filetype[buf] = {}
@@ -489,10 +489,10 @@ function M.setup(opts)
       state.buf_content_by_filetype[buf][filetype] = context_data.context_content
     end
     state.buf_content[buf] = context_data.context_content
-    
+
     state.last_api_call_notification = 0
     state.last_api_call_virtual_text = 0
-    
+
     execute_notification_api(buf, diff, diff_filetype, content, context_data.filetypes)
     execute_virtual_text_api(buf, diff, diff_filetype)
   end, { nargs = "*" })
@@ -565,7 +565,7 @@ function M.setup(opts)
         title = title,
         icon = "🐛",
       })
-      
+
       -- 仮想テキスト用に別途Gemini APIを呼び出し
       state.context_for = "virtual_text"
       local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")

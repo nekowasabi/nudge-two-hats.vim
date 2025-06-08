@@ -22,7 +22,7 @@ local config = require("nudge-two-hats.config")
 function M.generate_prompt(role, selected_hat, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
     -- 動的な要素を追加（message_varietyモジュールを使用）
     prompt_text = variety.enhance_prompt(prompt_text)
-    
+
     -- Determine context-specific descriptions
     local context_name_str
     local context_guidance_str
@@ -98,7 +98,7 @@ end
 function M.generate_prompt_without_hat(role, direction, emotion, tone, prompt_text, message_length, context, last_message_to_avoid)
     -- 動的な要素を追加（message_varietyモジュールを使用）
     prompt_text = variety.enhance_prompt(prompt_text)
-    
+
     -- Determine context-specific descriptions (shared with M.generate_prompt or re-defined if necessary)
     local context_name_str
     local context_guidance_str

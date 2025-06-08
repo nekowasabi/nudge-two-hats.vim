@@ -60,7 +60,7 @@ function M.get_buf_diff(buf, state)
       table.insert(filetypes, filetype)
     end
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] バッファ %d の登録済みfiletypes: %s", 
+      print(string.format("[Nudge Two Hats Debug] バッファ %d の登録済みfiletypes: %s",
         buf, state.buf_filetypes[buf]))
     end
   else
@@ -68,7 +68,7 @@ function M.get_buf_diff(buf, state)
     if current_filetype and current_filetype ~= "" then
       table.insert(filetypes, current_filetype)
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] バッファ %d の現在のfiletype: %s", 
+        print(string.format("[Nudge Two Hats Debug] バッファ %d の現在のfiletype: %s",
           buf, current_filetype))
       end
     else
@@ -89,7 +89,7 @@ function M.get_buf_diff(buf, state)
     if state.buf_content_by_filetype[buf][filetype] then
       first_notification = false
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] 既存のバッファ内容が見つかりました: filetype=%s, サイズ=%d文字", 
+        print(string.format("[Nudge Two Hats Debug] 既存のバッファ内容が見つかりました: filetype=%s, サイズ=%d文字",
           filetype, #state.buf_content_by_filetype[buf][filetype]))
       end
       break
@@ -126,7 +126,7 @@ function M.get_buf_diff(buf, state)
     local end_line = math.min(line_count, cursor_line + context_lines)
     local context_line_count = end_line - start_line + 1
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] カーソル位置: %d行目, 範囲: %d-%d行 (合計%d行)", 
+      print(string.format("[Nudge Two Hats Debug] カーソル位置: %d行目, 範囲: %d-%d行 (合計%d行)",
         cursor_line, start_line, end_line, context_line_count))
     end
     local diff = string.format("--- a/dummy\n+++ b/current\n@@ -0,0 +1,%d @@\n", context_line_count)
@@ -151,7 +151,7 @@ function M.get_buf_diff(buf, state)
       previous_content = temp_file:read("*all")
       temp_file:close()
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
+        print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字",
           temp_file_path, #previous_content))
       end
       if #filetypes > 0 then
@@ -185,7 +185,7 @@ function M.get_buf_diff(buf, state)
   end
   if previous_content then
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字", 
+      print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字",
         #previous_content, #content))
       local previous_sample = string.sub(previous_content, 1, 100)
       local current_sample = string.sub(content, 1, 100)
@@ -202,7 +202,7 @@ function M.get_buf_diff(buf, state)
         else
           print("[Nudge Two Hats Debug] vim.diffの結果: nil")
         end
-        print(string.format("[Nudge Two Hats Debug] 内容比較結果: previous_content ~= content は %s", 
+        print(string.format("[Nudge Two Hats Debug] 内容比較結果: previous_content ~= content は %s",
           tostring(previous_content ~= content)))
       end
       if type(diff) == "string" and diff ~= "" then
@@ -217,7 +217,7 @@ function M.get_buf_diff(buf, state)
         -- Temp file deletion removed from here
         return content, diff, detected_filetype
       elseif force_diff then
-        local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n", 
+        local minimal_diff = string.format("--- a/old\n+++ b/current\n@@ -1,1 +1,1 @@\n-%s\n+%s\n",
           "No changes detected, but file was saved", "File saved at " .. os.date("%c"))
         if config.debug_mode then
           print("[Nudge Two Hats Debug] BufWritePostのため、最小限のdiffを生成します")
@@ -241,7 +241,7 @@ function M.get_buf_diff(buf, state)
   for _, filetype in ipairs(filetypes) do
     state.buf_content_by_filetype[buf][filetype] = content
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug] バッファ内容を更新しました: filetype=%s, サイズ=%d文字", 
+      print(string.format("[Nudge Two Hats Debug] バッファ内容を更新しました: filetype=%s, サイズ=%d文字",
         filetype, #content))
     end
   end
@@ -305,7 +305,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
       -- Backward compatibility: old flat structure
       filetype_prompts = config.filetype_prompts
     end
-    
+
     if filetype and filetype_prompts and filetype_prompts[filetype] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
@@ -351,7 +351,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
         -- Get message lengths - try new structure first, then fall back to old structure or defaults
         local notify_message_length = filetype_prompt.notify_message_length
         local virtual_text_message_length = filetype_prompt.virtual_text_message_length
-        
+
         if not notify_message_length then
           if config and config[context] then
             notify_message_length = config[context].notify_message_length
@@ -359,7 +359,7 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
             notify_message_length = 80 -- default
           end
         end
-        
+
         if not virtual_text_message_length then
           if config and config[context] then
             virtual_text_message_length = config[context].virtual_text_message_length
@@ -474,7 +474,7 @@ function M.get_purpose_for_buffer(buf, state, context)
       -- Backward compatibility: old flat structure
       filetype_prompts = config.filetype_prompts
     end
-    
+
     if filetype and filetype_prompts and filetype_prompts[filetype] then
       local filetype_prompt = filetype_prompts[filetype]
       if type(filetype_prompt) == "table" and filetype_prompt.purpose then

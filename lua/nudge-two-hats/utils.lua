@@ -8,7 +8,7 @@ end
 -- Common filetype extraction function
 function M.get_buffer_filetypes(buf, state)
   local filetypes = {}
-  
+
   if state.buf_filetypes and state.buf_filetypes[buf] then
     for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
       table.insert(filetypes, filetype)
@@ -21,18 +21,18 @@ function M.get_buffer_filetypes(buf, state)
       table.insert(filetypes, "text")
     end
   end
-  
+
   return filetypes
 end
 
 -- Common content update function
 function M.update_buffer_content(buf, content, filetypes, state)
   state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
-  
+
   for _, filetype in ipairs(filetypes) do
     state.buf_content_by_filetype[buf][filetype] = content
   end
-  
+
   state.buf_content[buf] = content
 end
 
@@ -43,17 +43,17 @@ function M.create_context_diff(buf, cursor_row, context_size)
   local context_start = math.max(1, cursor_row - context_size)
   local context_end = math.min(line_count, cursor_row + context_size)
   local context_lines = vim.api.nvim_buf_get_lines(buf, context_start - 1, context_end, false)
-  
+
   local diff_lines = {}
   for _, line in ipairs(context_lines) do
     table.insert(diff_lines, "+ " .. line)
   end
-  
+
   local diff = string.format("@@ -%d,%d +%d,%d @@\n%s",
                             context_start, 0,
                             context_start, #context_lines,
                             table.concat(diff_lines, "\n"))
-  
+
   return diff, table.concat(context_lines, "\n")
 end
 

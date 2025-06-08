@@ -27,7 +27,7 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
   -- Use provided overrides for testing or fallback to module-level variables
   local state = state_override or m_state
   local plugin_functions = plugin_functions_override or m_plugin_functions
-  
+
   if not state or not plugin_functions then
     if m_config and m_config.debug_mode then
       print("[Nudge Two Hats Debug] ERROR in create_autocmd: state or plugin_functions is nil. Buffer: " .. buf)
@@ -54,7 +54,7 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
     state.buf_content_by_filetype[buf][filetype] = content
   end
   state.buf_content[buf] = content
-  
+
   -- Initialize virtual text namespace and structures
   if not state.virtual_text then
     state.virtual_text = {}
@@ -64,7 +64,7 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
   end
   -- Set initial last cursor move time for virtual text timer
   state.virtual_text.last_cursor_move[buf] = os.time()
-  
+
   if m_config and m_config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s for autocmds.",
       buf, table.concat(filetypes, ", ")))
@@ -368,11 +368,11 @@ function M.buf_enter_callback()
             print("[Nudge Two Hats Debug Autocmd] ERROR in buf_enter_callback: m_plugin_functions.start_virtual_text_timer is nil. Cannot restart VT timer for buf: " .. buf)
          end
       end
-      
+
       -- Create baseline temporary file for the buffer (this part seems related to diff calculation, keep as is)
       local current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
       local temp_file_path = string.format("/tmp/nudge_two_hats_buffer_%d.txt", buf)
-      
+
       -- Ensure m_state.temp_files is initialized
       m_state.temp_files = m_state.temp_files or {}
 
@@ -428,7 +428,7 @@ function M.setup(config_param, state_param, plugin_functions_param)
     pattern = "*",
     callback = function()
       -- M.clear_tempfiles uses original_config_module or m_config for debug_mode
-      M.clear_tempfiles() 
+      M.clear_tempfiles()
     end,
   })
 

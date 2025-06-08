@@ -77,7 +77,7 @@ local function is_text_ascii_only(text)
       return false
     end
   end
-  
+
   if #text > 100 then
     local positions = {}
     if #text > 1000 then
@@ -90,7 +90,7 @@ local function is_text_ascii_only(text)
         table.insert(positions, i)
       end
     end
-    
+
     for _, pos in ipairs(positions) do
       local b = string.byte(text, pos)
       if b >= 128 or b <= 31 or b == 34 or b == 92 or b == 127 then
@@ -130,10 +130,10 @@ end
 local function process_utf8_chunk(chunk)
   local chunk_result = {}
   local i = 1
-  
+
   while i <= #chunk do
     local b = string.byte(chunk, i)
-    
+
     if b <= 31 or b == 127 then
       i = i + 1 -- Skip control characters
     elseif b == 34 then -- double quote
@@ -143,7 +143,7 @@ local function process_utf8_chunk(chunk)
       table.insert(chunk_result, '\\\\')
       i = i + 1
     elseif b >= 240 and b <= 247 then -- 4-byte sequence
-      if i + 3 <= #chunk and 
+      if i + 3 <= #chunk and
          string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 and
          string.byte(chunk, i+2) >= 128 and string.byte(chunk, i+2) <= 191 and
          string.byte(chunk, i+3) >= 128 and string.byte(chunk, i+3) <= 191 then
@@ -177,7 +177,7 @@ local function process_utf8_chunk(chunk)
       i = i + 1
     end
   end
-  
+
   return table.concat(chunk_result)
 end
 
@@ -190,7 +190,7 @@ local function update_sanitize_cache(key, value)
       sanitize_cache[old_key] = nil
     end
   end
-  
+
   sanitize_cache[key] = value
   table.insert(sanitize_cache_keys, key)
 end
@@ -200,14 +200,14 @@ local function sanitize_text(text, state)
   if not text then
     return ""
   end
-  
+
   if config.debug_mode then
     print("[Nudge Two Hats Debug] sanitize_text: Input text length: " .. #text)
     if state then
       print("[Nudge Two Hats Debug] Context for: " .. (state.context_for or "unknown"))
     end
   end
-  
+
   -- Check cache first
   if sanitize_cache[text] then
     if config.debug_mode then
@@ -215,7 +215,7 @@ local function sanitize_text(text, state)
     end
     return sanitize_cache[text]
   end
-  
+
   -- Handle large text with hash-based caching
   local cache_key = text
   if #text > 1024 then
@@ -224,7 +224,7 @@ local function sanitize_text(text, state)
     for i = 1, #text, step do
       text_hash = (text_hash * 31 + string.byte(text, i)) % 1000000007
     end
-    
+
     if sanitize_cache[text_hash] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using hash-matched cached text")
@@ -233,7 +233,7 @@ local function sanitize_text(text, state)
     end
     cache_key = text_hash
   end
-  
+
   -- Check if text is ASCII-only
   if is_text_ascii_only(text) then
     if config.debug_mode then
@@ -242,9 +242,9 @@ local function sanitize_text(text, state)
     update_sanitize_cache(cache_key, text)
     return text
   end
-  
+
   local sanitized
-  
+
   -- Small text: use simple character-by-character processing
   if #text < 10240 then
     sanitized = sanitize_small_text(text)
@@ -257,25 +257,25 @@ local function sanitize_text(text, state)
       return sanitized
     end
   end
-  
+
   -- Large text: use chunk processing
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Using optimized chunk processing for text sanitization")
   end
-  
+
   local chunk_size = 65536
   local result = {}
   local total_processed = 0
-  
+
   while total_processed < #text do
     local chunk_end = math.min(total_processed + chunk_size, #text)
     local chunk = string.sub(text, total_processed + 1, chunk_end)
     table.insert(result, process_utf8_chunk(chunk))
     total_processed = chunk_end
   end
-  
+
   sanitized = table.concat(result)
-  
+
   -- Final validation and ASCII fallback if needed
   local final_ok = pcall(vim.fn.json_encode, { text = sanitized })
   if not final_ok then
@@ -284,13 +284,13 @@ local function sanitize_text(text, state)
     end
     sanitized = sanitize_small_text(text):gsub("[^%w%s%p]", "?")
   end
-  
+
   update_sanitize_cache(cache_key, sanitized)
-  
+
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Text sanitization complete")
   end
-  
+
   return sanitized
 end
 
@@ -460,7 +460,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   local context_for = state.context_for or "notification"
   local current_buf = vim.api.nvim_get_current_buf()
   local previous_message = nil
-  
+
   if context_for == "notification" and state.notifications and state.notifications.last_advice then
     previous_message = state.notifications.last_advice[current_buf]
   elseif context_for == "virtual_text" and state.virtual_text and state.virtual_text.last_advice then
@@ -493,7 +493,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end
   local output_lang = get_language()
-  
+
   -- Add anti-duplication instruction if previous message exists
   local anti_duplication_prompt = ""
   if previous_message and previous_message ~= "" then
@@ -503,7 +503,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
       anti_duplication_prompt = string.format("\nIMPORTANT: Avoid repeating the exact same content as the previous message: \"%s\". Provide advice from a different perspective or with different wording.", previous_message)
     end
   end
-  
+
   if output_lang == "ja" then
     if context_for == "notification" then
       system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", config[context_for].notify_message_length, anti_duplication_prompt)
@@ -593,7 +593,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                result.candidates[1].content and result.candidates[1].content.parts and
                result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
               local advice = result.candidates[1].content.parts[1].text
-              
+
               -- Check if the new advice is identical to the previous message
               if previous_message and advice == previous_message then
                 if config.debug_mode then
@@ -606,7 +606,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                 else
                   retry_prompt = retry_prompt .. "\nAdditional instruction: The previous response was identical. Please provide a completely different advice."
                 end
-                
+
                 -- Make a retry API call with modified prompt
                 local retry_request_data = vim.fn.json_encode({
                   contents = {
@@ -628,7 +628,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                     maxOutputTokens = 1024
                   }
                 })
-                
+
                 -- Use curl for immediate retry
                 local temp_retry_file = "/tmp/nudge_two_hats_retry.json"
                 local retry_file = io.open(temp_retry_file, "w")
@@ -636,11 +636,11 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                   retry_file:write(retry_request_data)
                   retry_file:close()
                 end
-                
+
                 local endpoint = config.api_endpoint:gsub("[<>]", "")
                 local full_url = endpoint .. "?key=" .. api_key
                 local retry_command = string.format("curl -s -X POST %s -H 'Content-Type: application/json' -d @%s", full_url, temp_retry_file)
-                
+
                 vim.fn.jobstart(retry_command, {
                   on_stdout = function(_, retry_data)
                     if retry_data and #retry_data > 0 and retry_data[1] ~= "" then
@@ -650,7 +650,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                            retry_response.candidates[1].content and retry_response.candidates[1].content.parts and
                            retry_response.candidates[1].content.parts[1] and retry_response.candidates[1].content.parts[1].text then
                           local retry_advice = retry_response.candidates[1].content.parts[1].text
-                          
+
                           -- Apply length limits to retry advice
                           local message_length = config[context_for].notify_message_length
                           if context_for == "virtual_text" then
@@ -676,7 +676,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                           if config.translate_messages then
                             retry_advice = translate_message(retry_advice)
                           end
-                          
+
                           if config.debug_mode then
                             print("[Nudge Two Hats Debug] Retry successful, using different advice")
                           end
@@ -699,7 +699,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                 })
                 return -- Don't continue with the original response processing
               end
-              
+
               if cache_key then
                 advice_cache[cache_key] = advice
                 table.insert(advice_cache_keys, cache_key)
@@ -785,7 +785,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                response.candidates[1].content and response.candidates[1].content.parts and
                response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
               local advice = response.candidates[1].content.parts[1].text
-              
+
               -- Check if the new advice is identical to the previous message (curl fallback)
               if previous_message and advice == previous_message then
                 if config.debug_mode then
@@ -800,7 +800,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
                 local random_suffix = variations[math.random(#variations)]
                 advice = advice .. random_suffix
               end
-              
+
               local message_length = config[context_for].notify_message_length
               if context_for == "virtual_text" then
                 message_length = config[context_for].virtual_text_message_length
