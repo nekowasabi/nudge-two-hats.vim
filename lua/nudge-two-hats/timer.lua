@@ -243,11 +243,13 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         print(string.format("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: %s. Diff preview: %s", (current_diff_filetype or "unknown"), string.sub(current_diff, 1, 200)))
       end
       local prompt = target_buffer_module.get_prompt_for_buffer(target_buf, target_state, "notification")
+      local purpose = target_buffer_module.get_purpose_for_buffer(target_buf, target_state, "notification")
       target_state.context_for = "notification"
       if target_config.debug_mode then
         print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
         print("[Nudge Two Hats Debug] context_for: " .. target_state.context_for)
         print("[Nudge Two Hats Debug] prompt preview: " .. (prompt and string.sub(prompt, 1, 100) or "nil"))
+        print("[Nudge Two Hats Debug] purpose: " .. (purpose or "nil"))
       end
       target_api_module.get_gemini_advice(current_diff, function(advice)
         if target_config.debug_mode then
@@ -291,7 +293,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
             print("[Nudge Two Hats Debug] Notification API callback: Buffer content state updated with original_content.")
           end
         end
-      end, prompt, target_config.purpose, target_state)
+      end, prompt, purpose, target_state)
     end
     return callback_func
   end
@@ -306,30 +308,23 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
   return state.timers.notification[buf]
 end
 
--- Function to stop virtual text timer for a buffer (called by state.stop_timer)
+-- Function to stop both timers for a buffer
 function M.stop_timer(buf, state, stop_notification_timer_func, stop_virtual_text_timer_func)
-  -- local notification_timer_id = stop_notification_timer_func(buf) -- This line should be removed or commented out
-  local virtual_text_timer_id = stop_virtual_text_timer_func(buf)
-  if stop_notification_timer_func then -- Ensure it can still stop notification timer if called that way
-    stop_notification_timer_func(buf)
+  local notification_timer_id = nil
+  local virtual_text_timer_id = nil
+  
+  -- Stop notification timer if function provided
+  if stop_notification_timer_func then
+    notification_timer_id = stop_notification_timer_func(buf)
   end
-  return virtual_text_timer_id -- Only return the virtual_text_timer_id
-end
-
--- Function to start virtual text timer for a buffer (for display)
-function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text_func)
-  if config.debug_mode then
-    local current_timer_id = state.timers and state.timers.virtual_text and state.timers.virtual_text[buf]
-    print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: Called for buf %d from event %s. Current timer ID for buf: %s", buf, event_name or "unknown", tostring(current_timer_id or "nil")))
+  
+  -- Stop virtual text timer if function provided
+  if stop_virtual_text_timer_func then
+    virtual_text_timer_id = stop_virtual_text_timer_func(buf)
   end
-  return state.timers.notification[buf]
-end
-
--- Function to stop virtual text timer for a buffer (called by state.stop_timer)
-function M.stop_timer(buf, state, stop_notification_timer_func, stop_virtual_text_timer_func)
-  -- local notification_timer_id = stop_notification_timer_func(buf) -- This line should be removed or commented out
-  local virtual_text_timer_id = stop_virtual_text_timer_func(buf)
-  return virtual_text_timer_id -- Only return the virtual_text_timer_id
+  
+  -- Return the notification timer ID (as expected by the test)
+  return notification_timer_id
 end
 
 -- Function to start virtual text timer for a buffer (for display)
@@ -465,6 +460,7 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
       current_state_arg.last_api_call_virtual_text = current_time
       current_state_arg.context_for = "virtual_text"
       local prompt = current_buffer_module_arg.get_prompt_for_buffer(current_buf_arg, current_state_arg, "virtual_text")
+      local purpose = current_buffer_module_arg.get_purpose_for_buffer(current_buf_arg, current_state_arg, "virtual_text")
 
       current_api_module_arg.get_gemini_advice(current_diff, function(advice)
         if current_config_arg.debug_mode then
@@ -487,7 +483,7 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
             current_state_arg.timers.virtual_text[current_buf_arg] = nil
           end
         end
-      end, prompt, current_config_arg.purpose, current_state_arg)
+      end, prompt, purpose, current_state_arg)
     end -- This 'end' closes the 'if (current_time - ...)' block for API interval check
     return callback_func
   end

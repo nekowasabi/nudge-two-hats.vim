@@ -551,7 +551,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   end
 
   local context_for = state.context_for or "notification" -- Ensure context_for is defined before use
-  local system_prompt = prompt
+  local system_prompt = prompt or state.current_prompt
   if not system_prompt then
     -- If no prompt is provided, use the system prompt as fallback (this should not happen with proper usage)
     system_prompt = config[context_for].system_prompt
@@ -559,7 +559,7 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
       print("[Nudge Two Hats Debug] Warning: Using config system_prompt as fallback. This may indicate an issue with prompt generation.")
     end
   end
-  local purpose_text = purpose or config[context_for].purpose
+  local purpose_text = purpose or state.current_purpose or config[context_for].purpose
   if purpose_text and purpose_text ~= "" then
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end

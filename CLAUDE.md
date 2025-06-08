@@ -40,8 +40,12 @@ The plugin follows a modular architecture with clear separation of concerns:
 
 ### Testing
 ```bash
-# Run tests using Lua's busted framework
+# Run all tests using Lua's busted framework
 busted test/
+
+# Run specific test file
+busted test/api_spec.lua
+busted test/timer_spec.lua
 ```
 
 ### Linting
@@ -52,10 +56,16 @@ The project uses `.luarc.json` for Lua Language Server configuration:
 ### Manual Testing
 Use the plugin's built-in commands:
 ```vim
-:NudgeTwoHatsDebug          " View plugin state and active timers
+:NudgeTwoHatsStart [filetype1 filetype2 ...]  " Start monitoring (with optional filetypes)
+:NudgeTwoHatsToggle [filetype1 filetype2 ...] " Toggle plugin on/off
 :NudgeTwoHatsNow            " Trigger immediate advice generation
+:NudgeTwoHatsDebug          " View plugin state and active timers
 :NudgeTwoHatsDebugNotify    " Force notification with debug output
 ```
+
+### Environment Setup
+- Set `GEMINI_API_KEY` environment variable for API access
+- Neovim 0.7.0+ required
 
 ## Key Implementation Details
 

@@ -251,6 +251,13 @@ end
 
 -- バッファに応じたプロンプトを取得する関数
 function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to context for clarity in this function
+  -- Validate context parameter - if not provided, default to 'notification'
+  if not context or (context ~= "notification" and context ~= "virtual_text") then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Invalid or missing context provided: " .. tostring(context) .. ". Using 'notification' as fallback.")
+    end
+    context = "notification"
+  end
   -- コールバック結果を先に取得 - グローバルレベルのcallback
   local global_cb_result = run_callback(config.callback)
 
@@ -290,13 +297,22 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
   end
   -- Check if we have a specific prompt for any of the filetypes
   for _, filetype in ipairs(filetypes) do
-    if filetype and config[context].filetype_prompts and config[context].filetype_prompts[filetype] then
+    -- First check new structure, then fall back to old structure for backward compatibility
+    local filetype_prompts = nil
+    if config and config[context] and config[context].filetype_prompts then
+      filetype_prompts = config[context].filetype_prompts
+    elseif config and config.filetype_prompts then
+      -- Backward compatibility: old flat structure
+      filetype_prompts = config.filetype_prompts
+    end
+    
+    if filetype and filetype_prompts and filetype_prompts[filetype] then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Using filetype-specific prompt for: " .. filetype)
         print("[Nudge Two Hats Debug] Context: " .. context)
         print("[Nudge Two Hats Debug] Config source: " .. (vim.g.nudge_two_hats_configured and "user" or "default"))
       end
-      local filetype_prompt = config[context].filetype_prompts[filetype]
+      local filetype_prompt = filetype_prompts[filetype]
       -- テスト用のcallbackを優先して使用
       local cb_result = ""
       if config.callback and config.callback ~= "" then
@@ -318,15 +334,39 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
           return cb_result
         end
 
-        local default_cbt_for_context = config[context].default_cbt or {} -- Use an empty table if default_cbt for context is nil
+        -- Get default_cbt - try new structure first, then fall back to old structure
+        local default_cbt_for_context = {}
+        if config and config[context] and config[context].default_cbt then
+          default_cbt_for_context = config[context].default_cbt
+        elseif config and config.default_cbt then
+          -- Backward compatibility: old flat structure
+          default_cbt_for_context = config.default_cbt
+        end
         local role = filetype_prompt.role or default_cbt_for_context.role
         local direction = filetype_prompt.direction or default_cbt_for_context.direction
         local emotion = filetype_prompt.emotion or default_cbt_for_context.emotion
         local tone = filetype_prompt.tone or default_cbt_for_context.tone
         local prompt_text = filetype_prompt.prompt
         local hats = filetype_prompt.hats or default_cbt_for_context.hats or {}
-        local notify_message_length = filetype_prompt.notify_message_length or config[context].notify_message_length
-        local virtual_text_message_length = filetype_prompt.virtual_text_message_length or config[context].virtual_text_message_length
+        -- Get message lengths - try new structure first, then fall back to old structure or defaults
+        local notify_message_length = filetype_prompt.notify_message_length
+        local virtual_text_message_length = filetype_prompt.virtual_text_message_length
+        
+        if not notify_message_length then
+          if config and config[context] then
+            notify_message_length = config[context].notify_message_length
+          else
+            notify_message_length = 80 -- default
+          end
+        end
+        
+        if not virtual_text_message_length then
+          if config and config[context] then
+            virtual_text_message_length = config[context].virtual_text_message_length
+          else
+            virtual_text_message_length = 40 -- default
+          end
+        end
         local message_length = notify_message_length
 
         if config.debug_mode then
@@ -383,13 +423,84 @@ function M.get_prompt_for_buffer(buf, state, context) -- Renamed context_for to 
     return cb_result
   else
     -- Fallback to context-specific system prompt if no other prompt is found
-    return config[context].system_prompt
+    if config and config[context] and config[context].system_prompt then
+      return config[context].system_prompt
+    elseif config and config.system_prompt then
+      -- Backward compatibility: old flat structure
+      return config.system_prompt
+    end
+    return ""
   end
 end
 
 -- 選択されたハットを取得する関数
 function M.get_selected_hat()
   return selected_hat
+end
+
+-- バッファに応じたpurposeを取得する関数
+function M.get_purpose_for_buffer(buf, state, context)
+  -- Validate context parameter - if not provided, default to 'notification'
+  if not context or (context ~= "notification" and context ~= "virtual_text") then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Invalid or missing context provided: " .. tostring(context) .. ". Using 'notification' as fallback.")
+    end
+    context = "notification"
+  end
+
+  -- 初期化
+  local filetypes = {}
+  -- Check if we have stored filetypes for this buffer
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
+      table.insert(filetypes, filetype)
+    end
+  end
+  -- If no stored filetypes, use the current buffer's filetype
+  if #filetypes == 0 then
+    local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
+    if current_filetype and current_filetype ~= "" then
+      table.insert(filetypes, current_filetype)
+    end
+  end
+
+  -- Check if we have a specific purpose for any of the filetypes
+  for _, filetype in ipairs(filetypes) do
+    -- First check new structure, then fall back to old structure for backward compatibility
+    local filetype_prompts = nil
+    if config and config[context] and config[context].filetype_prompts then
+      filetype_prompts = config[context].filetype_prompts
+    elseif config and config.filetype_prompts then
+      -- Backward compatibility: old flat structure
+      filetype_prompts = config.filetype_prompts
+    end
+    
+    if filetype and filetype_prompts and filetype_prompts[filetype] then
+      local filetype_prompt = filetype_prompts[filetype]
+      if type(filetype_prompt) == "table" and filetype_prompt.purpose then
+        if config.debug_mode then
+          print("[Nudge Two Hats Debug] Using filetype-specific purpose for: " .. filetype .. " -> " .. filetype_prompt.purpose)
+        end
+        return filetype_prompt.purpose
+      end
+    end
+  end
+
+  -- Fallback to context-specific purpose
+  if config and config[context] and config[context].purpose then
+    local context_purpose = config[context].purpose
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using context-specific purpose: " .. context_purpose)
+    end
+    return context_purpose
+  elseif config and config.purpose then
+    -- Backward compatibility: old flat structure
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using global purpose (backward compatibility): " .. config.purpose)
+    end
+    return config.purpose
+  end
+  return nil
 end
 
 return M

@@ -21,10 +21,16 @@ end
 
 -- バッファ監視用の自動コマンドを作成する関数
 -- @param buf number バッファID
-function M.create_autocmd(buf)
-  if not m_state or not m_plugin_functions then
+-- @param state_override table (optional) State object for testing
+-- @param plugin_functions_override table (optional) Plugin functions for testing
+function M.create_autocmd(buf, state_override, plugin_functions_override)
+  -- Use provided overrides for testing or fallback to module-level variables
+  local state = state_override or m_state
+  local plugin_functions = plugin_functions_override or m_plugin_functions
+  
+  if not state or not plugin_functions then
     if m_config and m_config.debug_mode then
-      print("[Nudge Two Hats Debug] ERROR in create_autocmd: m_state or m_plugin_functions is nil. Buffer: " .. buf)
+      print("[Nudge Two Hats Debug] ERROR in create_autocmd: state or plugin_functions is nil. Buffer: " .. buf)
     end
     return
   end
@@ -32,22 +38,33 @@ function M.create_autocmd(buf)
   local augroup = vim.api.nvim_create_augroup("nudge-two-hats-" .. buf, {})
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
   local filetypes = {}
-  if m_state.buf_filetypes[buf] then
-    for filetype in string.gmatch(m_state.buf_filetypes[buf], "[^,]+") do
+  if state.buf_filetypes[buf] then
+    for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
       table.insert(filetypes, filetype)
     end
   else
     local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
     if current_filetype and current_filetype ~= "" then
       table.insert(filetypes, current_filetype)
-      m_state.buf_filetypes[buf] = current_filetype
+      state.buf_filetypes[buf] = current_filetype
     end
   end
-  m_state.buf_content_by_filetype[buf] = m_state.buf_content_by_filetype[buf] or {}
+  state.buf_content_by_filetype[buf] = state.buf_content_by_filetype[buf] or {}
   for _, filetype in ipairs(filetypes) do
-    m_state.buf_content_by_filetype[buf][filetype] = content
+    state.buf_content_by_filetype[buf][filetype] = content
   end
-  m_state.buf_content[buf] = content
+  state.buf_content[buf] = content
+  
+  -- Initialize virtual text namespace and structures
+  if not state.virtual_text then
+    state.virtual_text = {}
+  end
+  if not state.virtual_text.last_cursor_move then
+    state.virtual_text.last_cursor_move = {}
+  end
+  -- Set initial last cursor move time for virtual text timer
+  state.virtual_text.last_cursor_move[buf] = os.time()
+  
   if m_config and m_config.debug_mode then
     print(string.format("[Nudge Two Hats Debug] Initialized buffer %d with filetypes: %s for autocmds.",
       buf, table.concat(filetypes, ", ")))

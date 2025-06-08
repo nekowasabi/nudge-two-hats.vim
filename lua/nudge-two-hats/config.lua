@@ -80,6 +80,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+        purpose = "Improve writing clarity and document structure",
         callback = "",
       },
       text = {
@@ -89,6 +90,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+        purpose = "Enhance general text writing quality",
         callback = "",
       },
       tex = {
@@ -98,6 +100,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
+        purpose = "Create well-formatted academic documents",
         callback = "",
       },
       rst = {
@@ -107,6 +110,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
+        purpose = "Create clear and organized technical documentation",
         callback = "",
       },
       org = {
@@ -116,15 +120,17 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
+        purpose = "Improve organization and productivity planning",
         callback = "",
       },
       lua = {
         prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing. (notification advice for Lua)", -- Differentiated
         role = "Lua Notification Advisor", -- Differentiated
-        direction = "Guide towards clearer and more maintainable code",
+        direction = "Guide towards cleaner and more maintainable code",
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
+        purpose = "Develop clean and maintainable Lua code",
         callback = "",
       },
       python = {
@@ -134,6 +140,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
+        purpose = "Write Pythonic and maintainable Python code",
         callback = "",
       },
       javascript = {
@@ -143,6 +150,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
+        purpose = "Develop modern and efficient JavaScript applications",
         callback = "",
       },
     },
@@ -198,6 +206,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
+        purpose = "Improve writing clarity and document structure",
         callback = "",
       },
       text = { -- This is the specific Japanese example that needs to be preserved
@@ -217,6 +226,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
+        purpose = "Create well-formatted academic documents",
         callback = "",
       },
       rst = {
@@ -226,6 +236,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
+        purpose = "Create clear and organized technical documentation",
         callback = "",
       },
       org = {
@@ -235,6 +246,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
+        purpose = "Improve organization and productivity planning",
         callback = "",
       },
       lua = {
@@ -244,6 +256,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
+        purpose = "Develop clean and maintainable Lua code",
         callback = "",
       },
       python = {
@@ -253,6 +266,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
+        purpose = "Write Pythonic and maintainable Python code",
         callback = "",
       },
       javascript = {
@@ -262,6 +276,7 @@ Specific constraints, such as message length, will also be provided by the `prom
         emotion = "Empathetic and understanding",
         tone = "Supportive and encouraging but direct",
         hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
+        purpose = "Develop modern and efficient JavaScript applications",
         callback = "",
       },
     },
