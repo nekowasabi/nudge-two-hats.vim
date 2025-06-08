@@ -68,55 +68,17 @@ local sanitize_cache = {}
 local sanitize_cache_keys = {}
 local MAX_CACHE_SIZE = 20
 
--- Sanitize text for API requests
-local function sanitize_text(text, state)
-  if not text then
-    return ""
-  end
-  -- Removed: local sanitized_diff = sanitize_text(diff)
-  if config.debug_mode then
-    -- This log might be misleading now as it was intended for 'diff'
-    -- print("[Nudge Two Hats Debug] Sanitized diff length: " .. #sanitized_diff) 
-    -- For clarity, let's log the length of the text being sanitized
-    print("[Nudge Two Hats Debug] sanitize_text: Input text length: " .. #text)
-    if state then
-      print("[Nudge Two Hats Debug] Context for: " .. (state.context_for or "unknown"))
-    else
-      print("[Nudge Two Hats Debug] sanitize_text: state is nil")
-    end
-    print("[Nudge Two Hats Debug] notify_message_length: " .. (config.notification and config.notification.notify_message_length or "nil"))
-    print("[Nudge Two Hats Debug] virtual_text_message_length: " .. (config.virtual_text and config.virtual_text.virtual_text_message_length or "nil"))
-  end
-  if sanitize_cache[text] then
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] Using cached sanitized text")
-    end
-    return sanitize_cache[text]
-  end
-  local text_hash = nil
-  if #text > 1024 then
-    text_hash = 0
-    local step = math.max(1, math.floor(#text / 100))
-    for i = 1, #text, step do
-      text_hash = (text_hash * 31 + string.byte(text, i)) % 1000000007
-    end
-    if sanitize_cache[text_hash] then
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] Using hash-matched cached text")
-      end
-      return sanitize_cache[text_hash]
-    end
-  end
+-- Helper function to check if text is ASCII-only
+local function is_text_ascii_only(text)
   local check_limit = math.min(100, #text)
-  local is_ascii_only = true
   for i = 1, check_limit do
     local b = string.byte(text, i)
     if b >= 128 or b <= 31 or b == 34 or b == 92 or b == 127 then
-      is_ascii_only = false
-      break
+      return false
     end
   end
-  if is_ascii_only and #text > 100 then
+  
+  if #text > 100 then
     local positions = {}
     if #text > 1000 then
       for _ = 1, 10 do
@@ -128,240 +90,207 @@ local function sanitize_text(text, state)
         table.insert(positions, i)
       end
     end
+    
     for _, pos in ipairs(positions) do
       local b = string.byte(text, pos)
       if b >= 128 or b <= 31 or b == 34 or b == 92 or b == 127 then
-        is_ascii_only = false
-        break
+        return false
       end
     end
   end
-  if is_ascii_only then
+  return true
+end
+
+-- Helper function to sanitize character
+local function sanitize_char(b)
+  if b < 32 or b == 127 then
+    return "" -- Skip control characters
+  elseif b == 92 then -- backslash
+    return "\\\\"
+  elseif b == 34 then -- double quote
+    return "\\\""
+  elseif b == 192 or b == 193 or (b >= 245 and b <= 255) then
+    return "?" -- Invalid UTF-8 lead bytes
+  else
+    return string.char(b)
+  end
+end
+
+-- Helper function for small text sanitization
+local function sanitize_small_text(text)
+  local sanitized = ""
+  for i = 1, #text do
+    local b = string.byte(text, i)
+    sanitized = sanitized .. sanitize_char(b)
+  end
+  return sanitized
+end
+
+-- Helper function for UTF-8 chunk processing
+local function process_utf8_chunk(chunk)
+  local chunk_result = {}
+  local i = 1
+  
+  while i <= #chunk do
+    local b = string.byte(chunk, i)
+    
+    if b <= 31 or b == 127 then
+      i = i + 1 -- Skip control characters
+    elseif b == 34 then -- double quote
+      table.insert(chunk_result, '\\"')
+      i = i + 1
+    elseif b == 92 then -- backslash
+      table.insert(chunk_result, '\\\\')
+      i = i + 1
+    elseif b >= 240 and b <= 247 then -- 4-byte sequence
+      if i + 3 <= #chunk and 
+         string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 and
+         string.byte(chunk, i+2) >= 128 and string.byte(chunk, i+2) <= 191 and
+         string.byte(chunk, i+3) >= 128 and string.byte(chunk, i+3) <= 191 then
+        table.insert(chunk_result, chunk:sub(i, i+3))
+        i = i + 4
+      else
+        table.insert(chunk_result, "?")
+        i = i + 1
+      end
+    elseif b >= 224 and b <= 239 then -- 3-byte sequence
+      if i + 2 <= #chunk and
+         string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 and
+         string.byte(chunk, i+2) >= 128 and string.byte(chunk, i+2) <= 191 then
+        table.insert(chunk_result, chunk:sub(i, i+2))
+        i = i + 3
+      else
+        table.insert(chunk_result, "?")
+        i = i + 1
+      end
+    elseif b >= 192 and b <= 223 then -- 2-byte sequence
+      if i + 1 <= #chunk and
+         string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 then
+        table.insert(chunk_result, chunk:sub(i, i+1))
+        i = i + 2
+      else
+        table.insert(chunk_result, "?")
+        i = i + 1
+      end
+    else
+      table.insert(chunk_result, chunk:sub(i, i))
+      i = i + 1
+    end
+  end
+  
+  return table.concat(chunk_result)
+end
+
+-- Helper function to update cache
+local function update_sanitize_cache(key, value)
+  if #sanitize_cache_keys > MAX_CACHE_SIZE then
+    local to_remove = #sanitize_cache_keys - MAX_CACHE_SIZE
+    for i = 1, to_remove do
+      local old_key = table.remove(sanitize_cache_keys, 1)
+      sanitize_cache[old_key] = nil
+    end
+  end
+  
+  sanitize_cache[key] = value
+  table.insert(sanitize_cache_keys, key)
+end
+
+-- Main sanitization function (simplified)
+local function sanitize_text(text, state)
+  if not text then
+    return ""
+  end
+  
+  if config.debug_mode then
+    print("[Nudge Two Hats Debug] sanitize_text: Input text length: " .. #text)
+    if state then
+      print("[Nudge Two Hats Debug] Context for: " .. (state.context_for or "unknown"))
+    end
+  end
+  
+  -- Check cache first
+  if sanitize_cache[text] then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] Using cached sanitized text")
+    end
+    return sanitize_cache[text]
+  end
+  
+  -- Handle large text with hash-based caching
+  local cache_key = text
+  if #text > 1024 then
+    local text_hash = 0
+    local step = math.max(1, math.floor(#text / 100))
+    for i = 1, #text, step do
+      text_hash = (text_hash * 31 + string.byte(text, i)) % 1000000007
+    end
+    
+    if sanitize_cache[text_hash] then
+      if config.debug_mode then
+        print("[Nudge Two Hats Debug] Using hash-matched cached text")
+      end
+      return sanitize_cache[text_hash]
+    end
+    cache_key = text_hash
+  end
+  
+  -- Check if text is ASCII-only
+  if is_text_ascii_only(text) then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Text is ASCII-only, no sanitization needed")
     end
-    if text_hash then
-      sanitize_cache[text_hash] = text
-      table.insert(sanitize_cache_keys, text_hash)
-    else
-      sanitize_cache[text] = text
-      table.insert(sanitize_cache_keys, text)
-    end
+    update_sanitize_cache(cache_key, text)
     return text
   end
+  
+  local sanitized
+  
+  -- Small text: use simple character-by-character processing
   if #text < 10240 then
-    -- Use individual character replacements to avoid pattern issues with multibyte characters
-    local sanitized = ""
-    for i = 1, #text do
-      local c = text:sub(i, i)
-      local b = string.byte(c)
-      if b < 32 or b == 127 then
-        -- Skip control characters
-      elseif b == 92 then -- backslash
-        sanitized = sanitized .. "\\\\"
-      elseif b == 34 then -- double quote
-        sanitized = sanitized .. "\\\""
-      elseif b == 192 or b == 193 then -- Invalid UTF-8 lead bytes
-        sanitized = sanitized .. "?"
-      elseif b >= 245 and b <= 255 then -- Invalid UTF-8 lead bytes
-        sanitized = sanitized .. "?"
-      else
-        sanitized = sanitized .. c
-      end
-    end
-    local test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
+    sanitized = sanitize_small_text(text)
+    local test_ok = pcall(vim.fn.json_encode, { text = sanitized })
     if test_ok then
       if config.debug_mode then
         print("[Nudge Two Hats Debug] Text sanitized using fast method")
       end
-      if text_hash then
-        sanitize_cache[text_hash] = sanitized
-        table.insert(sanitize_cache_keys, text_hash)
-      else
-        sanitize_cache[text] = sanitized
-        table.insert(sanitize_cache_keys, text)
-      end
-      return sanitized
-    end
-    local result = {}
-    local result_size = 0
-    local buffer_size = 1024
-    local buffer = {}
-    for i = 1, #text do
-      local b = string.byte(text, i)
-      if b <= 31 or b == 127 then
-        -- Skip control characters
-      elseif b == 34 then -- double quote
-        table.insert(buffer, '\\"')
-        result_size = result_size + 1
-      elseif b == 92 then -- backslash
-        table.insert(buffer, '\\\\')
-        result_size = result_size + 1
-      elseif b >= 128 and b <= 191 then
-        table.insert(buffer, "?")
-        result_size = result_size + 1
-      elseif b == 0x82 or b == 0xE3 then
-        -- Problematic sequences
-        table.insert(buffer, "?")
-        result_size = result_size + 1
-      else
-        table.insert(buffer, string.char(b))
-        result_size = result_size + 1
-      end
-      if result_size >= buffer_size then
-        table.insert(result, table.concat(buffer))
-        buffer = {}
-        result_size = 0
-      end
-    end
-    if result_size > 0 then
-      table.insert(result, table.concat(buffer))
-    end
-    sanitized = table.concat(result)
-    test_ok, _ = pcall(vim.fn.json_encode, { text = sanitized })
-    if test_ok then
-      if config.debug_mode then
-        print("[Nudge Two Hats Debug] Text sanitized using table-based method")
-      end
-      if text_hash then
-        sanitize_cache[text_hash] = sanitized
-        table.insert(sanitize_cache_keys, text_hash)
-      else
-        sanitize_cache[text] = sanitized
-        table.insert(sanitize_cache_keys, text)
-      end
+      update_sanitize_cache(cache_key, sanitized)
       return sanitized
     end
   end
+  
+  -- Large text: use chunk processing
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Using optimized chunk processing for text sanitization")
   end
-  local chunk_size = 65536 -- 64KB chunks
+  
+  local chunk_size = 65536
   local result = {}
   local total_processed = 0
+  
   while total_processed < #text do
     local chunk_end = math.min(total_processed + chunk_size, #text)
     local chunk = string.sub(text, total_processed + 1, chunk_end)
-    local chunk_result = {}
-    local i = 1
-    while i <= #chunk do
-      local b = string.byte(chunk, i)
-      if b <= 31 or b == 127 then
-        -- Skip control characters
-        i = i + 1
-      elseif b == 34 then -- double quote
-        table.insert(chunk_result, '\\"')
-        i = i + 1
-      elseif b == 92 then -- backslash
-        table.insert(chunk_result, '\\\\')
-        i = i + 1
-      -- Handle UTF-8 sequences efficiently
-      elseif b >= 240 and b <= 247 then -- 4-byte sequence
-        if i + 3 <= #chunk and 
-           string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 and
-           string.byte(chunk, i+2) >= 128 and string.byte(chunk, i+2) <= 191 and
-           string.byte(chunk, i+3) >= 128 and string.byte(chunk, i+3) <= 191 then
-          -- Valid 4-byte sequence - add as a single string
-          table.insert(chunk_result, chunk:sub(i, i+3))
-          i = i + 4
-        else
-          table.insert(chunk_result, "?")
-          i = i + 1
-        end
-      elseif b >= 224 and b <= 239 then -- 3-byte sequence
-        if i + 2 <= #chunk and
-           string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 and
-           string.byte(chunk, i+2) >= 128 and string.byte(chunk, i+2) <= 191 then
-          -- Valid 3-byte sequence
-          table.insert(chunk_result, chunk:sub(i, i+2))
-          i = i + 3
-        else
-          table.insert(chunk_result, "?")
-          i = i + 1
-        end
-      elseif b >= 192 and b <= 223 then -- 2-byte sequence
-        if i + 1 <= #chunk and
-           string.byte(chunk, i+1) >= 128 and string.byte(chunk, i+1) <= 191 then
-          -- Valid 2-byte sequence
-          table.insert(chunk_result, chunk:sub(i, i+1))
-          i = i + 2
-        else
-          table.insert(chunk_result, "?")
-          i = i + 1
-        end
-      -- Handle problematic byte sequences
-      elseif b == 0x82 or b == 0xE3 then
-        -- Special handling for problematic sequences
-        table.insert(chunk_result, "?")
-        i = i + 1
-      elseif b >= 128 and b <= 191 then
-        table.insert(chunk_result, "?")
-        i = i + 1
-      else
-        -- ASCII character
-        table.insert(chunk_result, chunk:sub(i, i))
-        i = i + 1
-      end
-    end
-    table.insert(result, table.concat(chunk_result))
+    table.insert(result, process_utf8_chunk(chunk))
     total_processed = chunk_end
   end
-  local sanitized = table.concat(result)
-  local final_ok, err = pcall(vim.fn.json_encode, { text = sanitized })
+  
+  sanitized = table.concat(result)
+  
+  -- Final validation and ASCII fallback if needed
+  local final_ok = pcall(vim.fn.json_encode, { text = sanitized })
   if not final_ok then
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] JSON encoding still failed, using ASCII-only fallback")
+      print("[Nudge Two Hats Debug] JSON encoding failed, using ASCII-only fallback")
     end
-    local ascii_result = {}
-    local buffer = {}
-    local buffer_size = 0
-    local max_buffer = 1024
-    for i = 1, #text do
-      local b = string.byte(text, i)
-      if b >= 32 and b <= 126 and b ~= 34 and b ~= 92 then
-        table.insert(buffer, string.char(b))
-        buffer_size = buffer_size + 1
-      elseif b == 34 then -- double quote
-        table.insert(buffer, '\\"')
-        buffer_size = buffer_size + 1
-      elseif b == 92 then -- backslash
-        table.insert(buffer, '\\\\')
-        buffer_size = buffer_size + 1
-      elseif b == 10 or b == 13 or b == 9 then -- newline, carriage return, tab
-        table.insert(buffer, string.char(b))
-        buffer_size = buffer_size + 1
-      else
-        table.insert(buffer, "?")
-        buffer_size = buffer_size + 1
-      end
-      if buffer_size >= max_buffer then
-        table.insert(ascii_result, table.concat(buffer))
-        buffer = {}
-        buffer_size = 0
-      end
-    end
-    if buffer_size > 0 then
-      table.insert(ascii_result, table.concat(buffer))
-    end
-    sanitized = table.concat(ascii_result)
+    sanitized = sanitize_small_text(text):gsub("[^%w%s%p]", "?")
   end
-  if #sanitize_cache_keys > MAX_CACHE_SIZE then
-    local to_remove = #sanitize_cache_keys - MAX_CACHE_SIZE
-    for i = 1, to_remove do
-      local key = table.remove(sanitize_cache_keys, 1)
-      sanitize_cache[key] = nil
-    end
-  end
-  if text_hash then
-    sanitize_cache[text_hash] = sanitized
-    table.insert(sanitize_cache_keys, text_hash)
-  else
-    sanitize_cache[text] = sanitized
-    table.insert(sanitize_cache_keys, text)
-  end
+  
+  update_sanitize_cache(cache_key, sanitized)
+  
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Text sanitization complete")
   end
+  
   return sanitized
 end
 

@@ -4,6 +4,7 @@ local M = {}
 local config = require("nudge-two-hats.config")
 local buffer = require("nudge-two-hats.buffer")
 local api = require("nudge-two-hats.api")
+local utils = require("nudge-two-hats.utils")
 
 -- Function to update configuration
 function M.update_config(new_config)
@@ -153,57 +154,32 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     end
     return
   end
-  -- Check if this is the current buffer
-  local current_buf = vim.api.nvim_get_current_buf()
-  if buf ~= current_buf then
+  -- Check if buffer is valid and current
+  if not utils.is_buffer_valid_and_current(buf) then
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: buf %d is not current buffer %d. Returning.", buf, current_buf))
-    end
-    return
-  end
-  -- Check if buffer is valid
-  if not vim.api.nvim_buf_is_valid(buf) then
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: buf %d is not valid. Returning.", buf))
+      print(string.format("[Nudge Two Hats Debug Timer] start_notification_timer: buf %d is not valid or current. Returning.", buf))
     end
     return
   end
   -- Removed the existing timer check block as per instructions.
   -- The call to stop_notification_timer_func(buf) is now unconditional before starting a new timer.
-  local current_content = ""
+  local buffer_content = ""
   if vim.api.nvim_buf_is_valid(buf) then
     vim.cmd("checktime " .. buf)
     -- Get the entire buffer content
-    current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    buffer_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
     -- Initialize buffer content storage if needed (for backward compatibility)
     if not state.buf_content_by_filetype[buf] then
       state.buf_content_by_filetype[buf] = {}
     end
-    -- Get filetypes for this buffer
-    local filetypes = {}
-    if state.buf_filetypes[buf] then
-      for filetype in string.gmatch(state.buf_filetypes[buf], "[^,]+") do
-        table.insert(filetypes, filetype)
-      end
+    -- Get filetypes and update content
+    local filetypes = utils.get_buffer_filetypes(buf, state)
+    utils.update_buffer_content(buf, buffer_content, filetypes, state)
+    
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetypes=%s, サイズ=%d文字",
+        table.concat(filetypes, ", "), #buffer_content))
     end
-    -- If no stored filetypes, use the current buffer's filetype
-    if #filetypes == 0 then
-      local current_filetype = vim.api.nvim_buf_get_option(buf, "filetype")
-      if current_filetype and current_filetype ~= "" then
-        table.insert(filetypes, current_filetype)
-      else
-        table.insert(filetypes, "text")  -- Default to text if no filetype
-      end
-    end
-    -- Store the content for each filetype (for backward compatibility)
-    for _, filetype in ipairs(filetypes) do
-      state.buf_content_by_filetype[buf][filetype] = current_content
-      if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字",
-          filetype, #current_content))
-      end
-    end
-    state.buf_content[buf] = current_content
   end
   -- Reset the start time for this buffer
   if not state.timers.notification_start_time then
@@ -256,20 +232,9 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
           print(string.format("[Nudge Two Hats Debug Timer] Notification timer: No actual diff for buf %d. Creating context diff.", target_buf))
         end
         local cursor_pos = vim.api.nvim_win_get_cursor(0)
-        local cursor_row = cursor_pos[1] -- 1-based
-        local line_count = vim.api.nvim_buf_line_count(target_buf)
-        local context_start_line = math.max(1, cursor_row - 20)
-        local context_end_line = math.min(line_count, cursor_row + 20)
-        local context_lines = vim.api.nvim_buf_get_lines(target_buf, context_start_line - 1, context_end_line, false)
+        local cursor_row = cursor_pos[1]
         
-        local diff_lines = {}
-        for _, line in ipairs(context_lines) do
-          table.insert(diff_lines, "+ " .. line)
-        end
-        current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s",
-                                     context_start_line, 0,
-                                     context_start_line, #context_lines,
-                                     table.concat(diff_lines, "\n"))
+        current_diff, _ = utils.create_context_diff(target_buf, cursor_row, 20)
 
         if target_state.buf_filetypes[target_buf] then
           current_diff_filetype = string.gmatch(target_state.buf_filetypes[target_buf], "[^,]+")() -- Get first filetype
@@ -410,16 +375,9 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
     end
     return
   end
-  local current_buf = vim.api.nvim_get_current_buf()
-  if buf ~= current_buf then
+  if not utils.is_buffer_valid_and_current(buf) then
     if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: buf %d is not current buffer %d. Returning.", buf, current_buf))
-    end
-    return
-  end
-  if not vim.api.nvim_buf_is_valid(buf) then
-    if config.debug_mode then
-      print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: buf %d is not valid. Returning.", buf))
+      print(string.format("[Nudge Two Hats Debug Timer] start_virtual_text_timer: buf %d is not valid or current. Returning.", buf))
     end
     return
   end
@@ -511,15 +469,10 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
         if current_config_arg.debug_mode then
           print(string.format("[Nudge Two Hats Debug Timer] No actual diff for buf %d. Creating context diff.", current_buf_arg))
         end
-        local temp_cursor_pos = vim.api.nvim_win_get_cursor(0) -- Use a temp var for cursor pos for context diff
+        local temp_cursor_pos = vim.api.nvim_win_get_cursor(0)
         local temp_cursor_row = temp_cursor_pos[1]
-        local line_count = vim.api.nvim_buf_line_count(current_buf_arg)
-        local context_start_line = math.max(1, temp_cursor_row - 20)
-        local context_end_line = math.min(line_count, temp_cursor_row + 20)
-        local context_lines = vim.api.nvim_buf_get_lines(current_buf_arg, context_start_line - 1, context_end_line, false)
-        local diff_lines = {}
-        for _, line in ipairs(context_lines) do table.insert(diff_lines, "+ " .. line) end
-        current_diff = string.format("@@ -%d,%d +%d,%d @@\n%s", context_start_line, 0, context_start_line, #context_lines, table.concat(diff_lines, "\n"))
+        
+        current_diff, _ = utils.create_context_diff(current_buf_arg, temp_cursor_row, 20)
         if current_state_arg.buf_filetypes[current_buf_arg] then
           current_diff_filetype = string.gmatch(current_state_arg.buf_filetypes[current_buf_arg], "[^,]+")()
         else

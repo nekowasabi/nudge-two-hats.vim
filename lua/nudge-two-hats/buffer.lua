@@ -142,17 +142,17 @@ function M.get_buf_diff(buf, state)
     end
     return context_content, diff, first_filetype
   end
-  local old = nil
+  local previous_content = nil
   local detected_filetype = nil
   if state.temp_files and state.temp_files[buf] then
     local temp_file_path = state.temp_files[buf]
     local temp_file = io.open(temp_file_path, "r")
     if temp_file then
-      old = temp_file:read("*all")
+      previous_content = temp_file:read("*all")
       temp_file:close()
       if config.debug_mode then
         print(string.format("[Nudge Two Hats Debug] テンポラリファイルから元の内容を読み込みました: %s, サイズ=%d文字", 
-          temp_file_path, #old))
+          temp_file_path, #previous_content))
       end
       if #filetypes > 0 then
         detected_filetype = filetypes[1]
@@ -165,7 +165,7 @@ function M.get_buf_diff(buf, state)
   else
     for _, filetype in ipairs(filetypes) do
       if state.buf_content_by_filetype[buf] and state.buf_content_by_filetype[buf][filetype] then
-        old = state.buf_content_by_filetype[buf][filetype]
+        previous_content = state.buf_content_by_filetype[buf][filetype]
         detected_filetype = filetype
         if config.debug_mode then
           print(string.format("[Nudge Two Hats Debug] filetype=%sの内容を使用します", filetype))
@@ -173,8 +173,8 @@ function M.get_buf_diff(buf, state)
         break
       end
     end
-    if not old and state.buf_content[buf] then
-      old = state.buf_content[buf]
+    if not previous_content and state.buf_content[buf] then
+      previous_content = state.buf_content[buf]
       if not detected_filetype and #filetypes > 0 then
         detected_filetype = filetypes[1]
       end
@@ -183,17 +183,17 @@ function M.get_buf_diff(buf, state)
       end
     end
   end
-  if old then
+  if previous_content then
     if config.debug_mode then
       print(string.format("[Nudge Two Hats Debug] 比較: 古い内容=%d文字, 新しい内容=%d文字", 
-        #old, #content))
-      local old_sample = string.sub(old, 1, 100)
-      local new_sample = string.sub(content, 1, 100)
-      print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", old_sample))
-      print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", new_sample))
+        #previous_content, #content))
+      local previous_sample = string.sub(previous_content, 1, 100)
+      local current_sample = string.sub(content, 1, 100)
+      print(string.format("[Nudge Two Hats Debug] 古い内容(先頭100文字): %s", previous_sample))
+      print(string.format("[Nudge Two Hats Debug] 新しい内容(先頭100文字): %s", current_sample))
     end
-    if force_diff or old ~= content then
-      local diff = vim.diff(old, content, { result_type = "unified" })
+    if force_diff or previous_content ~= content then
+      local diff = vim.diff(previous_content, content, { result_type = "unified" })
       if config.debug_mode then
         if diff then
           print(string.format("[Nudge Two Hats Debug] vim.diffの結果: %d文字", #diff))
@@ -202,8 +202,8 @@ function M.get_buf_diff(buf, state)
         else
           print("[Nudge Two Hats Debug] vim.diffの結果: nil")
         end
-        print(string.format("[Nudge Two Hats Debug] 内容比較結果: old ~= content は %s", 
-          tostring(old ~= content)))
+        print(string.format("[Nudge Two Hats Debug] 内容比較結果: previous_content ~= content は %s", 
+          tostring(previous_content ~= content)))
       end
       if type(diff) == "string" and diff ~= "" then
         if config.debug_mode then

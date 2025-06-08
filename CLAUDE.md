@@ -40,7 +40,10 @@ The plugin follows a modular architecture with clear separation of concerns:
 
 ### Testing
 ```bash
-# Run all tests using Lua's busted framework
+# Run all tests using plenary test harness
+nvim --headless -c "lua require('plenary.test_harness').test_directory('test/', {minimal_init = 'luarc.json'})" -c "qa"
+
+# Alternative: Run using busted framework
 busted test/
 
 # Run specific test file
