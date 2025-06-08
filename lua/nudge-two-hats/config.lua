@@ -26,6 +26,7 @@ local config = {
   translate_messages = true, -- Whether to translate messages to the specified language
   notify_interval_seconds = 5, -- Minimum interval between API calls in seconds
   virtual_text_interval_seconds = 10, -- Time in seconds before showing virtual text
+  cursor_idle_threshold_seconds = 30, -- Time in seconds before stopping timer due to cursor inactivity
   gemini_model = "gemini-2.5-flash-preview-05-20", -- Updated to latest Gemini model
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output

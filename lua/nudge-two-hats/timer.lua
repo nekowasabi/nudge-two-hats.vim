@@ -80,6 +80,68 @@ function M.stop_virtual_text_timer(buf, state)
   return nil
 end
 
+-- Function to pause notification timer for a buffer
+function M.pause_notification_timer(buf, state)
+  if not state.timers or not state.timers.notification or not state.timers.notification[buf] then
+    return
+  end
+  
+  if not state.timers.paused_notification then
+    state.timers.paused_notification = {}
+  end
+  
+  -- Store the timer ID and mark as paused
+  state.timers.paused_notification[buf] = state.timers.notification[buf]
+  
+  -- Stop the actual timer
+  local timer_id = state.timers.notification[buf]
+  if timer_id then
+    local ok, err = pcall(vim.fn.timer_stop, timer_id)
+    if not ok and config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] ERROR stopping notification timer for pause: %s", tostring(err)))
+    end
+    state.timers.notification[buf] = nil
+    
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] Paused notification timer for buf %d (timer ID: %d)", buf, timer_id))
+    end
+  end
+end
+
+-- Function to resume notification timer for a buffer
+function M.resume_notification_timer(buf, state, stop_notification_timer_func)
+  if not state.timers or not state.timers.paused_notification or not state.timers.paused_notification[buf] then
+    return
+  end
+  
+  -- Clear the paused state
+  state.timers.paused_notification[buf] = nil
+  
+  -- Update last cursor move time
+  state.last_cursor_move_time = state.last_cursor_move_time or {}
+  state.last_cursor_move_time[buf] = os.time()
+  
+  -- Restart the notification timer
+  M.start_notification_timer(buf, "resume", state, stop_notification_timer_func)
+  
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug Timer] Resumed notification timer for buf %d", buf))
+  end
+end
+
+-- Function to check if cursor has been idle for too long
+function M.check_cursor_idle(buf, state)
+  if not state.last_cursor_move_time or not state.last_cursor_move_time[buf] then
+    return false
+  end
+  
+  local current_time = os.time()
+  local last_move_time = state.last_cursor_move_time[buf]
+  local idle_time = current_time - last_move_time
+  
+  return idle_time >= config.cursor_idle_threshold_seconds
+end
+
 -- Function to start notification timer for a buffer (for API requests)
 function M.start_notification_timer(buf, event_name, state, stop_notification_timer_func)
   if config.debug_mode then
@@ -175,6 +237,15 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         end
         target_state.timers.notification[target_buf] = nil
         return
+      end
+
+      -- Check if cursor has been idle for too long
+      if M.check_cursor_idle(target_buf, target_state) then
+        if config.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Cursor idle detected for buf %d. Pausing notification timer.", target_buf))
+        end
+        M.pause_notification_timer(target_buf, target_state)
+        return -- Don't proceed with API call or reschedule
       end
 
       vim.cmd("checktime " .. target_buf)

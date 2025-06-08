@@ -145,6 +145,10 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
       if not m_state or not m_state.enabled or not m_plugin_functions then return end
       if not vim.api.nvim_buf_is_valid(buf) then return end
 
+      -- Update last cursor move time for idle tracking
+      m_state.last_cursor_move_time = m_state.last_cursor_move_time or {}
+      m_state.last_cursor_move_time[buf] = os.time()
+
       m_state.virtual_text = m_state.virtual_text or {}
       m_state.virtual_text.is_displayed = m_state.virtual_text.is_displayed or {}
       m_state.virtual_text.is_displayed[buf] = false
@@ -152,8 +156,13 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
       m_plugin_functions.clear_virtual_text(buf)
       m_plugin_functions.start_virtual_text_timer(buf, "CursorMoved_restart")
 
+      -- Resume notification timer if it was paused due to cursor idle
+      if m_plugin_functions.resume_notification_timer then
+        m_plugin_functions.resume_notification_timer(buf)
+      end
+
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMoved in buf %d: Cleared display flag, cleared text, restarted VT timer.", buf))
+        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMoved in buf %d: Updated cursor time, cleared display flag, cleared text, restarted VT timer, resumed notification timer.", buf))
       end
     end
   })
@@ -165,6 +174,10 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
       if not m_state or not m_state.enabled or not m_plugin_functions then return end
       if not vim.api.nvim_buf_is_valid(buf) then return end
 
+      -- Update last cursor move time for idle tracking
+      m_state.last_cursor_move_time = m_state.last_cursor_move_time or {}
+      m_state.last_cursor_move_time[buf] = os.time()
+
       m_state.virtual_text = m_state.virtual_text or {}
       m_state.virtual_text.is_displayed = m_state.virtual_text.is_displayed or {}
       m_state.virtual_text.is_displayed[buf] = false
@@ -172,8 +185,13 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
       m_plugin_functions.clear_virtual_text(buf)
       m_plugin_functions.start_virtual_text_timer(buf, "CursorMovedI_restart")
 
+      -- Resume notification timer if it was paused due to cursor idle
+      if m_plugin_functions.resume_notification_timer then
+        m_plugin_functions.resume_notification_timer(buf)
+      end
+
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMovedI in buf %d: Cleared display flag, cleared text, restarted VT timer.", buf))
+        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMovedI in buf %d: Updated cursor time, cleared display flag, cleared text, restarted VT timer, resumed notification timer.", buf))
       end
     end
   })

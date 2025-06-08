@@ -75,6 +75,16 @@ function M.start_virtual_text_timer(buf, event_name)
   return timer.start_virtual_text_timer(buf, event_name, state, M.display_virtual_text)
 end
 
+-- timer.luaからの関数を呼び出すラッパー関数（カーソル停止検知）
+function M.pause_notification_timer(buf)
+  return timer.pause_notification_timer(buf, state)
+end
+
+-- timer.luaからの関数を呼び出すラッパー関数（カーソル停止からの復活）
+function M.resume_notification_timer(buf)
+  return timer.resume_notification_timer(buf, state, M.stop_notification_timer)
+end
+
 -- virtual_textモジュールをインポート
 local virtual_text = require("nudge-two-hats.virtual_text")
 
@@ -616,7 +626,9 @@ function M.setup(opts)
     start_virtual_text_timer = M.start_virtual_text_timer,
     -- For autocmd.create_autocmd to access other functions if needed via m_plugin_functions
     start_notification_timer = M.start_notification_timer,
-    clear_virtual_text = M.clear_virtual_text
+    clear_virtual_text = M.clear_virtual_text,
+    pause_notification_timer = M.pause_notification_timer,
+    resume_notification_timer = M.resume_notification_timer
   }
   autocmd.update_config(config)
   -- Pass all necessary components to autocmd.setup
