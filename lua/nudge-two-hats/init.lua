@@ -92,7 +92,7 @@ end
 
 -- timer.luaからの関数を呼び出すラッパー関数（virtual textタイマーの再開）
 function M.resume_virtual_text_timer(buf)
-  return timer.resume_virtual_text_timer(buf, state, M.stop_virtual_text_timer)
+  return timer.resume_virtual_text_timer(buf, state, M.stop_virtual_text_timer, M.display_virtual_text)
 end
 
 -- virtual_textモジュールをインポート

@@ -275,6 +275,37 @@ describe('nudge-two-hats timer', function()
     assert.is_not_nil(state.last_cursor_move_time[state.test_buf])
   end)
   
+  it('should resume virtual text timer on cursor movement', function()
+    -- Mock config
+    local config = {
+      debug_mode = false,
+      virtual_text_interval_seconds = 10,
+      cursor_idle_threshold_seconds = 30
+    }
+    timer.update_config(config)
+    
+    -- Set up paused timer state
+    state.timers.paused_virtual_text = {
+      [state.test_buf] = 5678 -- Mock timer ID
+    }
+    
+    -- Resume timer
+    local stop_func = function(buf)
+      timer.stop_virtual_text_timer(buf, state)
+    end
+    
+    local display_func = function(buf, advice)
+      -- Mock display function
+    end
+    
+    timer.resume_virtual_text_timer(state.test_buf, state, stop_func, display_func)
+    
+    -- Verify timer was resumed
+    assert.is_nil(state.timers.paused_virtual_text[state.test_buf])
+    assert.is_not_nil(state.timers.virtual_text[state.test_buf])
+    assert.is_not_nil(state.last_cursor_move_time[state.test_buf])
+  end)
+  
   it('should pause virtual text timer on cursor idle', function()
     -- Mock config
     local config = {

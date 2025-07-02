@@ -110,7 +110,7 @@ function M.pause_virtual_text_timer(buf, state)
 end
 
 -- Function to resume virtual text timer for a buffer
-function M.resume_virtual_text_timer(buf, state, stop_virtual_text_timer_func)
+function M.resume_virtual_text_timer(buf, state, stop_virtual_text_timer_func, display_virtual_text_func)
   if not state.timers or not state.timers.paused_virtual_text or not state.timers.paused_virtual_text[buf] then
     return
   end
@@ -123,7 +123,7 @@ function M.resume_virtual_text_timer(buf, state, stop_virtual_text_timer_func)
   state.last_cursor_move_time[buf] = os.time()
 
   -- Restart the virtual text timer
-  M.start_virtual_text_timer(buf, "resume", state, nil)
+  M.start_virtual_text_timer(buf, "resume", state, display_virtual_text_func)
 
   if config.debug_mode then
     print(string.format("[Nudge Two Hats Debug Timer] Resumed virtual text timer for buf %d", buf))
