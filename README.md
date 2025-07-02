@@ -75,6 +75,7 @@ require("nudge-two-hats").setup({
   
   notify_interval_seconds = 300,     -- Default: 5 minutes (300 seconds) for notifications
   virtual_text_interval_seconds = 600, -- Default: 10 minutes (600 seconds) for virtual text
+  cursor_idle_threshold_seconds = 30, -- Default: 30 seconds. Stop timers when cursor is idle for this long
   
   gemini_model = "gemini-2.5-flash-preview-05-20", -- Specify the Gemini model
   api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
@@ -204,6 +205,13 @@ require("nudge-two-hats").setup({
 ### Buffer-Specific Timer Management
 
 The plugin uses buffer-specific timers to reduce API calls and improve performance. Timers are only active for the current buffer and are automatically stopped when switching between buffers. This prevents unnecessary API calls from inactive buffers.
+
+### Cursor Idle Detection
+
+To save API costs when you're away from the editor, the plugin automatically pauses all timers when the cursor hasn't moved for a specified time (`cursor_idle_threshold_seconds`, default: 30 seconds). Timers automatically resume when you move the cursor again. This feature prevents unnecessary API calls when:
+- The editor is in the background
+- You're away from your desk
+- You're reading code without making changes
 
 ### Virtual Text Display
 

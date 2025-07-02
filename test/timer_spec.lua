@@ -213,5 +213,159 @@ describe('nudge-two-hats timer', function()
     state.enabled = true
   end)
   
+  it('should pause notification timer on cursor idle', function()
+    -- Mock config with cursor idle threshold
+    local config = {
+      debug_mode = false,
+      notify_interval_seconds = 5,
+      cursor_idle_threshold_seconds = 30
+    }
+    timer.update_config(config)
+    
+    -- Set up last cursor move time to simulate idle
+    state.last_cursor_move_time = {
+      [state.test_buf] = os.time() - 31 -- 31 seconds ago
+    }
+    
+    -- Start notification timer
+    local stop_func = function(buf)
+      timer.stop_notification_timer(buf, state)
+    end
+    
+    timer.start_notification_timer(state.test_buf, "test_event", state, stop_func)
+    
+    -- Verify timer was started
+    assert.is_not_nil(state.timers.notification[state.test_buf])
+    
+    -- Simulate timer callback execution (which should detect idle and pause)
+    -- Since we can't easily trigger the actual timer callback in tests,
+    -- we'll test the pause function directly
+    timer.pause_notification_timer(state.test_buf, state)
+    
+    -- Verify timer was paused
+    assert.is_nil(state.timers.notification[state.test_buf])
+    assert.is_not_nil(state.timers.paused_notification)
+    assert.is_not_nil(state.timers.paused_notification[state.test_buf])
+  end)
+  
+  it('should resume notification timer on cursor movement', function()
+    -- Mock config
+    local config = {
+      debug_mode = false,
+      notify_interval_seconds = 5,
+      cursor_idle_threshold_seconds = 30
+    }
+    timer.update_config(config)
+    
+    -- Set up paused timer state
+    state.timers.paused_notification = {
+      [state.test_buf] = 1234 -- Mock timer ID
+    }
+    
+    -- Resume timer
+    local stop_func = function(buf)
+      timer.stop_notification_timer(buf, state)
+    end
+    
+    timer.resume_notification_timer(state.test_buf, state, stop_func)
+    
+    -- Verify timer was resumed
+    assert.is_nil(state.timers.paused_notification[state.test_buf])
+    assert.is_not_nil(state.timers.notification[state.test_buf])
+    assert.is_not_nil(state.last_cursor_move_time[state.test_buf])
+  end)
+  
+  it('should resume virtual text timer on cursor movement', function()
+    -- Mock config
+    local config = {
+      debug_mode = false,
+      virtual_text_interval_seconds = 10,
+      cursor_idle_threshold_seconds = 30
+    }
+    timer.update_config(config)
+    
+    -- Set up paused timer state
+    state.timers.paused_virtual_text = {
+      [state.test_buf] = 5678 -- Mock timer ID
+    }
+    
+    -- Resume timer
+    local stop_func = function(buf)
+      timer.stop_virtual_text_timer(buf, state)
+    end
+    
+    local display_func = function(buf, advice)
+      -- Mock display function
+    end
+    
+    timer.resume_virtual_text_timer(state.test_buf, state, stop_func, display_func)
+    
+    -- Verify timer was resumed
+    assert.is_nil(state.timers.paused_virtual_text[state.test_buf])
+    assert.is_not_nil(state.timers.virtual_text[state.test_buf])
+    assert.is_not_nil(state.last_cursor_move_time[state.test_buf])
+  end)
+  
+  it('should pause virtual text timer on cursor idle', function()
+    -- Mock config
+    local config = {
+      debug_mode = false,
+      virtual_text_interval_seconds = 10,
+      cursor_idle_threshold_seconds = 30
+    }
+    timer.update_config(config)
+    
+    -- Set up last cursor move time to simulate idle
+    state.last_cursor_move_time = {
+      [state.test_buf] = os.time() - 31 -- 31 seconds ago
+    }
+    
+    -- Start virtual text timer
+    local display_func = function(buf, advice)
+      -- Mock display function
+    end
+    
+    timer.start_virtual_text_timer(state.test_buf, "test_event", state, display_func)
+    
+    -- Verify timer was started
+    assert.is_not_nil(state.timers.virtual_text[state.test_buf])
+    
+    -- Pause timer
+    timer.pause_virtual_text_timer(state.test_buf, state)
+    
+    -- Verify timer was paused
+    assert.is_nil(state.timers.virtual_text[state.test_buf])
+    assert.is_not_nil(state.timers.paused_virtual_text)
+    assert.is_not_nil(state.timers.paused_virtual_text[state.test_buf])
+  end)
+  
+  it('should check cursor idle correctly', function()
+    -- Mock config
+    local config = {
+      cursor_idle_threshold_seconds = 30
+    }
+    timer.update_config(config)
+    
+    -- Test when cursor has been idle for more than threshold
+    state.last_cursor_move_time = {
+      [state.test_buf] = os.time() - 31 -- 31 seconds ago
+    }
+    
+    local is_idle = timer.check_cursor_idle(state.test_buf, state)
+    assert.is_true(is_idle)
+    
+    -- Test when cursor has moved recently
+    state.last_cursor_move_time[state.test_buf] = os.time() - 10 -- 10 seconds ago
+    
+    is_idle = timer.check_cursor_idle(state.test_buf, state)
+    assert.is_false(is_idle)
+    
+    -- Test when no cursor move time is recorded
+    state.last_cursor_move_time = nil
+    
+    is_idle = timer.check_cursor_idle(state.test_buf, state)
+    assert.is_false(is_idle)
+  end)
+  
   -- Add more timer tests as needed
 end)

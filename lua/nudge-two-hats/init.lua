@@ -85,6 +85,16 @@ function M.resume_notification_timer(buf)
   return timer.resume_notification_timer(buf, state, M.stop_notification_timer)
 end
 
+-- timer.luaからの関数を呼び出すラッパー関数（virtual textタイマーの一時停止）
+function M.pause_virtual_text_timer(buf)
+  return timer.pause_virtual_text_timer(buf, state)
+end
+
+-- timer.luaからの関数を呼び出すラッパー関数（virtual textタイマーの再開）
+function M.resume_virtual_text_timer(buf)
+  return timer.resume_virtual_text_timer(buf, state, M.stop_virtual_text_timer, M.display_virtual_text)
+end
+
 -- virtual_textモジュールをインポート
 local virtual_text = require("nudge-two-hats.virtual_text")
 
@@ -279,12 +289,27 @@ function M.setup(opts)
     state.timers = state.timers or {}
     state.timers.virtual_text = state.timers.virtual_text or {}
     state.timers.notification = state.timers.notification or {}
+    state.timers.paused_notification = state.timers.paused_notification or {}
+    state.timers.paused_virtual_text = state.timers.paused_virtual_text or {}
+    
     for buf, filetypes in pairs(state.buf_filetypes) do
       if vim.api.nvim_buf_is_valid(buf) then
         local notification_timer_id = state.timers.notification[buf]
         local virtual_text_timer_id = state.timers.virtual_text[buf]
+        local paused_notification = state.timers.paused_notification[buf]
+        local paused_virtual_text = state.timers.paused_virtual_text[buf]
         local legacy_timer_id = state.virtual_text.timers and state.virtual_text.timers[buf]
         print(string.format("\nバッファ: %d, Filetype: %s", buf, filetypes))
+        
+        -- Check for cursor idle status
+        if state.last_cursor_move_time and state.last_cursor_move_time[buf] then
+          local idle_time = os.time() - state.last_cursor_move_time[buf]
+          print(string.format("  カーソルアイドル時間: %d秒", idle_time))
+          if idle_time >= config.cursor_idle_threshold_seconds then
+            print("  **カーソルアイドル状態**")
+          end
+        end
+        
         -- Check notification timer
         if notification_timer_id then
           active_notification_timers = active_notification_timers + 1
@@ -300,6 +325,8 @@ function M.setup(opts)
           end
           print(string.format("  通知タイマー: ID = %d, 残り時間: %s",
                              notification_timer_id, remaining))
+        elseif paused_notification then
+          print(string.format("  通知タイマー: **一時停止中** (ID = %d)", paused_notification))
         end
         -- Check virtual text timer
         if virtual_text_timer_id then
@@ -316,6 +343,8 @@ function M.setup(opts)
           end
           print(string.format("  Virtual Textタイマー: ID = %d, 残り時間: %s",
                              virtual_text_timer_id, remaining))
+        elseif paused_virtual_text then
+          print(string.format("  Virtual Textタイマー: **一時停止中** (ID = %d)", paused_virtual_text))
         end
         -- Check legacy timer (for backward compatibility)
         if legacy_timer_id then
