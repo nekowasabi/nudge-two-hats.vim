@@ -161,8 +161,13 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
         m_plugin_functions.resume_notification_timer(buf)
       end
 
+      -- Resume virtual text timer if it was paused due to cursor idle
+      if m_plugin_functions.resume_virtual_text_timer then
+        m_plugin_functions.resume_virtual_text_timer(buf)
+      end
+
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMoved in buf %d: Updated cursor time, cleared display flag, cleared text, restarted VT timer, resumed notification timer.", buf))
+        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMoved in buf %d: Updated cursor time, cleared display flag, cleared text, restarted VT timer, resumed timers.", buf))
       end
     end
   })
@@ -190,8 +195,13 @@ function M.create_autocmd(buf, state_override, plugin_functions_override)
         m_plugin_functions.resume_notification_timer(buf)
       end
 
+      -- Resume virtual text timer if it was paused due to cursor idle
+      if m_plugin_functions.resume_virtual_text_timer then
+        m_plugin_functions.resume_virtual_text_timer(buf)
+      end
+
       if m_config and m_config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMovedI in buf %d: Updated cursor time, cleared display flag, cleared text, restarted VT timer, resumed notification timer.", buf))
+        print(string.format("[Nudge Two Hats Debug Autocmd] CursorMovedI in buf %d: Updated cursor time, cleared display flag, cleared text, restarted VT timer, resumed timers.", buf))
       end
     end
   })

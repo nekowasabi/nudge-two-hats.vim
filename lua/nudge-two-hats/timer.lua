@@ -81,6 +81,55 @@ function M.stop_virtual_text_timer(buf, state)
   return nil
 end
 
+-- Function to pause virtual text timer for a buffer
+function M.pause_virtual_text_timer(buf, state)
+  if not state.timers or not state.timers.virtual_text or not state.timers.virtual_text[buf] then
+    return
+  end
+
+  if not state.timers.paused_virtual_text then
+    state.timers.paused_virtual_text = {}
+  end
+
+  -- Store the timer ID and mark as paused
+  state.timers.paused_virtual_text[buf] = state.timers.virtual_text[buf]
+
+  -- Stop the actual timer
+  local timer_id = state.timers.virtual_text[buf]
+  if timer_id then
+    local ok, err = pcall(vim.fn.timer_stop, timer_id)
+    if not ok and config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] ERROR stopping virtual text timer for pause: %s", tostring(err)))
+    end
+    state.timers.virtual_text[buf] = nil
+
+    if config.debug_mode then
+      print(string.format("[Nudge Two Hats Debug Timer] Paused virtual text timer for buf %d (timer ID: %d)", buf, timer_id))
+    end
+  end
+end
+
+-- Function to resume virtual text timer for a buffer
+function M.resume_virtual_text_timer(buf, state, stop_virtual_text_timer_func)
+  if not state.timers or not state.timers.paused_virtual_text or not state.timers.paused_virtual_text[buf] then
+    return
+  end
+
+  -- Clear the paused state
+  state.timers.paused_virtual_text[buf] = nil
+
+  -- Update last cursor move time
+  state.last_cursor_move_time = state.last_cursor_move_time or {}
+  state.last_cursor_move_time[buf] = os.time()
+
+  -- Restart the virtual text timer
+  M.start_virtual_text_timer(buf, "resume", state, nil)
+
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug Timer] Resumed virtual text timer for buf %d", buf))
+  end
+end
+
 -- Function to pause notification timer for a buffer
 function M.pause_notification_timer(buf, state)
   if not state.timers or not state.timers.notification or not state.timers.notification[buf] then
@@ -399,6 +448,15 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
 
       if current_config_arg.debug_mode then
         print(string.format("[Nudge Two Hats Debug Timer] Virtual text timer callback: Fired for buf %d.", current_buf_arg))
+      end
+
+      -- Check if cursor has been idle for too long
+      if M.check_cursor_idle(current_buf_arg, current_state_arg) then
+        if current_config_arg.debug_mode then
+          print(string.format("[Nudge Two Hats Debug Timer] Cursor idle detected for buf %d. Pausing virtual text timer.", current_buf_arg))
+        end
+        M.pause_virtual_text_timer(current_buf_arg, current_state_arg)
+        return -- Don't proceed with API call or reschedule
       end
 
       local current_pos = vim.fn.getcurpos()
