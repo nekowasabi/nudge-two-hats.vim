@@ -77,8 +77,8 @@ require("nudge-two-hats").setup({
   virtual_text_interval_seconds = 600, -- Default: 10 minutes (600 seconds) for virtual text
   cursor_idle_threshold_seconds = 30, -- Default: 30 seconds. Stop timers when cursor is idle for this long
   
-  gemini_model = "gemini-2.5-flash-preview-05-20", -- Specify the Gemini model
-  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent",
+  gemini_model = "gemini-2.5-flash", -- Specify the Gemini model
+  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
   
   debug_mode = false, -- Set to true to print debug information to Vim's :messages output
   
