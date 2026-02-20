@@ -6,39 +6,53 @@ describe('nudge-two-hats api', function()
   local api
   local config = {
     debug_mode = false,
-    api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+    openrouter_base_url = "https://openrouter.ai/api/v1",
+    openrouter_model = "openai/gpt-oss-120b",
+    openrouter_provider = "cerebras",
+    openrouter_site_url = "https://github.com/nekowasabi/nudge-two-hats.vim",
+    openrouter_app_name = "nudge-two-hats.vim",
     system_prompt = "コードの変更点についてアドバイスをください",
     translate_messages = true,
     output_language = "ja",
     message_length = 100,
     length_type = "characters",
+    notification = {
+      system_prompt = "notification prompt",
+      purpose = "",
+      notify_message_length = 80,
+      virtual_text_message_length = 80,
+    },
+    virtual_text = {
+      system_prompt = "virtual text prompt",
+      purpose = "",
+      notify_message_length = 80,
+      virtual_text_message_length = 80,
+    },
     translations = {
       en = {
         enabled = "enabled",
         disabled = "disabled",
         api_key_not_set = "API key not set",
-        api_error = "API error",
+        model_not_set = "OpenRouter model is not set",
+        api_error = "OpenRouter API error",
         unknown_error = "Unknown error"
       },
       ja = {
         enabled = "有効化しました",
         disabled = "無効化しました",
         api_key_not_set = "APIキーが設定されていません",
-        api_error = "APIエラー",
+        model_not_set = "OpenRouterモデルが設定されていません",
+        api_error = "OpenRouter APIエラー",
         unknown_error = "不明なエラー"
       }
     }
   }
   
   local mock_response = {
-    candidates = {
+    choices = {
       {
-        content = {
-          parts = {
-            {
-              text = "テスト応答"
-            }
-          }
+        message = {
+          content = "テスト応答"
         }
       }
     }
@@ -60,11 +74,23 @@ describe('nudge-two-hats api', function()
     _G.original_io_open = io.open
     _G.original_os_execute = os.execute
     _G.original_vim_json = vim.json
+    _G.original_plenary_curl = package.loaded["plenary.curl"]
     
     -- vim.jsonモック
     vim.json = {
       decode = function(json_str)
         return mock_response
+      end
+    }
+
+    package.loaded["plenary.curl"] = {
+      post = function(_, opts)
+        if opts and opts.callback then
+          opts.callback({
+            status = 200,
+            body = "{\"choices\":[{\"message\":{\"content\":\"テスト応答\"}}]}",
+          })
+        end
       end
     }
     
@@ -87,7 +113,7 @@ describe('nudge-two-hats api', function()
         return mock_response
       end,
       getenv = function(name)
-        if name == "GEMINI_API_KEY" then
+        if name == "OPENROUTER_API_KEY" then
           return "test_api_key"
         elseif name == "LANG" then
           return "ja_JP.UTF-8"
@@ -98,7 +124,7 @@ describe('nudge-two-hats api', function()
         -- ジョブの開始をモック
         if opts and opts.on_stdout then
           vim.schedule(function()
-            opts.on_stdout(0, {"{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"テスト応答\"}]}}]}"})
+            opts.on_stdout(0, {"{\"choices\":[{\"message\":{\"content\":\"テスト応答\"}}]}"})
           end)
         end
         if opts and opts.on_exit then
@@ -171,6 +197,7 @@ describe('nudge-two-hats api', function()
     os.execute = _G.original_os_execute
     vim.json = _G.original_vim_json
     vim.schedule = _G.original_vim_schedule
+    package.loaded["plenary.curl"] = _G.original_plenary_curl
   end)
   
   it('UTF-8文字列を安全に切り詰めること', function()
@@ -290,6 +317,79 @@ describe('nudge-two-hats api', function()
     -- 英語に設定を変更
     config.output_language = "en"
     assert.equals("en", api.get_language())
+  end)
+
+  it('OpenRouter API関数が公開されていること', function()
+    assert.equals("function", type(api.get_openrouter_advice))
+  end)
+
+  it('openrouter_model未設定時はエラー通知してクラッシュしないこと', function()
+    config.openrouter_model = nil
+    api.update_config(config)
+
+    local notified = nil
+    vim.notify = function(msg)
+      notified = msg
+    end
+
+    local ok = pcall(function()
+      api.get_openrouter_advice("diff", function() end, nil, nil, {
+        context_for = "notification",
+        notifications = { last_advice = {} },
+        virtual_text = { last_advice = {} },
+      })
+    end)
+
+    assert.is_true(ok)
+    assert.is_not_nil(notified)
+    config.openrouter_model = "openai/gpt-oss-120b"
+    api.update_config(config)
+  end)
+
+  it('OPENROUTER_API_KEYが文字列以外でもクラッシュしないこと', function()
+    local original_getenv = vim.fn.getenv
+    vim.fn.getenv = function(name)
+      if name == "OPENROUTER_API_KEY" then
+        return {}
+      elseif name == "LANG" then
+        return "ja_JP.UTF-8"
+      end
+      return ""
+    end
+
+    local notified = nil
+    vim.notify = function(msg)
+      notified = msg
+    end
+
+    local ok = pcall(function()
+      api.get_openrouter_advice("diff", function() end, nil, nil, {
+        context_for = "notification",
+        notifications = { last_advice = {} },
+        virtual_text = { last_advice = {} },
+      })
+    end)
+
+    assert.is_true(ok)
+    assert.is_not_nil(notified)
+    vim.fn.getenv = original_getenv
+  end)
+
+  it('同時リクエストで一時ファイル名が衝突しないこと', function()
+    local temp_index = 0
+    local original_tempname = vim.fn.tempname
+    vim.fn.tempname = function()
+      temp_index = temp_index + 1
+      return "/tmp/nth_test_" .. temp_index
+    end
+
+    local path1 = api._make_temp_json_path("request")
+    local path2 = api._make_temp_json_path("request")
+    assert.not_equals(path1, path2)
+    assert.matches("/tmp/nth_test_1_request.json", path1)
+    assert.matches("/tmp/nth_test_2_request.json", path2)
+
+    vim.fn.tempname = original_tempname
   end)
   
   -- 追加のテストケースを必要に応じて追加

@@ -325,18 +325,18 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       target_state.last_api_call_notification = current_time
       if target_config.debug_mode then
         print("[Nudge Two Hats Debug] 通知を実行します")
-        print(string.format("[Nudge Two Hats Debug] Sending diff to Gemini API for filetype: %s. Diff preview: %s", (current_diff_filetype or "unknown"), string.sub(current_diff, 1, 200)))
+        print(string.format("[Nudge Two Hats Debug] Sending diff to OpenRouter API for filetype: %s. Diff preview: %s", (current_diff_filetype or "unknown"), string.sub(current_diff, 1, 200)))
       end
       local prompt = target_buffer_module.get_prompt_for_buffer(target_buf, target_state, "notification")
       local purpose = target_buffer_module.get_purpose_for_buffer(target_buf, target_state, "notification")
       target_state.context_for = "notification"
       if target_config.debug_mode then
-        print("[Nudge Two Hats Debug] get_gemini_adviceを呼び出します (通知用)")
+        print("[Nudge Two Hats Debug] get_openrouter_adviceを呼び出します (通知用)")
         print("[Nudge Two Hats Debug] context_for: " .. target_state.context_for)
         print("[Nudge Two Hats Debug] prompt preview: " .. (prompt and string.sub(prompt, 1, 100) or "nil"))
         print("[Nudge Two Hats Debug] purpose: " .. (purpose or "nil"))
       end
-      target_api_module.get_gemini_advice(current_diff, function(advice)
+      target_api_module.get_openrouter_advice(current_diff, function(advice)
         if target_config.debug_mode then
           print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
         end
@@ -544,7 +544,7 @@ function M.start_virtual_text_timer(buf, event_name, state, display_virtual_text
       local prompt = current_buffer_module_arg.get_prompt_for_buffer(current_buf_arg, current_state_arg, "virtual_text")
       local purpose = current_buffer_module_arg.get_purpose_for_buffer(current_buf_arg, current_state_arg, "virtual_text")
 
-      current_api_module_arg.get_gemini_advice(current_diff, function(advice)
+      current_api_module_arg.get_openrouter_advice(current_diff, function(advice)
         if current_config_arg.debug_mode then
           print(string.format("[Nudge Two Hats Debug Timer] API callback: Received advice for buf %d: %s", current_buf_arg, advice or "nil"))
         end

@@ -299,84 +299,239 @@ local function is_japanese(text)
   return text:match("[\227-\233]") ~= nil
 end
 
--- Translate text using Gemini API
-local function translate_with_gemini(text, source_lang, target_lang, api_key)
+local function normalize_non_empty_string(value)
+  if type(value) ~= "string" then
+    return nil
+  end
+  if value == "" then
+    return nil
+  end
+  return value
+end
+
+local function get_openrouter_base_url()
+  local base_url = normalize_non_empty_string(config.openrouter_base_url) or "https://openrouter.ai/api/v1"
+  return base_url:gsub("/+$", "")
+end
+
+local function get_openrouter_model()
+  return normalize_non_empty_string(config.openrouter_model)
+end
+
+local function get_openrouter_api_key(state)
+  local env_value = nil
+  if vim.env then
+    env_value = vim.env.OPENROUTER_API_KEY
+  end
+  if not env_value and vim.fn and vim.fn.getenv then
+    env_value = vim.fn.getenv("OPENROUTER_API_KEY")
+  end
+  local env_key = normalize_non_empty_string(env_value)
+  if env_key then
+    return env_key
+  end
+  if state then
+    return normalize_non_empty_string(state.api_key)
+  end
+  return nil
+end
+
+local function mask_secret(secret)
+  if type(secret) ~= "string" then
+    return "(invalid)"
+  end
+  if #secret <= 5 then
+    return secret
+  end
+  return string.sub(secret, 1, 5) .. "..."
+end
+
+local function build_openrouter_headers(api_key)
+  local headers = {
+    ["Content-Type"] = "application/json",
+    ["Authorization"] = "Bearer " .. api_key,
+  }
+  local site_url = normalize_non_empty_string(config.openrouter_site_url)
+  local app_name = normalize_non_empty_string(config.openrouter_app_name)
+  if site_url then
+    headers["HTTP-Referer"] = site_url
+  end
+  if app_name then
+    headers["X-Title"] = app_name
+  end
+  return headers
+end
+
+local function append_provider_preference(request_obj)
+  local provider = normalize_non_empty_string(config.openrouter_provider)
+  if provider then
+    request_obj.provider = {
+      order = { provider }
+    }
+  end
+end
+
+local function extract_openrouter_message(response_obj)
+  if not (response_obj and response_obj.choices and response_obj.choices[1] and response_obj.choices[1].message) then
+    return nil
+  end
+
+  local content = response_obj.choices[1].message.content
+  if type(content) == "string" then
+    return content
+  end
+
+  if type(content) == "table" then
+    local chunks = {}
+    for _, part in ipairs(content) do
+      if type(part) == "string" then
+        table.insert(chunks, part)
+      elseif type(part) == "table" and type(part.text) == "string" then
+        table.insert(chunks, part.text)
+      end
+    end
+    if #chunks > 0 then
+      return table.concat(chunks)
+    end
+  end
+
+  return nil
+end
+
+local function build_openrouter_request(model, system_prompt, user_content, temperature)
+  local request_obj = {
+    model = model,
+    messages = {
+      { role = "system", content = system_prompt },
+      { role = "user", content = user_content },
+    },
+    temperature = temperature,
+    max_tokens = 1024,
+  }
+  append_provider_preference(request_obj)
+  return request_obj
+end
+
+local function build_curl_command(url, temp_file, api_key)
+  local args = {
+    "curl -s -X POST",
+    vim.fn.shellescape(url),
+    "-H " .. vim.fn.shellescape("Content-Type: application/json"),
+    "-H " .. vim.fn.shellescape("Authorization: Bearer " .. api_key),
+  }
+
+  local site_url = normalize_non_empty_string(config.openrouter_site_url)
+  local app_name = normalize_non_empty_string(config.openrouter_app_name)
+  if site_url then
+    table.insert(args, "-H " .. vim.fn.shellescape("HTTP-Referer: " .. site_url))
+  end
+  if app_name then
+    table.insert(args, "-H " .. vim.fn.shellescape("X-Title: " .. app_name))
+  end
+
+  table.insert(args, "-d @" .. vim.fn.shellescape(temp_file))
+  return table.concat(args, " ")
+end
+
+local function make_temp_json_path(prefix)
+  if vim.fn and vim.fn.tempname then
+    local ok, tempname = pcall(vim.fn.tempname)
+    if ok and type(tempname) == "string" and tempname ~= "" then
+      return tempname .. "_" .. prefix .. ".json"
+    end
+  end
+  return string.format("/tmp/nudge_two_hats_%s_%d_%d.json", prefix, os.time(), math.random(100000, 999999))
+end
+
+local function apply_message_length_limit(advice, context_for)
+  local context_settings = config[context_for] or config.notification or {}
+  local message_length = context_settings.notify_message_length or 80
+  if context_for == "virtual_text" then
+    message_length = context_settings.virtual_text_message_length or message_length
+  end
+
+  if config.length_type == "characters" then
+    if #advice > message_length then
+      return safe_truncate(advice, message_length)
+    end
+    return advice
+  end
+
+  local words = {}
+  for word in advice:gmatch("%S+") do
+    table.insert(words, word)
+  end
+  if #words > message_length then
+    local truncated_words = {}
+    for i = 1, message_length do
+      table.insert(truncated_words, words[i])
+    end
+    return table.concat(truncated_words, " ")
+  end
+  return advice
+end
+
+-- Translate text using OpenRouter API
+local function translate_with_openrouter(text, source_lang, target_lang, api_key, model)
   if config.debug_mode then
     print("[Nudge Two Hats Debug] Translating: " .. text)
   end
+
+  local normalized_api_key = normalize_non_empty_string(api_key)
+  local normalized_model = normalize_non_empty_string(model) or get_openrouter_model()
+  if not normalized_api_key or not normalized_model then
+    return nil
+  end
+
   local sanitized_text = sanitize_text(text)
   local prompt
   if target_lang == "ja" then
     prompt = "以下の" ..
-    (source_lang == "ja" and "日本語" or "英語") ..
-    "テキストを日本語に翻訳してください。簡潔に、元の意味を維持してください。必ず日本語で回答してください: " .. sanitized_text
+      (source_lang == "ja" and "日本語" or "英語") ..
+      "テキストを日本語に翻訳してください。簡潔に、元の意味を維持してください。必ず日本語で回答してください: " .. sanitized_text
   else
     prompt = "Translate the following " ..
-    (source_lang == "ja" and "Japanese" or "English") ..
-    " text to English. Keep it concise and maintain the original meaning. Always respond in English: " .. sanitized_text
+      (source_lang == "ja" and "Japanese" or "English") ..
+      " text to English. Keep it concise and maintain the original meaning. Always respond in English: " .. sanitized_text
   end
-  local request_data
-  local ok, encoded = pcall(vim.fn.json_encode, {
-    contents = {
-      {
-        parts = {
-          {
-            text = prompt
-          }
-        }
-      }
-    },
-    generationConfig = {
-      temperature = 0.1,
-      topK = 40,
-      topP = 0.95,
-      maxOutputTokens = 1024
-    }
-  })
+
+  local request_obj = build_openrouter_request(
+    normalized_model,
+    "You are a concise translator. Preserve meaning and keep output short.",
+    prompt,
+    0.1
+  )
+  request_obj.max_tokens = 256
+
+  local ok, request_data = pcall(vim.fn.json_encode, request_obj)
   if not ok then
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] JSON encoding failed: " .. tostring(encoded))
-    end
     return nil
   end
-  request_data = encoded
-  local endpoint = config.api_endpoint:gsub("[<>]", "")
-  local full_url = endpoint .. "?key=" .. api_key
-  local temp_file = "/tmp/nudge_two_hats_translation.json"
+
+  local full_url = get_openrouter_base_url() .. "/chat/completions"
+  local temp_file = make_temp_json_path("translation")
   local req_file = io.open(temp_file, "w")
-  if req_file then
-    req_file:write(request_data)
-    req_file:close()
+  if not req_file then
+    return nil
   end
-  local curl_command = string.format(
-    "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
-    full_url,
-    temp_file
-  )
-  local output = vim.fn.system(curl_command)
-  -- Delete the temporary file after API call
+  req_file:write(request_data)
+  req_file:close()
+
+  local output = vim.fn.system(build_curl_command(full_url, temp_file, normalized_api_key))
   if vim.fn.filereadable(temp_file) == 1 then
     vim.fn.delete(temp_file)
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] Deleted temporary file: " .. temp_file)
-    end
   end
-  local ok, response
+
+  local decode_ok, response
   if vim.json and vim.json.decode then
-    ok, response = pcall(vim.json.decode, output)
+    decode_ok, response = pcall(vim.json.decode, output)
   else
-    ok, response = pcall(function() return vim.fn.json_decode(output) end)
+    decode_ok, response = pcall(function() return vim.fn.json_decode(output) end)
   end
-  if ok and response and response.candidates and response.candidates[1] and
-     response.candidates[1].content and response.candidates[1].content.parts and
-     response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
-    local translated = response.candidates[1].content.parts[1].text
-    if config.debug_mode then
-      print("[Nudge Two Hats Debug] Translation result: " .. translated)
-    end
-    return translated
+  if not decode_ok then
+    return nil
   end
-  return nil
+  return extract_openrouter_message(response)
 end
 
 -- Translate messages based on config settings
@@ -400,44 +555,63 @@ local function translate_message(message)
       return config.translations[target_lang][key]
     end
   end
-  if config.translate_messages and target_lang ~= "en" and not is_japanese(message) then
+  local api_key = get_openrouter_api_key(nil)
+  local model = get_openrouter_model()
+  if config.translate_messages and api_key and model and target_lang ~= "en" and not is_japanese(message) then
     if target_lang == "ja" and message:len() < 100 then
-      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
-      if api_key then
-        local translated = translate_with_gemini(message, "en", "ja", api_key)
-        if translated then
-          return translated
-        end
+      local translated = translate_with_openrouter(message, "en", "ja", api_key, model)
+      if translated then
+        return translated
       end
     end
-  elseif config.translate_messages and target_lang ~= "ja" and is_japanese(message) then
+  elseif config.translate_messages and api_key and model and target_lang ~= "ja" and is_japanese(message) then
     if target_lang == "en" and message:len() < 100 then
-      local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
-      if api_key then
-        local translated = translate_with_gemini(message, "ja", "en", api_key)
-        if translated then
-          return translated
-        end
+      local translated = translate_with_openrouter(message, "ja", "en", api_key, model)
+      if translated then
+        return translated
       end
     end
   end
   return message
 end
 
--- Get advice from Gemini API
-local function get_gemini_advice(diff, callback, prompt, purpose, state)
-  local api_key = vim.fn.getenv("GEMINI_API_KEY") or state.api_key
-  if config.debug_mode then
-    print(string.format("[Nudge Two Hats Debug] API Key: %s", api_key and "設定済み" or "未設定"))
+-- Get advice from OpenRouter API
+local function get_openrouter_advice(diff, callback, prompt, purpose, state)
+  if type(callback) ~= "function" then
+    return
   end
+
+  state = state or {}
+
+  local api_key = get_openrouter_api_key(state)
+  local model = get_openrouter_model()
+  local default_api_key_error = (config.translations.en and config.translations.en.api_key_not_set) or "OPENROUTER_API_KEY is not set"
+  local default_model_error = (config.translations.en and config.translations.en.model_not_set) or "OpenRouter model is not set"
+  local api_key_error_msg = translate_message(default_api_key_error)
+  local model_error_msg = translate_message(default_model_error)
+
+  if config.debug_mode then
+    print(string.format("[Nudge Two Hats Debug] OpenRouter API Key: %s", api_key and "設定済み" or "未設定"))
+    print(string.format("[Nudge Two Hats Debug] OpenRouter model: %s", model or "未設定"))
+  end
+
   if not api_key then
-    local error_msg = translate_message(config.translations.en.api_key_not_set)
     if config.debug_mode then
-      print("[Nudge Two Hats Debug] APIキーが設定されていません")
-      print("[Nudge Two Hats Debug] Error: " .. error_msg)
+      print("[Nudge Two Hats Debug] OPENROUTER_API_KEY が設定されていません")
     else
-      vim.notify(error_msg, vim.log.levels.ERROR)
+      vim.notify(api_key_error_msg, vim.log.levels.ERROR)
     end
+    callback(api_key_error_msg)
+    return
+  end
+
+  if not model then
+    if config.debug_mode then
+      print("[Nudge Two Hats Debug] openrouter_model が設定されていません")
+    else
+      vim.notify(model_error_msg, vim.log.levels.ERROR)
+    end
+    callback(model_error_msg)
     return
   end
 
@@ -471,24 +645,28 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   if log_file then
     log_file:write("--- New API Request ---\n")
     log_file:write("Timestamp: " .. os.date() .. "\n")
-    log_file:write("API Key: " .. string.sub(api_key, 1, 5) .. "...\n")
-    log_file:write("Endpoint: " .. config.api_endpoint .. "\n")
+    log_file:write("OpenRouter API Key: " .. mask_secret(api_key) .. "\n")
+    log_file:write("Endpoint: " .. get_openrouter_base_url() .. "/chat/completions\n")
+    log_file:write("Model: " .. model .. "\n")
+    if normalize_non_empty_string(config.openrouter_provider) then
+      log_file:write("Provider: " .. config.openrouter_provider .. "\n")
+    end
     if prompt then
       log_file:write("Using prompt: " .. prompt .. "\n")
     end
     log_file:close()
   end
 
-  local context_for = state.context_for or "notification" -- Ensure context_for is defined before use
+  local context_settings = config[context_for] or config.notification or {}
   local system_prompt = prompt or state.current_prompt
   if not system_prompt then
     -- If no prompt is provided, use the system prompt as fallback (this should not happen with proper usage)
-    system_prompt = config[context_for].system_prompt
+    system_prompt = context_settings.system_prompt or ""
     if config.debug_mode then
       print("[Nudge Two Hats Debug] Warning: Using config system_prompt as fallback. This may indicate an issue with prompt generation.")
     end
   end
-  local purpose_text = purpose or state.current_purpose or config[context_for].purpose
+  local purpose_text = purpose or state.current_purpose or context_settings.purpose
   if purpose_text and purpose_text ~= "" then
     system_prompt = system_prompt .. "\n\nWork purpose: " .. purpose_text
   end
@@ -506,15 +684,15 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
 
   if output_lang == "ja" then
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", config[context_for].notify_message_length, anti_duplication_prompt)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。通知用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", context_settings.notify_message_length or 80, anti_duplication_prompt)
     else
-      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", config[context_for].virtual_text_message_length, anti_duplication_prompt)
+      system_prompt = system_prompt .. string.format("\n必ず日本語で回答してください。仮想テキスト用に%d文字以内で簡潔かつ完結したアドバイスをお願いします。文章は途中で切れないようにしてください。%s", context_settings.virtual_text_message_length or context_settings.notify_message_length or 80, anti_duplication_prompt)
     end
   else
     if context_for == "notification" then
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.%s", config[context_for].notify_message_length, anti_duplication_prompt)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For notifications, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.%s", context_settings.notify_message_length or 80, anti_duplication_prompt)
     else
-      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.%s", config[context_for].virtual_text_message_length, anti_duplication_prompt)
+      system_prompt = system_prompt .. string.format("\nPlease respond in English. For virtual text, provide concise and complete advice within %d characters. Ensure the message is meaningful and not cut off mid-sentence.%s", context_settings.virtual_text_message_length or context_settings.notify_message_length or 80, anti_duplication_prompt)
     end
   end
   -- print(system_prompt)
@@ -530,26 +708,9 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
   if config.debug_mode and sanitized_diff ~= truncated_diff then
     print("[Nudge Two Hats Debug] Diff content sanitized for UTF-8 compliance")
   end
-  local ok, request_data = pcall(vim.fn.json_encode, {
-    contents = {
-      {
-        parts = {
-          {
-            text = system_prompt .. "\n\n" .. sanitized_diff
-          }
-        }
-      }
-    },
-    generationConfig = {
-      thinkingConfig = {
-        thinkingBudget = 0,
-      },
-      temperature = 0.2,
-      topK = 40,
-      topP = 0.95,
-      maxOutputTokens = 1024
-    }
-  })
+
+  local request_obj = build_openrouter_request(model, system_prompt, sanitized_diff, 0.2)
+  local ok, request_data = pcall(vim.fn.json_encode, request_obj)
   if not ok then
     if config.debug_mode then
       print("[Nudge Two Hats Debug] JSON encoding failed: " .. tostring(request_data))
@@ -564,175 +725,63 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
     return
   end
 
+  local function process_advice(advice)
+    if not advice or advice == "" then
+      callback(translate_message(config.translations.en.api_error))
+      return
+    end
+
+    if previous_message and advice == previous_message then
+      local suffix_variations = {
+        ja = {" (改善案)", " (別のアプローチ)", " (追加提案)", " (代替案)", " (補足)"},
+        en = {" (Alternative)", " (Improvement)", " (Additional)", " (Variant)", " (Supplement)"}
+      }
+      local variations = suffix_variations[output_lang] or suffix_variations.en
+      local random_suffix = variations[math.random(#variations)]
+      advice = advice .. random_suffix
+    end
+
+    if cache_key then
+      advice_cache[cache_key] = advice
+      table.insert(advice_cache_keys, cache_key)
+      if #advice_cache_keys > MAX_ADVICE_CACHE_SIZE then
+        local to_remove = table.remove(advice_cache_keys, 1)
+        advice_cache[to_remove] = nil
+      end
+    end
+
+    advice = apply_message_length_limit(advice, context_for)
+    if config.translate_messages then
+      advice = translate_message(advice)
+    end
+    callback(advice)
+  end
+
   local has_plenary, curl = pcall(require, "plenary.curl")
-  if has_plenary then
-    local endpoint = config.api_endpoint:gsub("[<>]", "")
-    local full_url = endpoint .. "?key=" .. api_key
+  local full_url = get_openrouter_base_url() .. "/chat/completions"
+  local headers = build_openrouter_headers(api_key)
+  if has_plenary and config.use_plenary_curl == true then
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
       log_file:write("Using plenary.curl\n")
-      log_file:write("Clean endpoint: " .. endpoint .. "\n")
-      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
+      log_file:write("Full URL: " .. full_url .. "\n")
       log_file:close()
     end
     curl.post(full_url, {
-      headers = {
-        ["Content-Type"] = "application/json",
-      },
+      headers = headers,
       body = request_data,
       callback = function(response)
         vim.schedule(function()
           if response.status == 200 and response.body then
-            local ok, result
+            local decode_ok, result
             if vim.json and vim.json.decode then
-              ok, result = pcall(vim.json.decode, response.body)
+              decode_ok, result = pcall(vim.json.decode, response.body)
             else
-              ok, result = pcall(function() return vim.fn.json_decode(response.body) end)
+              decode_ok, result = pcall(function() return vim.fn.json_decode(response.body) end)
             end
-            if ok and result and result.candidates and result.candidates[1] and
-               result.candidates[1].content and result.candidates[1].content.parts and
-               result.candidates[1].content.parts[1] and result.candidates[1].content.parts[1].text then
-              local advice = result.candidates[1].content.parts[1].text
-
-              -- Check if the new advice is identical to the previous message
-              if previous_message and advice == previous_message then
-                if config.debug_mode then
-                  print("[Nudge Two Hats Debug] Identical message detected, requesting retry...")
-                end
-                -- Request a different response by modifying the prompt
-                local retry_prompt = system_prompt
-                if output_lang == "ja" then
-                  retry_prompt = retry_prompt .. "\n追加指示: 前回と全く同じ回答でした。必ず異なる内容で再度アドバイスしてください。"
-                else
-                  retry_prompt = retry_prompt .. "\nAdditional instruction: The previous response was identical. Please provide a completely different advice."
-                end
-
-                -- Make a retry API call with modified prompt
-                local retry_request_data = vim.fn.json_encode({
-                  contents = {
-                    {
-                      parts = {
-                        {
-                          text = retry_prompt .. "\n\n" .. sanitized_diff
-                        }
-                      }
-                    }
-                  },
-                  generationConfig = {
-                    thinkingConfig = {
-                      thinkingBudget = 0,
-                    },
-                    temperature = 0.7, -- Increase temperature for more variation
-                    topK = 60,
-                    topP = 0.9,
-                    maxOutputTokens = 1024
-                  }
-                })
-
-                -- Use curl for immediate retry
-                local temp_retry_file = "/tmp/nudge_two_hats_retry.json"
-                local retry_file = io.open(temp_retry_file, "w")
-                if retry_file then
-                  retry_file:write(retry_request_data)
-                  retry_file:close()
-                end
-
-                local endpoint = config.api_endpoint:gsub("[<>]", "")
-                local full_url = endpoint .. "?key=" .. api_key
-                local retry_command = string.format("curl -s -X POST %s -H 'Content-Type: application/json' -d @%s", full_url, temp_retry_file)
-
-                vim.fn.jobstart(retry_command, {
-                  on_stdout = function(_, retry_data)
-                    if retry_data and #retry_data > 0 and retry_data[1] ~= "" then
-                      vim.schedule(function()
-                        local retry_ok, retry_response = pcall(vim.json.decode, table.concat(retry_data, "\n"))
-                        if retry_ok and retry_response and retry_response.candidates and retry_response.candidates[1] and
-                           retry_response.candidates[1].content and retry_response.candidates[1].content.parts and
-                           retry_response.candidates[1].content.parts[1] and retry_response.candidates[1].content.parts[1].text then
-                          local retry_advice = retry_response.candidates[1].content.parts[1].text
-
-                          -- Apply length limits to retry advice
-                          local message_length = config[context_for].notify_message_length
-                          if context_for == "virtual_text" then
-                            message_length = config[context_for].virtual_text_message_length
-                          end
-                          if config.length_type == "characters" then
-                            if #retry_advice > message_length then
-                              retry_advice = safe_truncate(retry_advice, message_length)
-                            end
-                          else
-                            local words = {}
-                            for word in retry_advice:gmatch("%S+") do
-                              table.insert(words, word)
-                            end
-                            if #words > message_length then
-                              local truncated_words = {}
-                              for i = 1, message_length do
-                                table.insert(truncated_words, words[i])
-                              end
-                              retry_advice = table.concat(truncated_words, " ")
-                            end
-                          end
-                          if config.translate_messages then
-                            retry_advice = translate_message(retry_advice)
-                          end
-
-                          if config.debug_mode then
-                            print("[Nudge Two Hats Debug] Retry successful, using different advice")
-                          end
-                          callback(retry_advice)
-                        else
-                          -- If retry fails, use original advice anyway
-                          if config.debug_mode then
-                            print("[Nudge Two Hats Debug] Retry failed, using original advice")
-                          end
-                          callback(advice)
-                        end
-                      end)
-                    end
-                  end,
-                  on_exit = function()
-                    if vim.fn.filereadable(temp_retry_file) == 1 then
-                      vim.fn.delete(temp_retry_file)
-                    end
-                  end
-                })
-                return -- Don't continue with the original response processing
-              end
-
-              if cache_key then
-                advice_cache[cache_key] = advice
-                table.insert(advice_cache_keys, cache_key)
-                if #advice_cache_keys > MAX_ADVICE_CACHE_SIZE then
-                  local to_remove = table.remove(advice_cache_keys, 1)
-                  advice_cache[to_remove] = nil
-                end
-              end
-              local message_length = config[context_for].notify_message_length
-              if context_for == "virtual_text" then
-                message_length = config[context_for].virtual_text_message_length
-              end
-              if config.length_type == "characters" then
-                if #advice > message_length then
-                  advice = safe_truncate(advice, message_length)
-                end
-              else
-                local words = {}
-                for word in advice:gmatch("%S+") do
-                  table.insert(words, word)
-                end
-                if #words > message_length then
-                  local truncated_words = {}
-                  for i = 1, message_length do
-                    table.insert(truncated_words, words[i])
-                  end
-                  advice = table.concat(truncated_words, " ")
-                end
-              end
-              if config.translate_messages then
-                advice = translate_message(advice)
-              end
-              callback(advice)
+            local advice = decode_ok and extract_openrouter_message(result) or nil
+            if advice then
+              process_advice(advice)
             else
               callback(translate_message(config.translations.en.api_error))
             end
@@ -750,27 +799,21 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
       end
     })
   else
-    local endpoint = config.api_endpoint:gsub("[<>]", "")
-    local full_url = endpoint .. "?key=" .. api_key
-    local temp_file = "/tmp/nudge_two_hats_request.json"
+    local temp_file = make_temp_json_path("request")
     local req_file = io.open(temp_file, "w")
-    if req_file then
-      req_file:write(request_data)
-      req_file:close()
+    if not req_file then
+      callback(translate_message(config.translations.en.api_error))
+      return
     end
+    req_file:write(request_data)
+    req_file:close()
     if log_file then
       log_file = io.open("/tmp/nudge_two_hats_debug.log", "a")
       log_file:write("Using curl fallback\n")
-      log_file:write("Clean endpoint: " .. endpoint .. "\n")
-      log_file:write("Full URL (sanitized): " .. string.gsub(full_url, api_key, string.sub(api_key, 1, 5) .. "...") .. "\n")
-      log_file:write("Command: curl -s -X POST " .. endpoint .. "?key=" .. string.sub(api_key, 1, 5) .. "... -H 'Content-Type: application/json' -d @" .. temp_file .. "\n")
+      log_file:write("Full URL: " .. full_url .. "\n")
       log_file:close()
     end
-    local curl_command = string.format(
-      "curl -s -X POST %s -H 'Content-Type: application/json' -d @%s",
-      full_url,
-      temp_file
-    )
+    local curl_command = build_curl_command(full_url, temp_file, api_key)
     vim.fn.jobstart(curl_command, {
       on_stdout = function(_, data)
         if data and #data > 0 and data[1] ~= "" then
@@ -781,51 +824,9 @@ local function get_gemini_advice(diff, callback, prompt, purpose, state)
             else
               ok, response = pcall(function() return vim.fn.json_decode(table.concat(data, "\n")) end)
             end
-            if ok and response and response.candidates and response.candidates[1] and
-               response.candidates[1].content and response.candidates[1].content.parts and
-               response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
-              local advice = response.candidates[1].content.parts[1].text
-
-              -- Check if the new advice is identical to the previous message (curl fallback)
-              if previous_message and advice == previous_message then
-                if config.debug_mode then
-                  print("[Nudge Two Hats Debug] Identical message detected in curl fallback, using temperature variation...")
-                end
-                -- For curl fallback, we'll modify the advice slightly rather than making another API call
-                local suffix_variations = {
-                  ja = {" (改善案)", " (別のアプローチ)", " (追加提案)", " (代替案)", " (補足)"},
-                  en = {" (Alternative)", " (Improvement)", " (Additional)", " (Variant)", " (Supplement)"}
-                }
-                local variations = suffix_variations[output_lang] or suffix_variations.en
-                local random_suffix = variations[math.random(#variations)]
-                advice = advice .. random_suffix
-              end
-
-              local message_length = config[context_for].notify_message_length
-              if context_for == "virtual_text" then
-                message_length = config[context_for].virtual_text_message_length
-              end
-              if config.length_type == "characters" then
-                if #advice > message_length then
-                  advice = safe_truncate(advice, message_length)
-                end
-              else
-                local words = {}
-                for word in advice:gmatch("%S+") do
-                  table.insert(words, word)
-                end
-                if #words > message_length then
-                  local truncated_words = {}
-                  for i = 1, message_length do
-                    table.insert(truncated_words, words[i])
-                  end
-                  advice = table.concat(truncated_words, " ")
-                end
-              end
-              if config.translate_messages then
-                advice = translate_message(advice)
-              end
-              callback(advice)
+            local advice = ok and extract_openrouter_message(response) or nil
+            if advice then
+              process_advice(advice)
             else
               callback(translate_message(config.translations.en.api_error))
             end
@@ -871,24 +872,25 @@ end
 -- Export the functions with state management
 local M = {
   is_japanese = is_japanese,
-  translate_with_gemini = translate_with_gemini,
+  translate_with_openrouter = translate_with_openrouter,
   sanitize_text = sanitize_text,
   safe_truncate = safe_truncate,
   get_language = get_language,
-  translate_message = translate_message
+  translate_message = translate_message,
+  _make_temp_json_path = make_temp_json_path,
 }
 
 function M.update_config(new_config)
   config = new_config
 end
 
--- Wrap get_gemini_advice to handle different call patterns from init.lua
-function M.get_gemini_advice(diff, callback, arg1, arg2, arg3)
+-- Wrap get_openrouter_advice to handle different call patterns from init.lua
+function M.get_openrouter_advice(diff, callback, arg1, arg2, arg3)
   -- 引数の型に基づいて振り分ける
   -- init.luaからの呼び出しパターン
-  -- 1. api.get_gemini_advice(diff, function(advice)
-  -- 2. api.get_gemini_advice(diff, function(advice), state
-  -- 3. api.get_gemini_advice(diff, function(advice), nil, nil, state
+  -- 1. api.get_openrouter_advice(diff, function(advice)
+  -- 2. api.get_openrouter_advice(diff, function(advice), state
+  -- 3. api.get_openrouter_advice(diff, function(advice), nil, nil, state
   local prompt, purpose, state
   if type(arg1) == "table" then
     -- パターン2: arg1がstateオブジェクト
@@ -918,7 +920,7 @@ function M.get_gemini_advice(diff, callback, arg1, arg2, arg3)
   end
   -- stateがない場合は空のテーブルを使用
   state = state or {}
-  return get_gemini_advice(diff, callback, prompt, purpose, state)
+  return get_openrouter_advice(diff, callback, prompt, purpose, state)
 end
 
 return M

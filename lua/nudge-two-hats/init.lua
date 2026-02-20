@@ -5,7 +5,7 @@ local state = {
   buf_content = {}, -- Store buffer content for diff calculation (legacy, kept for backward compatibility)
   buf_content_by_filetype = {}, -- Store buffer content by buffer ID and filetype
   buf_filetypes = {}, -- Store buffer filetypes when NudgeTwoHatsStart is executed
-  api_key = nil, -- Gemini API key
+  api_key = nil, -- OpenRouter API key
   last_api_call_notification = 0, -- Timestamp of the last API call for notifications
   last_api_call_virtual_text = 0, -- Timestamp of the last API call for virtual text
   last_cursor_pos = {}, -- Stores last known cursor position {buf -> {win, lnum, col, coladd}}
@@ -424,7 +424,7 @@ function M.setup(opts)
     local prompt = buffer.get_prompt_for_buffer(buf, state, "notification")
     state.context_for = "notification"
 
-    api.get_gemini_advice(diff, function(advice)
+    api.get_openrouter_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知用APIコールバック実行: " .. (advice or "アドバイスなし"))
       end
@@ -464,7 +464,7 @@ function M.setup(opts)
     state.context_for = "virtual_text"
     local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
 
-    api.get_gemini_advice(diff, function(virtual_text_advice)
+    api.get_openrouter_advice(diff, function(virtual_text_advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 仮想テキスト用APIコールバック実行: " .. (virtual_text_advice or "アドバイスなし"))
       end
@@ -579,9 +579,9 @@ function M.setup(opts)
     end
     state.last_api_call_notification = 0
     state.last_api_call_virtual_text = 0
-    -- 通知用にGemini APIを呼び出し
+    -- 通知用にOpenRouter APIを呼び出し
     state.context_for = "notification"
-    api.get_gemini_advice(diff, function(advice)
+    api.get_openrouter_advice(diff, function(advice)
       if config.debug_mode then
         print("[Nudge Two Hats Debug] 通知処理の結果: " .. advice)
       end
@@ -595,16 +595,16 @@ function M.setup(opts)
         icon = "🐛",
       })
 
-      -- 仮想テキスト用に別途Gemini APIを呼び出し
+      -- 仮想テキスト用に別途OpenRouter APIを呼び出し
       state.context_for = "virtual_text"
       local vt_prompt = buffer.get_prompt_for_buffer(buf, state, "virtual_text")
-      api.get_gemini_advice(diff, function(virtual_text_advice)
+      api.get_openrouter_advice(diff, function(virtual_text_advice)
         if config.debug_mode then
           print("[Nudge Two Hats Debug] デバッグモードの仮想テキスト処理の結果: " .. virtual_text_advice)
         end
         state.virtual_text.last_advice[buf] = virtual_text_advice
-      end, vt_prompt, config.purpose, state) -- Corrected arguments for the inner get_gemini_advice
-    end, prompt, config.purpose, state) -- Corrected arguments for the outer get_gemini_advice
+      end, vt_prompt, config.purpose, state) -- Corrected arguments for the inner get_openrouter_advice
+    end, prompt, config.purpose, state) -- Corrected arguments for the outer get_openrouter_advice
     if config.debug_mode then
       print("[Nudge Two Hats Debug] 通知処理の発火が完了しました")
     end

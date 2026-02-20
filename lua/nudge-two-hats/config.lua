@@ -8,7 +8,9 @@ local config = {
       started_buffer = "Nudge Two Hats started for current buffer",
       debug_enabled = "Debug mode enabled - nudge text will be printed to :messages",
       no_changes = "No changes detected to generate advice",
-      api_error = "Gemini API error",
+      api_key_not_set = "OPENROUTER_API_KEY is not set",
+      model_not_set = "OpenRouter model is not set",
+      api_error = "OpenRouter API error",
       unknown_error = "Unknown error",
     },
     ja = {
@@ -17,7 +19,9 @@ local config = {
       started_buffer = "現在のバッファでNudge Two Hatsが開始されました",
       debug_enabled = "デバッグモードが有効 - ナッジテキストが:messagesに表示されます",
       no_changes = "アドバイスを生成するための変更が検出されませんでした",
-      api_error = "Gemini APIエラー",
+      api_key_not_set = "OPENROUTER_API_KEY が設定されていません",
+      model_not_set = "OpenRouter モデルが設定されていません",
+      api_error = "OpenRouter APIエラー",
       unknown_error = "不明なエラー",
     }
   },
@@ -27,8 +31,12 @@ local config = {
   notify_interval_seconds = 5, -- Minimum interval between API calls in seconds
   virtual_text_interval_seconds = 10, -- Time in seconds before showing virtual text
   cursor_idle_threshold_seconds = 30, -- Time in seconds before stopping timer due to cursor inactivity
-  gemini_model = "gemini-2.5-flash", -- Updated to latest Gemini model
-  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+  openrouter_base_url = "https://openrouter.ai/api/v1",
+  openrouter_model = "", -- Required: e.g. "openai/gpt-oss-120b"
+  openrouter_provider = "", -- Optional: e.g. "cerebras"
+  openrouter_site_url = "https://github.com/nekowasabi/nudge-two-hats.vim",
+  openrouter_app_name = "nudge-two-hats.vim",
+  use_plenary_curl = false, -- Use only when you explicitly want plenary.curl transport
   debug_mode = false, -- When true, prints nudge text to Vim's :messages output
 
   -- Context-specific settings for notifications

@@ -8,7 +8,7 @@ Inspired by [An example of preparatory refactoring](https://martinfowler.com/art
 ## Features
 
 - Monitors your code changes in real-time
-- Uses Gemini AI to analyze which "hat" you're wearing (refactoring or feature development)
+- Uses OpenRouter to analyze which "hat" you're wearing (refactoring or feature development)
 - Provides short advice via notifications and virtual text
 - Buffer-specific timer management to reduce API calls
 - Filetype-specific prompts and tracking
@@ -77,8 +77,10 @@ require("nudge-two-hats").setup({
   virtual_text_interval_seconds = 600, -- Default: 10 minutes (600 seconds) for virtual text
   cursor_idle_threshold_seconds = 30, -- Default: 30 seconds. Stop timers when cursor is idle for this long
   
-  gemini_model = "gemini-2.5-flash", -- Specify the Gemini model
-  api_endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+  openrouter_base_url = "https://openrouter.ai/api/v1",
+  openrouter_model = "openai/gpt-oss-120b", -- Required
+  openrouter_provider = "cerebras", -- Optional
+  use_plenary_curl = false, -- Recommended false to use internal curl fallback
   
   debug_mode = false, -- Set to true to print debug information to Vim's :messages output
   
@@ -158,11 +160,17 @@ require("nudge-two-hats").setup({
 })
 ```
 
+### Breaking Change
+
+- Gemini specific settings (`gemini_model`, `api_endpoint`, `GEMINI_API_KEY`) are removed.
+- Use OpenRouter settings (`openrouter_model`, `openrouter_base_url`, `OPENROUTER_API_KEY`) instead.
+
 ## Usage
 
-1. Set your Gemini API key:
-   - Set the GEMINI_API_KEY environment variable in your shell environment
-   - Example: `export GEMINI_API_KEY="your_api_key_here"`
+1. Set your OpenRouter API key:
+   - Set the OPENROUTER_API_KEY environment variable in your shell environment
+   - Example: `export OPENROUTER_API_KEY="your_api_key_here"`
+   - `openrouter_model` is required (for example `openai/gpt-oss-120b`)
 
 2. Configure the purpose parameter (optional, can also be set per context - see above):
    ```lua
@@ -235,4 +243,4 @@ You can specify a Vim function name via the `callback` option (globally or withi
 ## Requirements
 
 - Neovim 0.7.0+
-- Gemini API key
+- OpenRouter API key (`OPENROUTER_API_KEY`)
