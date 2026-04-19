@@ -1,297 +1,41 @@
-local config = {
-  -- Global settings that are not context-specific
-  callback = "", -- Vim function name to append custom text to the prompt
-  translations = {
-    en = {
-      enabled = "enabled",
-      disabled = "disabled",
-      started_buffer = "Nudge Two Hats started for current buffer",
-      debug_enabled = "Debug mode enabled - nudge text will be printed to :messages",
-      no_changes = "No changes detected to generate advice",
-      api_key_not_set = "OPENROUTER_API_KEY is not set",
-      model_not_set = "OpenRouter model is not set",
-      api_error = "OpenRouter API error",
-      unknown_error = "Unknown error",
-    },
-    ja = {
-      enabled = "有効",
-      disabled = "無効",
-      started_buffer = "現在のバッファでNudge Two Hatsが開始されました",
-      debug_enabled = "デバッグモードが有効 - ナッジテキストが:messagesに表示されます",
-      no_changes = "アドバイスを生成するための変更が検出されませんでした",
-      api_key_not_set = "OPENROUTER_API_KEY が設定されていません",
-      model_not_set = "OpenRouter モデルが設定されていません",
-      api_error = "OpenRouter APIエラー",
-      unknown_error = "不明なエラー",
-    }
-  },
-  length_type = "characters", -- Can be "characters" or "words"
-  output_language = "auto", -- Can be "auto", "en" (English), or "ja" (Japanese)
-  translate_messages = true, -- Whether to translate messages to the specified language
-  notify_interval_seconds = 5, -- Minimum interval between API calls in seconds
-  virtual_text_interval_seconds = 10, -- Time in seconds before showing virtual text
-  cursor_idle_threshold_seconds = 30, -- Time in seconds before stopping timer due to cursor inactivity
-  openrouter_base_url = "https://openrouter.ai/api/v1",
-  openrouter_model = "", -- Required: e.g. "openai/gpt-oss-120b"
-  openrouter_provider = "", -- Optional: e.g. "cerebras"
-  openrouter_site_url = "https://github.com/nekowasabi/nudge-two-hats.vim",
-  openrouter_app_name = "nudge-two-hats.vim",
-  use_plenary_curl = false, -- Use only when you explicitly want plenary.curl transport
-  debug_mode = false, -- When true, prints nudge text to Vim's :messages output
+local M = {}
 
-  -- Context-specific settings for notifications
+--- Default configuration.
+---
+--- `message` accepts either a Lua function or a Vim script function name (string).
+--- It is invoked with one argument: the provider context table
+---   ctx = { buf, filetype, channel, cursor = { line, col } }
+--- Return `string` to display, or `nil` to skip this nudge.
+M.defaults = {
+  debug = false,
+
   notification = {
-    system_prompt = [[
-# AI Agent Instructions - Base Configuration
-
-## 1. Overarching Principle: Dynamic Persona Adherence
-**CRITICAL**: Your entire persona, the style of your advice, and its specific focus are **dictated by the dynamic parameters** that will be provided to you by the `prompt.lua` module. These parameters include:
-- **Role**: Your assigned character.
-- **Selected Hat (Mode)**: The specific mode of operation or perspective you must adopt.
-- **Direction**: The overarching goal or guidance for your advice.
-- **Emotion**: The emotional state you should convey.
-- **Tone**: The specific manner of your expression.
-- **Prompt Text**: The core request or subject matter you need to address.
-You MUST fully embody these elements in your response. This base configuration provides general tasks, but your specific execution is governed by these dynamic inputs.
-
-## 2. Task Context
-This prompt provides the foundational instructions for an AI agent. The dynamic parameters mentioned above (Role, Hat, Direction, Emotion, Tone, Prompt Text) will be prepended to these base instructions and are paramount.
-
-## 3. Core Task
-Analyze the provided code change (diff content) and offer varied, specific advice. Your analysis should consider:
-- The programmer's likely focus: refactoring, adding new features, fixing bugs, or improving tests.
-- The specific changes observed in the diff.
-
-## 4. Advice Characteristics
-- **Tailored**: Advice must be directly relevant to the code changes AND the persona defined by the dynamic parameters.
-- **Varied**: Ensure that the content and style of advice differ each time to maintain user engagement, while staying true to the defined persona.
-- **Context-Aware**: Adapt your advice based on whether it's for a 'notification' or 'virtual_text', as indicated by other parts of the full prompt.
-
-## 5. Output Medium (Placeholder)
-Details about the output medium (e.g., UI Notification, Virtual Text) and specific guidance for that medium will be provided by the `prompt.lua` module.
-
-## 6. Constraints (Placeholder)
-Specific constraints, such as message length, will also be provided by the `prompt.lua` module.
-]],
-    purpose = "", -- Work purpose or objective
-    default_cbt = {
-      role = "Notification Advisor Role", -- Differentiated
-      direction = "Guide towards healthier thought patterns and behaviors",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
-    },
-    filetype_prompts = {
-      markdown = {
-        prompt = "Give advice about this writing, focusing on clarity and structure.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more structured writing",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
-        purpose = "Improve writing clarity and document structure",
-        callback = "",
-      },
-      text = {
-        prompt = "Give advice about this writing, focusing on clarity and structure.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more structured writing",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
-        purpose = "Enhance general text writing quality",
-        callback = "",
-      },
-      tex = {
-        prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards well-formatted and structured document",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
-        purpose = "Create well-formatted academic documents",
-        callback = "",
-      },
-      rst = {
-        prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more organized documentation",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
-        purpose = "Create clear and organized technical documentation",
-        callback = "",
-      },
-      org = {
-        prompt = "Give advice about this Org document, focusing on organization and structure.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards better organized and structured document",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
-        purpose = "Improve organization and productivity planning",
-        callback = "",
-      },
-      lua = {
-        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing. (notification advice for Lua)", -- Differentiated
-        role = "Lua Notification Advisor", -- Differentiated
-        direction = "Guide towards cleaner and more maintainable code",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
-        purpose = "Develop clean and maintainable Lua code",
-        callback = "",
-      },
-      python = {
-        prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more maintainable code",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
-        purpose = "Write Pythonic and maintainable Python code",
-        callback = "",
-      },
-      javascript = {
-        prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more maintainable code",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
-        purpose = "Develop modern and efficient JavaScript applications",
-        callback = "",
-      },
-    },
-    notify_message_length = 80,
+    enabled = true,
+    idle_seconds = 300,
+    message = nil,
+    title = "Nudge Two Hats",
+    icon = "🎩",
   },
 
   virtual_text = {
-    system_prompt = [[
-# AI Agent Instructions - Base Configuration
-
-## 1. Overarching Principle: Dynamic Persona Adherence
-**CRITICAL**: Your entire persona, the style of your advice, and its specific focus are **dictated by the dynamic parameters** that will be provided to you by the `prompt.lua` module. These parameters include:
-- **Role**: Your assigned character.
-- **Selected Hat (Mode)**: The specific mode of operation or perspective you must adopt.
-- **Direction**: The overarching goal or guidance for your advice.
-- **Emotion**: The emotional state you should convey.
-- **Tone**: The specific manner of your expression.
-- **Prompt Text**: The core request or subject matter you need to address.
-You MUST fully embody these elements in your response. This base configuration provides general tasks, but your specific execution is governed by these dynamic inputs.
-
-## 2. Task Context
-This prompt provides the foundational instructions for an AI agent. The dynamic parameters mentioned above (Role, Hat, Direction, Emotion, Tone, Prompt Text) will be prepended to these base instructions and are paramount.
-
-## 3. Core Task
-Analyze the provided code change (diff content) and offer varied, specific advice. Your analysis should consider:
-- The programmer's likely focus: refactoring, adding new features, fixing bugs, or improving tests.
-- The specific changes observed in the diff.
-
-## 4. Advice Characteristics
-- **Tailored**: Advice must be directly relevant to the code changes AND the persona defined by the dynamic parameters.
-- **Varied**: Ensure that the content and style of advice differ each time to maintain user engagement, while staying true to the defined persona.
-- **Context-Aware**: Adapt your advice based on whether it's for a 'notification' or 'virtual_text', as indicated by other parts of the full prompt.
-
-## 5. Output Medium (Placeholder)
-Details about the output medium (e.g., UI Notification, Virtual Text) and specific guidance for that medium will be provided by the `prompt.lua` module.
-
-## 6. Constraints (Placeholder)
-Specific constraints, such as message length, will also be provided by the `prompt.lua` module.
-]],
-    purpose = "",
-    default_cbt = {
-      role = "Virtual Text Helper Role", -- Differentiated
-      direction = "Guide towards healthier thought patterns and behaviors",
-      emotion = "Empathetic and understanding",
-      tone = "Supportive and encouraging but direct",
-      hats = {"Therapist", "Coach", "Mentor", "Advisor", "Counselor"},
-    },
-    filetype_prompts = {
-      markdown = {
-        prompt = "Give advice about this writing, focusing on clarity and structure.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more structured writing",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Writing Coach", "Editor", "Reviewer", "Content Specialist", "Clarity Expert"},
-        purpose = "Improve writing clarity and document structure",
-        callback = "",
-      },
-      text = { -- This is the specific Japanese example that needs to be preserved
-        prompt = "テキスト内容を題材として、アドバイスしてください。前置きなしで、端的にメッセージのみを出力してください。",
-        role = "トリックスターであり、常に民衆の意表を突く発言のみを行う",
-        direction = "意味深なアドバイスを行う",
-        emotion = "Empathetic and understanding",
-        tone = "前置きなしで、直接的に",
-        hats = { "law", "chaos", "neutral", "trickster" },
-        purpose = "集中が途切れないように、ナッジによってさりげなく現在の行動を促す",
-        callback = "NudgeCallback",
-      },
-      tex = {
-        prompt = "Give advice about this LaTeX document, focusing on structure and formatting.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards well-formatted and structured document",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"LaTeX Expert", "Document Formatter", "Structure Specialist", "Academic Advisor", "Technical Writer"},
-        purpose = "Create well-formatted academic documents",
-        callback = "",
-      },
-      rst = {
-        prompt = "Give advice about this reStructuredText document, focusing on clarity and organization.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more organized documentation",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Documentation Expert", "Structure Advisor", "Clarity Coach", "Technical Writer", "Information Architect"},
-        purpose = "Create clear and organized technical documentation",
-        callback = "",
-      },
-      org = {
-        prompt = "Give advice about this Org document, focusing on organization and structure.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards better organized and structured document",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Organization Expert", "Structure Advisor", "Productivity Coach", "Planning Specialist", "Task Manager"},
-        purpose = "Improve organization and productivity planning",
-        callback = "",
-      },
-      lua = {
-        prompt = "Give advice about this Lua code change, focusing on which hat (refactoring or feature) the programmer is wearing. (virtual text advice for Lua)", -- Differentiated
-        role = "Lua Virtual Text Helper", -- Differentiated
-        direction = "Guide towards clearer and more maintainable code",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Code Reviewer", "Refactoring Expert", "Clean Code Advocate", "Performance Optimizer", "Maintainability Advisor"},
-        purpose = "Develop clean and maintainable Lua code",
-        callback = "",
-      },
-      python = {
-        prompt = "Give advice about this Python code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more maintainable code",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"Python Expert", "Code Reviewer", "Clean Code Advocate", "Performance Optimizer", "Pythonic Style Guide"},
-        purpose = "Write Pythonic and maintainable Python code",
-        callback = "",
-      },
-      javascript = {
-        prompt = "Give advice about this JavaScript code change, focusing on which hat (refactoring or feature) the programmer is wearing.",
-        role = "Cognitive behavioral therapy specialist",
-        direction = "Guide towards clearer and more maintainable code",
-        emotion = "Empathetic and understanding",
-        tone = "Supportive and encouraging but direct",
-        hats = {"JavaScript Expert", "Frontend Advisor", "Code Quality Advocate", "Performance Guru", "Best Practices Guide"},
-        purpose = "Develop modern and efficient JavaScript applications",
-        callback = "",
-      },
-    },
-    virtual_text_message_length = 40,
-    text_color = "#000000",
-    background_color = "#FFFFFF",
+    enabled = true,
+    idle_seconds = 60,
+    message = nil,
+    position = "right_align",
+    text_color = "#AABBCC",
+    background_color = "#112233",
   },
 }
-return config
+
+M.current = vim.deepcopy(M.defaults)
+
+function M.merge(user_opts)
+  M.current = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), user_opts or {})
+  return M.current
+end
+
+function M.get()
+  return M.current
+end
+
+return M

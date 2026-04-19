@@ -1,246 +1,156 @@
 # nudge-two-hats.vim
-<img src="https://github.com/user-attachments/assets/8f22c6fb-18cf-4c71-ae80-489829ebd9c6" width="30%">
 
-A plugin that nudges you with AI about which hat you are wearing and what you should do in the situation. Based on [Nudge theory](https://en.wikipedia.org/wiki/Nudge_theory).
+Display a short nudge message when the cursor has been idle for a while.
+Messages come from your own config — the plugin itself just handles
+display (`vim.notify` and inline virtual text).
 
-Inspired by [An example of preparatory refactoring](https://martinfowler.com/articles/preparatory-refactoring-example.html)
+Based on [Nudge theory](https://en.wikipedia.org/wiki/Nudge_theory).
 
-## Features
+> **Breaking change**: previous versions called OpenRouter / Gemini to
+> generate advice. That behavior is gone. Inject messages yourself through
+> the `message` option.
 
-- Monitors your code changes in real-time
-- Uses OpenRouter to analyze which "hat" you're wearing (refactoring or feature development)
-- Provides short advice via notifications and virtual text
-- Buffer-specific timer management to reduce API calls
-- Filetype-specific prompts and tracking
-- Toggle functionality on/off as needed
-- Purpose parameter to enhance AI suggestions
-- Context-specific configurations for notifications and virtual text.
+## Requirements
 
+- Neovim 0.7.0+
 
 ## Installation
 
-### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
+### lazy.nvim
 
 ```lua
 {
   "nekowasabi/nudge-two-hats.vim",
   config = function()
     require("nudge-two-hats").setup({
-      -- Optional configuration
+      notification = {
+        idle_seconds = 300,
+        message = function(ctx)
+          return "You are wearing the refactoring hat."
+        end,
+      },
+      virtual_text = {
+        idle_seconds = 60,
+        message = function(ctx)
+          return "keep it simple"
+        end,
+      },
     })
   end,
 }
 ```
 
-### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
-
-```lua
-use {
-  "nekowasabi/nudge-two-hats.vim",
-  config = function()
-    require("nudge-two-hats").setup()
-  end
-}
-```
-
 ## Configuration
 
-The plugin offers a range of configuration options. Notably, settings related to prompt generation, message length, and appearance are now separated into `notification` and `virtual_text` sections. This allows for distinct behaviors and appearances for UI notifications versus the more subtle virtual text hints.
-
-Here's an example of the configuration structure:
+Everything is optional. The defaults below are shown for reference.
 
 ```lua
 require("nudge-two-hats").setup({
-  -- === Global Settings ===
-  -- These settings apply to both notification and virtual text contexts unless overridden within a specific context.
-  
-  callback = "", -- Global Vim function name to append its return value to the prompt if context-specific callback is not set.
-  
-  translations = { -- For UI messages from the plugin itself
-    en = {
-      enabled = "enabled",
-      disabled = "disabled",
-      -- ... other plugin messages
-    },
-    ja = {
-      enabled = "有効",
-      disabled = "無効",
-      -- ... other plugin messages
-    }
-  },
-  
-  length_type = "characters", -- Default length unit: "characters" (good for CJK) or "words" (good for English)
-  output_language = "auto",   -- AI response language: "auto", "en", "ja"
-  translate_messages = true,  -- Whether to translate AI messages to output_language
-  
-  notify_interval_seconds = 300,     -- Default: 5 minutes (300 seconds) for notifications
-  virtual_text_interval_seconds = 600, -- Default: 10 minutes (600 seconds) for virtual text
-  cursor_idle_threshold_seconds = 30, -- Default: 30 seconds. Stop timers when cursor is idle for this long
-  
-  openrouter_base_url = "https://openrouter.ai/api/v1",
-  openrouter_model = "openai/gpt-oss-120b", -- Required
-  openrouter_provider = "cerebras", -- Optional
-  use_plenary_curl = false, -- Recommended false to use internal curl fallback
-  
-  debug_mode = false, -- Set to true to print debug information to Vim's :messages output
-  
-  -- === Notification Context Settings ===
+  debug = false,
+
   notification = {
-    system_prompt = "As a notification, analyze this code change and provide concise, actionable advice. Consider if the user is refactoring, adding features, fixing bugs, or improving tests. Focus on being a helpful, brief coding companion.",
-    purpose = "General coding assistance for notifications", -- Context-specific work purpose
-    
-    default_cbt = { -- Default CBT persona for notifications
-      role = "Notification Advisor",
-      direction = "Guide towards focused and effective coding practices via notifications.",
-      emotion = "Calm and direct",
-      tone = "Brief and encouraging",
-      hats = {"Coding Mentor", "Quick Advisor"},
-    },
-    
-    filetype_prompts = { -- Filetype-specific overrides for notifications
-      lua = {
-        prompt = "For this Lua code, provide a brief notification-style tip.",
-        role = "Lua Notification Specialist",
-        hats = {"Lua Quick Tip Generator"},
-      },
-      python = {
-        prompt = "Python notification: offer a concise suggestion.",
-        role = "Python Notify Helper",
-      },
-      -- Add other filetypes as needed
-    },
-    
-    notify_message_length = 150,       -- Max message length for notifications (using 'length_type' unit)
-    virtual_text_message_length = 10,  -- Fallback if used in VT context, less relevant here
+    enabled      = true,
+    idle_seconds = 300,   -- show after the cursor has been idle this long
+    message      = nil,   -- required if enabled
+    title        = "Nudge Two Hats",
+    icon         = "🎩",
   },
-  
-  -- === Virtual Text Context Settings ===
+
   virtual_text = {
-    system_prompt = "As unobtrusive virtual text, analyze this code change. Offer subtle, thought-provoking insights or questions related to the user's likely intent (refactoring, feature work, bug fixing, testing). Aim to be a gentle, almost subliminal guide.",
-    purpose = "Subtle guidance for virtual text", -- Context-specific work purpose
-    
-    default_cbt = { -- Default CBT persona for virtual text
-      role = "Virtual Text Companion",
-      direction = "Gently steer towards better code structure and problem-solving via virtual text.",
-      emotion = "Subtle and inquisitive",
-      tone = "Minimalist and thought-provoking",
-      hats = {"Code Whisperer", "Reflective Partner"},
-    },
-    
-    filetype_prompts = { -- Filetype-specific overrides for virtual text
-      lua = {
-        prompt = "For this Lua segment, provide a very short virtual text hint.",
-        role = "Lua Virtual Text Assistant",
-        hats = {"Lua Micro-Hint Provider"},
-      },
-      python = {
-        prompt = "Python virtual text: offer a compact insight.",
-        role = "Python VT Guide",
-      },
-      text = { -- Example of a highly customized prompt for 'text' filetype in virtual text
-        prompt = "このテキスト断片について、非常に短い、示唆に富むコメントを一行で。",
-        role = "俳句ボット",
-        direction = "簡潔な一行コメントを生成する",
-        emotion = "穏やか",
-        tone = "詩的かつ簡潔に",
-        hats = {"禅師", "詩人"},
-        purpose = "執筆中の思考を中断させずに、新たな視点を提供する",
-        callback = "", -- No callback for this specific one, but could be defined
-      },
-      -- Add other filetypes as needed
-    },
-    
-    notify_message_length = 10,        -- Fallback if used in Notification context, less relevant here
-    virtual_text_message_length = 80, -- Max message length for virtual text (using 'length_type' unit)
-    
-    -- Appearance settings specific to virtual text
-    text_color = "#AABBCC",       -- Text color in hex format (e.g., light grey)
-    background_color = "#112233", -- Background color in hex format (e.g., dark blue)
-  }
+    enabled          = true,
+    idle_seconds     = 60,
+    message          = nil,
+    position         = "right_align", -- "eol" | "right_align" | "overlay"
+    text_color       = "#AABBCC",
+    background_color = "#112233",
+  },
 })
 ```
 
-### Breaking Change
+### Message provider
 
-- Gemini specific settings (`gemini_model`, `api_endpoint`, `GEMINI_API_KEY`) are removed.
-- Use OpenRouter settings (`openrouter_model`, `openrouter_base_url`, `OPENROUTER_API_KEY`) instead.
+Each channel has its own `message`. It accepts either a Lua function or a
+Vim script function name, and is invoked with a context table:
 
-## Usage
+```lua
+ctx = {
+  buf      = <bufnr>,
+  filetype = "lua",
+  channel  = "notification", -- or "virtual_text"
+  cursor   = { line = 12, col = 0 }, -- 1-based line, 0-based col
+}
+```
 
-1. Set your OpenRouter API key:
-   - Set the OPENROUTER_API_KEY environment variable in your shell environment
-   - Example: `export OPENROUTER_API_KEY="your_api_key_here"`
-   - `openrouter_model` is required (for example `openai/gpt-oss-120b`)
+Return a `string` to display, or `nil` to skip this nudge.
 
-2. Configure the purpose parameter (optional, can also be set per context - see above):
-   ```lua
-   -- This top-level purpose would be a fallback if not set in notification/virtual_text contexts
-   require("nudge-two-hats").setup({
-     notification = {
-       purpose = "code review for notifications", 
-     },
-     virtual_text = {
-       purpose = "refactoring assistance for virtual text",
-     }
-     -- Other configuration options...
-   })
-   ```
+#### Lua function
 
-3. Start monitoring the current buffer:
-   ```
-   :NudgeTwoHatsStart [filetype1 filetype2 ...]
-   ```
-   Optionally specify filetypes to monitor (defaults to current buffer's filetype)
+```lua
+require("nudge-two-hats").setup({
+  notification = {
+    message = function(ctx)
+      if ctx.filetype == "markdown" then
+        return "Focus on structure."
+      end
+      return "Which hat are you wearing?"
+    end,
+  },
+})
+```
 
-4. Toggle the plugin on/off:
-   ```
-   :NudgeTwoHatsToggle [filetype1 filetype2 ...]
-   ```
-   Optionally specify filetypes to monitor (defaults to current buffer's filetype)
+#### Vim script function
 
-5. Execute a nudge immediately (without waiting for the interval):
-   ```
-   :NudgeTwoHatsNow
-   ```
+```lua
+require("nudge-two-hats").setup({
+  virtual_text = { message = "MyNudgeMessage" },
+})
+```
 
-6. Toggle debug mode (prints nudge text to Vim's `:messages`):
-   ```
-   :NudgeTwoHatsDebugNotify
-   ```
+```vim
+function! MyNudgeMessage(ctx) abort
+  return a:ctx.channel ==# 'virtual_text' ? 'keep going' : 'take a break'
+endfunction
+```
 
-## How It Works
+If the string does not match any Vim function name, it is treated as a
+literal message.
 
-### Buffer-Specific Timer Management
+### Branching by filetype
 
-The plugin uses buffer-specific timers to reduce API calls and improve performance. Timers are only active for the current buffer and are automatically stopped when switching between buffers. This prevents unnecessary API calls from inactive buffers.
+There is no filetype-aware configuration surface. Branch inside your own
+`message` function:
 
-### Cursor Idle Detection
+```lua
+message = function(ctx)
+  local by_ft = {
+    lua      = "Is this the smallest change that works?",
+    markdown = "Is the outline clear?",
+    python   = "Type hints present?",
+  }
+  return by_ft[ctx.filetype]
+end
+```
 
-To save API costs when you're away from the editor, the plugin automatically pauses all timers when the cursor hasn't moved for a specified time (`cursor_idle_threshold_seconds`, default: 30 seconds). Timers automatically resume when you move the cursor again. This feature prevents unnecessary API calls when:
-- The editor is in the background
-- You're away from your desk
-- You're reading code without making changes
+## Commands
 
-### Virtual Text Display
+| Command | Description |
+| --- | --- |
+| `:NudgeTwoHatsEnable` | Turn the plugin on. |
+| `:NudgeTwoHatsDisable` | Turn the plugin off. |
+| `:NudgeTwoHatsToggle` | Toggle the plugin state. |
+| `:NudgeTwoHatsNow [channel]` | Fire a nudge immediately (`notification` or `virtual_text`; both when omitted). |
+| `:NudgeTwoHatsDebug` | Print runtime state. |
 
-After a period of cursor inactivity (defined by `virtual_text_interval_seconds`), the plugin will display AI-generated advice as virtual text at the end of the current line. This provides contextual suggestions without disrupting your workflow. Its appearance and content can be configured separately in the `virtual_text` section of the setup.
+## How it works
 
-### Notification Display
-Notifications provide more direct advice and can be configured independently in the `notification` section of the setup.
+1. `setup()` merges your options, installs global autocmds, and enables
+   the plugin.
+2. For every normal buffer you enter, an idle timer is started per
+   channel.
+3. When the cursor stops moving for `idle_seconds`, the channel's
+   `message` provider is called and the result is displayed.
+4. Any cursor movement clears the virtual text (if shown) and restarts
+   both idle timers from zero.
 
-### Filetype-Specific Tracking
-
-The plugin tracks changes by filetype, allowing for more accurate and relevant suggestions based on the type of file you're editing. You can specify multiple filetypes to monitor for a single buffer. Prompts and CBT personas can be customized per filetype within both `notification` and `virtual_text` contexts.
-
-### Purpose Parameter
-
-The purpose parameter enhances AI suggestions by providing context about your current work objective. This can be set globally or, more effectively, within each `notification` and `virtual_text` context to tailor AI responses.
-
-### Callback
-
-You can specify a Vim function name via the `callback` option (globally or within a filetype prompt definition in either context). When defined, the plugin calls this function and appends its return value to the prompt. If the function does not exist, an empty string is appended.
-
-## Requirements
-
-- Neovim 0.7.0+
-- OpenRouter API key (`OPENROUTER_API_KEY`)
+There is no periodic interval, no AI call, no content diffing, and no
+pause/resume state. One knob (`idle_seconds`) per channel is all you need.
