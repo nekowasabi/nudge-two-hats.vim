@@ -101,7 +101,14 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     end
   end
   local current_content = ""
-  if vim.api.nvim_buf_is_valid(buf) then
+  local create_baseline = false
+  if event_name == "BufEnter" or event_name == "Timer" then
+    create_baseline = true
+  end
+  if not state.temp_files or not state.temp_files[buf] then
+    create_baseline = true
+  end
+  if create_baseline and vim.api.nvim_buf_is_valid(buf) then
     vim.cmd("checktime " .. buf)
     -- Get the entire buffer content
     current_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
@@ -126,7 +133,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
       -- Store the temp file path for this buffer
       state.temp_files[buf] = temp_file_path
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] タイマー開始時に元のバッファ内容をテンポラリファイルに保存: バッファ %d, ファイル %s, サイズ=%d文字", 
+        print(string.format("[Nudge Two Hats Debug] タイマー開始時に元のバッファ内容をテンポラリファイルに保存: バッファ %d, ファイル %s, サイズ=%d文字",
           buf, temp_file_path, #current_content))
         -- Calculate content hash for comparison
         local content_hash = 0
@@ -164,7 +171,7 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
     for _, filetype in ipairs(filetypes) do
       state.buf_content_by_filetype[buf][filetype] = current_content
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字", 
+        print(string.format("[Nudge Two Hats Debug] タイマー開始時にバッファ内容を保存: filetype=%s, サイズ=%d文字",
           filetype, #current_content))
       end
     end
@@ -297,6 +304,8 @@ function M.start_notification_timer(buf, event_name, state, stop_notification_ti
         end
       end
     end, prompt, config.purpose, state)
+    -- タイマー終了後に次の通知タイマーを再度開始
+    M.start_notification_timer(buf, "Timer", state, stop_notification_timer_func)
   end)
   
   return state.timers.notification[buf]

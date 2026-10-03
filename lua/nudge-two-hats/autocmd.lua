@@ -38,7 +38,7 @@ function M.create_autocmd(buf, state, plugin_functions)
   end
 
   -- Set up text change events to trigger notification timer
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "BufWritePost" }, {
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "TextChangedP" }, {
     group = augroup,
     buffer = buf,
     callback = function(ctx)
@@ -209,8 +209,10 @@ function M.buf_enter_callback(state, plugin_functions)
     if state.buf_filetypes[buf] then
       -- アドバイス表示用のvirtual textタイマーを開始
       plugin_functions.start_virtual_text_timer(buf)
+      -- 通知タイマーを開始（ベースラインファイルを生成）
+      plugin_functions.start_notification_timer(buf, "BufEnter")
       if config.debug_mode then
-        print(string.format("[Nudge Two Hats Debug] BufEnter: Restarted virtual text timer for buffer %d", buf))
+        print(string.format("[Nudge Two Hats Debug] BufEnter: Restarted virtual text timer and notification timer for buffer %d", buf))
       end
     end
   end
